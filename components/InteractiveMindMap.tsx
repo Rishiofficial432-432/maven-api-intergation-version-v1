@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, FileText, ZoomIn, ZoomOut, RotateCcw, BrainCircuit, X, Plus } from 'lucide-react';
 import { geminiAI } from './gemini';
@@ -583,7 +584,7 @@ const InteractiveMindMap: React.FC = () => {
                     {selectedNode && (
                         <div className="p-4 flex flex-col h-full">
                              <div className="flex items-start justify-between mb-4">
-                                <h3 className="font-bold text-lg flex items-center gap-2"><BrainCircuit size={18}/> Controls & AI</h3>
+                                <h3 className="font-bold text-lg flex items-center gap-2"><BrainCircuit size={18}/> Controls &amp; AI</h3>
                                 <button onClick={() => setSelectedNode(null)} className="p-1 hover:bg-accent rounded-md"><X size={16}/></button>
                             </div>
                             <div className="p-3 bg-secondary rounded-md mb-4">

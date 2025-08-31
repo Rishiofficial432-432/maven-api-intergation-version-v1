@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
@@ -8,6 +9,7 @@ import JournalView from './components/JournalView';
 import InteractiveMindMap from './components/InteractiveMindMap';
 import GoogleWorkspace from './components/GoogleWorkspace';
 import { geminiAI } from './components/gemini';
+// FIX: Module '"file:///components/StudentTeacherPortal"' has a default export.
 import StudentTeacherPortal from './components/StudentTeacherPortal';
 import { ToastProvider, useToast } from './components/Toast';
 import SearchPalette from './components/SearchPalette';
