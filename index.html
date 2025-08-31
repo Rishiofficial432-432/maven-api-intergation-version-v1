@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maven</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&family=Syne:wght@800&display=swap" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+      // Define process.env for the browser environment.
+      // The API Key is now managed via the Settings page and localStorage.
+      window.process = {
+        env: {
+          API_KEY: ''
+        }
+      };
+    </script>
+    <style>
+      /* Default Theme: Dark */
+      :root, .theme-dark {
+        --background: 240 10% 3.9%;
+        --foreground: 0 0% 98%;
+        --card: 240 10% 3.9%;
+        --card-foreground: 0 0% 98%;
+        --popover: 240 10% 3.9%;
+        --popover-foreground: 0 0% 98%;
+        --primary: 262 83% 58%; /* Indigo-600 */
+        --primary-foreground: 0 0% 98%;
+        --secondary: 240 3.7% 15.9%;
+        --secondary-foreground: 0 0% 98%;
+        --muted: 240 3.7% 15.9%;
+        --muted-foreground: 240 5% 64.9%;
+        --accent: 240 3.7% 15.9%;
+        --accent-foreground: 0 0% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 3.7% 15.9%;
+        --input: 240 3.7% 15.9%;
+        --ring: 262 83% 58%; /* Use primary color for ring */
+        --radius: 0.75rem;
+      }
+
+      .theme-jetblack {
+          --background: 0 0% 0%;
+          --card: 240 5% 5%;
+          --popover: 240 5% 5%;
+          --secondary: 240 5% 8%;
+          --muted: 240 5% 8%;
+          --accent: 240 5% 8%;
+          --border: 240 5% 12%;
+          --input: 240 5% 12%;
+      }
+
+      .theme-light {
+          --background: 0 0% 100%;
+          --foreground: 240 10% 3.9%;
+          --card: 0 0% 100%;
+          --card-foreground: 240 10% 3.9%;
+          --popover: 0 0% 100%;
+          --popover-foreground: 240 10% 3.9%;
+          /* Primary is same as dark */
+          --primary-foreground: 0 0% 98%;
+          --secondary: 240 4.8% 95.9%;
+          --secondary-foreground: 240 5.9% 10%;
+          --muted: 240 4.8% 95.9%;
+          --muted-foreground: 240 3.8% 46.1%;
+          --accent: 240 4.8% 95.9%;
+          --accent-foreground: 240 5.9% 10%;
+          --destructive: 0 84.2% 60.2%;
+          --destructive-foreground: 0 0% 98%;
+          --border: 240 5.9% 90%;
+          --input: 240 5.9% 90%;
+          --ring: 262 83% 58%;
+      }
+
+      .theme-midlight {
+          --background: 40 33% 94%; /* A soft, off-white with a hint of warmth */
+          --foreground: 20 15% 25%;
+          --card: 40 50% 91%;
+          --card-foreground: 20 15% 25%;
+          --popover: 40 33% 94%;
+          --popover-foreground: 20 15% 25%;
+          --primary: 195 85% 41%; /* A nice blue */
+          --primary-foreground: 0 0% 100%;
+          --secondary: 40 30% 88%;
+          --secondary-foreground: 20 12% 35%;
+          --muted: 40 30% 88%;
+          --muted-foreground: 20 10% 55%;
+          --accent: 40 30% 88%;
+          --accent-foreground: 20 12% 35%;
+          --destructive: 0 72% 51%;
+          --destructive-foreground: 0 0% 100%;
+          --border: 40 25% 80%;
+          --input: 40 25% 80%;
+          --ring: 195 85% 41%;
+      }
+
+      .theme-midnight {
+        --background: 220 13% 10%;
+        --foreground: 210 20% 98%;
+        --card: 220 13% 14%;
+        --card-foreground: 210 20% 98%;
+        --popover: 220 13% 14%;
+        --popover-foreground: 210 20% 98%;
+        --primary: 210 90% 60%;
+        --primary-foreground: 210 20% 10%;
+        --secondary: 220 13% 18%;
+        --secondary-foreground: 210 20% 98%;
+        --muted: 220 13% 18%;
+        --muted-foreground: 220 9% 65%;
+        --accent: 220 13% 22%;
+        --accent-foreground: 210 20% 98%;
+        --destructive: 0 72% 51%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 220 13% 22%;
+        --input: 220 13% 26%;
+        --ring: 210 90% 60%;
+      }
+
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        animation: fadeIn 0.5s ease-in-out;
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes fadeInOut {
+        0% { opacity: 0; transform: translateY(-10px); }
+        10%, 90% { opacity: 1; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(-10px); }
+      }
+      .animate-fade-in-out {
+        animation: fadeInOut 4s ease-in-out forwards;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(20,20,22,0.5);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #404040;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #525252;
+      }
+      /* Styles for the new rich content editor */
+      [contenteditable][placeholder]:empty:before {
+        content: attr(placeholder);
+        color: hsl(var(--muted-foreground));
+        pointer-events: none;
+        display: block;
+      }
+      .editor-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: var(--radius);
+        margin: 1rem 0;
+        cursor: pointer;
+        transition: box-shadow 0.2s ease;
+      }
+       .editor-content img:hover {
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+      }
+      .editor-content iframe {
+        max-width: 100%;
+        border-radius: var(--radius);
+        margin: 1rem 0;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai?pin=v0.15.0",
+    "react": "https://esm.sh/react@19.0.0-rc-f994737d14-20240522",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0-rc-f994737d14-20240522/client",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "lucide-react": "https://esm.sh/lucide-react@0.408.0",
+    "qrcode": "https://esm.sh/qrcode@1.5.3",
+    "html5-qrcode": "https://esm.sh/html5-qrcode@2.3.8",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.44.2"
+  }
+}
+</script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            border: 'hsl(var(--border))',
+            input: 'hsl(var(--input))',
+            ring: 'hsl(var(--ring))',
+            background: 'hsl(var(--background))',
+            foreground: 'hsl(var(--foreground))',
+            primary: {
+              DEFAULT: 'hsl(var(--primary))',
+              foreground: 'hsl(var(--primary-foreground))',
+            },
+            secondary: {
+              DEFAULT: 'hsl(var(--secondary))',
+              foreground: 'hsl(var(--secondary-foreground))',
+            },
+            destructive: {
+              DEFAULT: 'hsl(var(--destructive))',
+              foreground: 'hsl(var(--destructive-foreground))',
+            },
+            muted: {
+              DEFAULT: 'hsl(var(--muted))',
+              foreground: 'hsl(var(--muted-foreground))',
+            },
+            accent: {
+              DEFAULT: 'hsl(var(--accent))',
+              foreground: 'hsl(var(--accent-foreground))',
+            },
+            popover: {
+              DEFAULT: 'hsl(var(--popover))',
+              foreground: 'hsl(var(--popover-foreground))',
+            },
+            card: {
+              DEFAULT: 'hsl(var(--card))',
+              foreground: 'hsl(var(--card-foreground))',
+            },
+          },
+          borderRadius: {
+              lg: "var(--radius)",
+              md: "calc(var(--radius) - 2px)",
+              sm: "calc(var(--radius) - 4px)",
+          },
+        }
+      }
+    }
+  </script>
+</head>
+  <body class="bg-background text-foreground font-sans">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
