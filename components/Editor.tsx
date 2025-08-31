@@ -267,13 +267,13 @@ const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNew
         <div className="flex-1 flex flex-col overflow-y-auto" key={page.id}>
             <Banner page={page} onUpdatePage={onUpdatePage}/>
             <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-8 py-8 flex flex-col">
-                <div className="flex items-center justify-between mb-4 gap-4">
+                <div className="flex flex-wrap items-center justify-between mb-4 gap-4">
                     <input
                         type="text"
                         value={title}
                         onChange={handleTitleChange}
                         placeholder="Untitled Page"
-                        className="w-full bg-transparent text-4xl font-bold text-foreground placeholder-muted-foreground focus:outline-none"
+                        className="w-full sm:flex-1 bg-transparent text-4xl font-bold text-foreground placeholder-muted-foreground focus:outline-none"
                         aria-label="Page title"
                     />
                     <div className="flex items-center gap-1 flex-shrink-0">

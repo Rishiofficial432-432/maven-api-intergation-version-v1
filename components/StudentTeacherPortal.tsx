@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
-import { CheckCircle, Clock, Loader, LogOut, Info, WifiOff, Users, GraduationCap, User as UserIcon, XCircle, Edit, Save, Plus, Trash2, Camera, Mail, Lock, BookOpen } from 'lucide-react';
+import { CheckCircle, Clock, Loader, LogOut, Info, WifiOff, Users, GraduationCap, User as UserIcon, XCircle, Edit, Save, Plus, Trash2, Camera, Mail, Lock, BookOpen, Smartphone, ShieldCheck } from 'lucide-react';
 import { supabase } from './firebase-config';
 
 // --- TYPES ---
@@ -12,6 +12,7 @@ interface User {
     email: string | null;
     role: 'teacher' | 'student';
     enrollment_id: string | null;
+    phone: string | null;
     password?: string;
 }
 
@@ -55,8 +56,10 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
     const [activeSession, setActiveSession] = useState<Session | null>(null);
     const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
     const [editingName, setEditingName] = useState('');
+    const [editingPhone, setEditingPhone] = useState('');
     const [newStudentName, setNewStudentName] = useState('');
     const [newStudentEnrollment, setNewStudentEnrollment] = useState('');
+    const [newStudentPhone, setNewStudentPhone] = useState('');
     const [error, setError] = useState<string | null>(null);
 
     const loadStudents = useCallback(async () => {
@@ -145,20 +148,21 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
         setError(null);
         if (!supabase || !newStudentName.trim() || !newStudentEnrollment.trim()) return;
 
-        const { error } = await supabase.from('portal_users').insert({ name: newStudentName, enrollment_id: newStudentEnrollment, role: 'student' });
+        const { error } = await supabase.from('portal_users').insert({ name: newStudentName, enrollment_id: newStudentEnrollment, phone: newStudentPhone, role: 'student' });
         if (error) {
             setError(`Failed to add student: ${error.message}`);
             console.error(error);
         } else {
             setNewStudentName('');
             setNewStudentEnrollment('');
+            setNewStudentPhone('');
             loadStudents();
         }
     };
     
     const handleSaveEdit = async (studentId: number) => {
         if (!supabase) return;
-        const { error } = await supabase.from('portal_users').update({ name: editingName }).eq('id', studentId);
+        const { error } = await supabase.from('portal_users').update({ name: editingName, phone: editingPhone }).eq('id', studentId);
         if(error) { console.error(error); } 
         else {
             setEditingStudentId(null);
@@ -174,7 +178,7 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
     }
     
     return (
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 h-full overflow-y-auto">
+        <div className="p-2 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 h-full overflow-y-auto">
             <div className="relative lg:col-span-1 flex flex-col items-center justify-center bg-card border border-border rounded-xl p-6 text-center">
                 <button onClick={onLogout} className="absolute top-4 right-4 text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"><LogOut size={14}/> Logout</button>
                 <h2 className="text-xl font-bold mb-4">Attendance Session</h2>
@@ -200,12 +204,12 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
                     <button onClick={startSession} className="bg-primary text-primary-foreground py-3 px-6 rounded-lg text-lg">Start New Session</button>
                 )}
             </div>
-            <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 flex flex-col">
+            <div className="lg:col-span-2 bg-card border border-border rounded-xl p-4 sm:p-6 flex flex-col">
                 <h2 className="text-xl font-bold mb-4">Live Student Roster</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 text-center">
-                    <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold">{students.length}</p><p className="text-sm text-muted-foreground">Total Students</p></div>
-                    <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold text-green-500">{presentStudents.size}</p><p className="text-sm text-muted-foreground">Present</p></div>
-                    <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold text-destructive">{students.length - presentStudents.size}</p><p className="text-sm text-muted-foreground">Absent</p></div>
+                <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4 text-center">
+                    <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold">{students.length}</p><p className="text-xs sm:text-sm text-muted-foreground">Total Students</p></div>
+                    <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold text-green-500">{presentStudents.size}</p><p className="text-xs sm:text-sm text-muted-foreground">Present</p></div>
+                    <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold text-destructive">{students.length - presentStudents.size}</p><p className="text-xs sm:text-sm text-muted-foreground">Absent</p></div>
                 </div>
                 <div className="flex-1 overflow-y-auto space-y-2 pr-2 mb-4">
                     {students.map(student => {
@@ -214,18 +218,21 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
                         return (
                             <div key={student.id} className={`flex items-center justify-between p-3 rounded-lg transition-colors duration-300 ${isPresent ? 'bg-green-500/10' : 'bg-secondary/50'}`}>
                                 {isEditing ? (
-                                    <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} className="bg-input border-border rounded-md px-2 py-1 text-sm" autoFocus/>
+                                    <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                                        <input type="text" value={editingName} onChange={(e) => setEditingName(e.target.value)} className="bg-input border-border rounded-md px-2 py-1 text-sm w-full sm:w-auto flex-grow" autoFocus/>
+                                        <input type="tel" value={editingPhone} onChange={(e) => setEditingPhone(e.target.value)} placeholder="Phone number" className="bg-input border-border rounded-md px-2 py-1 text-sm w-full sm:w-auto" />
+                                    </div>
                                 ) : (
                                     <div className="flex flex-col">
                                         <span className="font-medium">{student.name}</span>
-                                        <span className="text-xs text-muted-foreground">{student.enrollment_id}</span>
+                                        <span className="text-xs text-muted-foreground">{student.enrollment_id} {student.phone && `• ${student.phone}`}</span>
                                     </div>
                                 )}
                                 <div className="flex items-center gap-2">
                                     {isEditing ? (
                                         <button onClick={() => handleSaveEdit(student.id)} className="p-1.5 hover:bg-accent rounded-md"><Save size={16} className="text-primary"/></button>
                                     ) : (
-                                        <button onClick={() => { setEditingStudentId(student.id); setEditingName(student.name); }} className="p-1.5 hover:bg-accent rounded-md"><Edit size={16}/></button>
+                                        <button onClick={() => { setEditingStudentId(student.id); setEditingName(student.name); setEditingPhone(student.phone || ''); }} className="p-1.5 hover:bg-accent rounded-md"><Edit size={16}/></button>
                                     )}
                                     <button onClick={() => handleDeleteStudent(student.id)} className="p-1.5 hover:bg-accent rounded-md"><Trash2 size={16} className="text-destructive"/></button>
                                     {isPresent ? <CheckCircle className="text-green-500" /> : <XCircle className="text-muted-foreground" />}
@@ -234,11 +241,12 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
                         )
                     })}
                 </div>
-                 <form onSubmit={handleAddStudent} className="flex flex-wrap gap-2 pt-4 border-t border-border">
+                 <form onSubmit={handleAddStudent} className="flex flex-col sm:flex-row flex-wrap gap-2 pt-4 border-t border-border">
                     <h3 className="text-md font-semibold w-full mb-1">Add New Student</h3>
                      {error && <p className="text-destructive text-sm w-full">{error}</p>}
                     <input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Student name" required className="flex-1 min-w-[150px] bg-input border-border rounded-md px-3 py-2"/>
                     <input type="text" value={newStudentEnrollment} onChange={e => setNewStudentEnrollment(e.target.value)} placeholder="Enrollment ID" required className="flex-1 min-w-[150px] bg-input border-border rounded-md px-3 py-2"/>
+                    <input type="tel" value={newStudentPhone} onChange={e => setNewStudentPhone(e.target.value)} placeholder="Phone (for OTP)" className="flex-1 min-w-[150px] bg-input border-border rounded-md px-3 py-2"/>
                     <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-1"><Plus size={16}/> Add</button>
                 </form>
             </div>
@@ -309,7 +317,7 @@ const AuthScreen: React.FC<{ onLogin: (user: User) => void, onDbError: () => voi
     };
 
     return (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex items-center justify-center h-full p-4">
             <div className="w-full max-w-sm bg-card border border-border rounded-xl p-8 text-center">
                 <Users size={40} className="text-primary mx-auto mb-4"/>
                 <h1 className="text-2xl font-bold mb-2">{mode === 'login' ? 'Teacher Portal Login' : 'Create Teacher Account'}</h1>
@@ -346,11 +354,15 @@ const AuthScreen: React.FC<{ onLogin: (user: User) => void, onDbError: () => voi
 };
 
 const StudentCheckinFlow: React.FC = () => {
-    const [view, setView] = useState<'scan' | 'register' | 'status'>('scan');
+    const [view, setView] = useState<'scan' | 'manual_form' | 'otp_form' | 'status'>('scan');
     const [statusInfo, setStatusInfo] = useState({ title: '', message: '', type: 'loading' as 'loading' | 'success' | 'info' | 'error' });
-    const [scannedSessionId, setScannedSessionId] = useState<string | null>(null);
+    const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
     const [scannerError, setScannerError] = useState<string | null>(null);
     const [isScanning, setIsScanning] = useState(false);
+    const [manualFormError, setManualFormError] = useState<string|null>(null);
+    const [studentForOtp, setStudentForOtp] = useState<User|null>(null);
+    const [generatedOtp, setGeneratedOtp] = useState<string|null>(null);
+
     const scannerRef = useRef<Html5Qrcode | null>(null);
 
     const markAttendance = useCallback(async (student: User, sessionId: string) => {
@@ -377,9 +389,7 @@ const StudentCheckinFlow: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (view !== 'scan' || !isScanning) {
-            return;
-        }
+        if (view !== 'scan' || !isScanning) return;
 
         const qrScanner = new Html5Qrcode("qr-reader");
         scannerRef.current = qrScanner;
@@ -388,47 +398,28 @@ const StudentCheckinFlow: React.FC = () => {
         const onScanSuccess = (decodedText: string) => {
             if (didScan) return;
             didScan = true;
-
-            qrScanner.stop()
-                .then(() => {
-                    setIsScanning(false);
-                    try {
-                        const url = new URL(decodedText);
-                        const sessionId = url.searchParams.get('session');
-                        if (sessionId) {
-                            setScannedSessionId(sessionId);
-                            const storedStudent = localStorage.getItem('portal-student-profile');
-                            if (storedStudent) {
-                                markAttendance(JSON.parse(storedStudent), sessionId);
-                            } else {
-                                setView('register');
-                            }
-                        } else {
-                             setScannerError("The scanned QR code is not a valid session link.");
-                             setIsScanning(false);
-                        }
-                    } catch (e) {
-                        console.warn("Scanned QR is not a valid URL.");
-                        setScannerError("The scanned QR code is not a valid session link.");
-                        setIsScanning(false);
+            qrScanner.stop().finally(() => {
+                setIsScanning(false);
+                try {
+                    const url = new URL(decodedText);
+                    const sessionId = url.searchParams.get('session');
+                    if (sessionId) {
+                        markAttendance({id: 0, name: "QR Student", created_at: "", email: null, role: "student", enrollment_id: "QR_SCAN", phone: null}, sessionId);
+                    } else {
+                         setScannerError("The scanned QR code is not a valid session link.");
                     }
-                })
-                .catch(err => {
-                    console.error("Failed to stop scanner after success", err);
-                    setIsScanning(false);
-                });
+                } catch (e) {
+                    setScannerError("The scanned QR code is not a valid session link.");
+                }
+            });
         };
         
         qrScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess, undefined)
             .catch(err => {
-                console.error("QR Scanner Error:", err);
-                let errorMessage = "An error occurred while starting the camera. Please try again.";
-                if (err.name === 'NotAllowedError' || err.toString().includes('Permission')) {
-                    errorMessage = "Camera permission was denied. To use the scanner, please go to your browser's site settings and grant camera access for this page.";
-                } else if (err.name === 'NotFoundError') {
-                     errorMessage = "No camera found on this device. Please use a device with a camera.";
-                }
-                setScannerError(errorMessage);
+                let msg = "Camera error. Please grant permission and try again.";
+                if (err.name === 'NotAllowedError') msg = "Camera permission denied. Please grant access in your browser settings.";
+                else if (err.name === 'NotFoundError') msg = "No camera found on this device.";
+                setScannerError(msg);
                 setIsScanning(false);
             });
 
@@ -439,27 +430,54 @@ const StudentCheckinFlow: React.FC = () => {
         };
     }, [view, isScanning, markAttendance]);
 
-    const handleRegistration = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (!supabase || !scannedSessionId) return;
-        
-        const formData = new FormData(e.currentTarget);
-        const name = formData.get('name') as string;
-        const enrollmentId = formData.get('enrollment_id') as string;
-
+    const handleManualCheckinClick = async () => {
+        if (!supabase) return;
         setView('status');
-        setStatusInfo({ title: 'Registering...', message: 'Creating your profile...', type: 'loading' });
+        setStatusInfo({ title: 'Finding Session...', message: 'Locating an active attendance session...', type: 'loading'});
+
+        const { data, error } = await supabase.from('portal_sessions').select('*').eq('is_active', true).single();
+        if (error || !data || new Date(data.expires_at).getTime() < Date.now()) {
+            setStatusInfo({ title: 'No Active Session', message: 'Could not find an active attendance session. Please ask your teacher to start one.', type: 'error'});
+        } else {
+            setActiveSessionId(data.id);
+            setView('manual_form');
+        }
+    };
+    
+    const handleManualFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if(!supabase) return;
+        setManualFormError(null);
+        const formData = new FormData(e.currentTarget);
+        const enrollmentId = formData.get('enrollment_id') as string;
         
-        const { data: userData, error: userError } = await supabase.from('portal_users').upsert({ name, enrollment_id: enrollmentId, role: 'student' }, { onConflict: 'enrollment_id' }).select().single();
-        
-        if (userError || !userData) {
-            setStatusInfo({ title: 'Registration Failed', message: userError?.message || 'Could not create or find your profile.', type: 'error' });
+        const { data: student, error } = await supabase.from('portal_users').select('*').eq('enrollment_id', enrollmentId).single();
+
+        if (error || !student || !student.phone) {
+            setManualFormError("Student not found or no phone number is registered. Please contact your teacher.");
             return;
         }
-
-        localStorage.setItem('portal-student-profile', JSON.stringify(userData));
-        await markAttendance(userData, scannedSessionId);
+        
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedOtp(otp);
+        setStudentForOtp(student as User);
+        
+        alert(`For demonstration purposes, your OTP is: ${otp}\n(This would normally be sent to ${student.phone})`);
+        setView('otp_form');
     };
+
+    const handleOtpSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const otp = formData.get('otp') as string;
+
+        if (otp === generatedOtp && studentForOtp && activeSessionId) {
+            markAttendance(studentForOtp, activeSessionId);
+        } else {
+            setStatusInfo({ title: 'Verification Failed', message: 'The OTP you entered was incorrect. Please try again.', type: 'error' });
+        }
+    };
+
 
     const statusIcons: Record<typeof statusInfo.type, React.ReactNode> = {
         loading: <Loader className="animate-spin text-primary" />,
@@ -469,7 +487,7 @@ const StudentCheckinFlow: React.FC = () => {
     };
 
     return (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex items-center justify-center h-full p-4">
             <div className={`w-full max-w-sm bg-card border border-border rounded-xl p-8 text-center transition-all duration-300 ${statusInfo.type === 'success' ? 'border-green-500/50' : statusInfo.type === 'error' ? 'border-destructive/50' : ''}`}>
                 {view === 'scan' && (
                     <>
@@ -483,6 +501,11 @@ const StudentCheckinFlow: React.FC = () => {
                                 Start Scanning
                             </button>
                         )}
+                         <div className="mt-4 text-center text-sm">
+                            <button onClick={handleManualCheckinClick} className="text-primary font-semibold hover:underline">
+                                Having trouble? Check in manually
+                            </button>
+                        </div>
                         {scannerError && (
                             <div className="mt-4 p-3 bg-destructive/10 text-destructive text-sm rounded-lg text-center">
                                 <p>{scannerError}</p>
@@ -490,21 +513,33 @@ const StudentCheckinFlow: React.FC = () => {
                         )}
                     </>
                 )}
-                {view === 'register' && (
+                {view === 'manual_form' && (
                      <>
                         <UserIcon size={40} className="text-primary mx-auto mb-4"/>
-                        <h1 className="text-2xl font-bold mb-2">Welcome!</h1>
-                        <p className="text-muted-foreground mb-6">Let's get you checked in. Please enter your details.</p>
-                        <form onSubmit={handleRegistration} className="space-y-4 text-left">
-                            <div>
-                                <label className="text-sm font-medium">Full Name</label>
-                                <input name="name" type="text" required className="w-full bg-input border-border rounded-md px-3 py-2 mt-1"/>
-                            </div>
+                        <h1 className="text-2xl font-bold mb-2">Manual Check-in</h1>
+                        <p className="text-muted-foreground mb-6">Enter your enrollment ID to receive a verification code.</p>
+                        <form onSubmit={handleManualFormSubmit} className="space-y-4 text-left">
                             <div>
                                 <label className="text-sm font-medium">Enrollment / Student ID</label>
                                 <input name="enrollment_id" type="text" required className="w-full bg-input border-border rounded-md px-3 py-2 mt-1"/>
                             </div>
-                            <button type="submit" className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg">Submit & Check In</button>
+                             {manualFormError && <p className="text-destructive text-sm text-center">{manualFormError}</p>}
+                            <button type="submit" className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg">Get OTP</button>
+                        </form>
+                         <button onClick={() => setView('scan')} className="mt-4 text-sm text-muted-foreground hover:underline">Back to scanner</button>
+                    </>
+                )}
+                 {view === 'otp_form' && (
+                     <>
+                        <ShieldCheck size={40} className="text-primary mx-auto mb-4"/>
+                        <h1 className="text-2xl font-bold mb-2">Enter Verification Code</h1>
+                        <p className="text-muted-foreground mb-6">A 6-digit code was sent to your registered phone number.</p>
+                        <form onSubmit={handleOtpSubmit} className="space-y-4 text-left">
+                            <div>
+                                <label className="text-sm font-medium">6-Digit OTP</label>
+                                <input name="otp" type="tel" maxLength={6} required className="w-full bg-input border-border rounded-md px-3 py-2 mt-1 text-center text-lg tracking-[0.5em]"/>
+                            </div>
+                            <button type="submit" className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg">Verify & Check In</button>
                         </form>
                     </>
                 )}
@@ -512,9 +547,9 @@ const StudentCheckinFlow: React.FC = () => {
                     <>
                         <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center text-5xl transform scale-100 transition-transform duration-500 ease-out">{statusIcons[statusInfo.type]}</div>
                         <h1 className="text-2xl font-bold mb-2">{statusInfo.title}</h1>
-                        <p className="text-muted-foreground mb-6 min-h-10">{statusInfo.message}</p>
+                        <p className="text-muted-foreground mb-6 min-h-[2.5rem]">{statusInfo.message}</p>
                         {statusInfo.type !== 'loading' && (
-                            <button onClick={() => { setView('scan'); setIsScanning(false); setScannerError(null); }} className="w-full bg-secondary hover:bg-accent py-2.5 rounded-lg">Scan Again</button>
+                            <button onClick={() => { setView('scan'); setIsScanning(false); setScannerError(null); }} className="w-full bg-secondary hover:bg-accent py-2.5 rounded-lg">Back to Home</button>
                         )}
                     </>
                 )}
@@ -568,6 +603,7 @@ CREATE TABLE public.portal_users (
   email TEXT UNIQUE,
   role TEXT NOT NULL CHECK (role IN ('teacher', 'student')),
   enrollment_id TEXT,
+  phone TEXT,
   password TEXT
 );
 CREATE UNIQUE INDEX idx_unique_enrollment ON public.portal_users (enrollment_id) WHERE role = 'student';
@@ -591,7 +627,7 @@ CREATE TABLE public.portal_attendance (
 );
 
 -- Insert a default teacher for the demo. Password is 'password123'
-INSERT INTO public.portal_users (name, email, role, password) VALUES ('Teacher Demo', 'teacher@demo.com', 'teacher', 'password123');
+INSERT INTO public.portal_users (name, email, role, password, phone) VALUES ('Teacher Demo', 'teacher@demo.com', 'teacher', 'password123', null);
 
 -- Enable Row Level Security (RLS) and create public policies for the demo
 ALTER TABLE public.portal_users ENABLE ROW LEVEL SECURITY;
@@ -654,7 +690,7 @@ const AboutPortalView: React.FC = () => {
                 </InfoCard>
                  <InfoCard icon={<UserIcon size={24}/>} title="For Students">
                     <Step num={1} title="Scan the Code">Use your phone's camera to scan the QR code your teacher displays.</Step>
-                    <Step num={2} title="One-Time Registration">The first time, you'll enter your name and ID. The app securely remembers you on this device.</Step>
+                    <Step num={2} title="Manual Fallback">If scanning fails, use the "Check in manually" option with your ID to get a secure OTP on your registered phone.</Step>
                     <Step num={3} title="Instant Check-in">After that, just scan the code, and you're instantly marked as 'Present'. You'll see a confirmation.</Step>
                     <Step num={4} title="No App Needed">Everything works in your phone's web browser, no downloads required.</Step>
                 </InfoCard>
@@ -766,20 +802,20 @@ const StudentTeacherPortal: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-full bg-background p-4 sm:p-6">
-            <div className="flex justify-center mb-6 border-b border-border">
+        <div className="flex flex-col h-full bg-background p-2 sm:p-6">
+            <div className="flex justify-center mb-4 sm:mb-6 border-b border-border">
                 {navItems.map(item => (
                     <button
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors
+                        className={`flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium border-b-2 transition-colors
                         ${activeTab === item.id 
                             ? 'border-primary text-primary' 
                             : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                     >
                         {item.icon}
-                        {item.label}
+                        <span className="hidden sm:inline">{item.label}</span>
                     </button>
                 ))}
             </div>
