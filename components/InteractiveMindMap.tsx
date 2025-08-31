@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, FileText, ZoomIn, ZoomOut, RotateCcw, BrainCircuit, X, Plus } from 'lucide-react';
 import { geminiAI } from './gemini';
@@ -152,26 +153,107 @@ const generateMindMap = (content: string, title: string): MindMapData => {
         Object.assign(node, { width, height, lines });
     });
 
+    // --- NEW: Smart Layout Algorithm ---
+    
+    // 1. Build a tree structure for easier traversal
+    const childrenMap = new Map<number, MindMapNodeData[]>();
+    nodes.forEach(node => {
+        if (node.parentId !== undefined) {
+            if (!childrenMap.has(node.parentId)) {
+                childrenMap.set(node.parentId, []);
+            }
+            childrenMap.get(node.parentId)!.push(node);
+        }
+    });
 
-    const positionNodes = (rootId: number, startAngle: number, endAngle: number) => {
-        const children = nodes.filter(n => n.parentId === rootId);
+    // 2. First Pass (bottom-up): Calculate subtree angular width for each node
+    const subtreeAngles = new Map<number, number>();
+    const minAngle = 0.2; // Minimum radians for a leaf node
+
+    function calculateSubtreeAngle(nodeId: number): number {
+        if (subtreeAngles.has(nodeId)) {
+            return subtreeAngles.get(nodeId)!;
+        }
+
+        const children = childrenMap.get(nodeId) || [];
+        if (children.length === 0) {
+            const node = nodes.find(n => n.id === nodeId)!;
+            // Leaf node angle is based on its size to prevent overlap
+            const angle = Math.max(minAngle, (node.width / 250));
+            subtreeAngles.set(nodeId, angle);
+            return angle;
+        }
+
+        let totalAngle = 0;
+        for (const child of children) {
+            totalAngle += calculateSubtreeAngle(child.id);
+        }
+
+        // Add some padding between subtrees
+        totalAngle += (children.length - 1) * 0.05;
+        subtreeAngles.set(nodeId, totalAngle);
+        return totalAngle;
+    }
+
+    calculateSubtreeAngle(0);
+
+    // 3. Second Pass (top-down): Position nodes
+    function positionNodesRecursive(nodeId: number, startAngle: number, endAngle: number) {
+        const children = childrenMap.get(nodeId) || [];
         if (children.length === 0) return;
 
-        const parentNode = nodes.find(n => n.id === rootId)!;
-        const angleStep = (endAngle - startAngle) / children.length;
+        const parentNode = nodes.find(n => n.id === nodeId)!;
+        
+        // Use the pre-calculated total angle, but scale it to the available angular slice
+        const totalSubtreeAngle = Math.max(subtreeAngles.get(nodeId)!, 0.1);
+        const availableAngle = endAngle - startAngle;
+        let currentAngle = startAngle;
 
-        children.forEach((child, index) => {
-            const angle = startAngle + (index + 0.5) * angleStep;
-            const radius = 100 + parentNode.width / 2 + child.width / 2 + (child.level * 40);
+        for (const child of children) {
+            const childSubtreeAngle = subtreeAngles.get(child.id)!;
+            const angleSlice = (childSubtreeAngle / totalSubtreeAngle) * availableAngle;
+            const angle = currentAngle + angleSlice / 2;
+
+            // Radius increases with level and accounts for node sizes to prevent overlap
+            const radius = (parentNode.level * 120) + Math.max(parentNode.width, parentNode.height) / 2 + Math.max(child.width, child.height) / 2 + 50;
 
             child.x = parentNode.x + Math.cos(angle) * radius;
             child.y = parentNode.y + Math.sin(angle) * radius;
-            
-            positionNodes(child.id, angle - angleStep / 2, angle + angleStep / 2);
-        });
-    };
 
-    positionNodes(0, 0, 2 * Math.PI);
+            positionNodesRecursive(child.id, currentAngle, currentAngle + angleSlice);
+            currentAngle += angleSlice;
+        }
+    }
+
+    const rootNodeLayout = nodes.find(n => n.id === 0)!;
+    rootNodeLayout.x = 0;
+    rootNodeLayout.y = 0;
+    // If the total angle is less than a full circle, use a full circle to spread out direct children
+    const rootTotalAngle = subtreeAngles.get(0) || 2 * Math.PI;
+    const totalAngleForRoot = Math.max(rootTotalAngle, 2 * Math.PI);
+    positionNodesRecursive(0, 0, totalAngleForRoot);
+
+    // 4. Center the entire mind map
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    nodes.forEach(node => {
+        const nodeMinX = node.x - node.width / 2;
+        const nodeMaxX = node.x + node.width / 2;
+        const nodeMinY = node.y - node.height / 2;
+        const nodeMaxY = node.y + node.height / 2;
+        if (nodeMinX < minX) minX = nodeMinX;
+        if (nodeMaxX > maxX) maxX = nodeMaxX;
+        if (nodeMinY < minY) minY = nodeMinY;
+        if (nodeMaxY > maxY) maxY = nodeMaxY;
+    });
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    nodes.forEach(node => {
+        node.x -= centerX;
+        node.y -= centerY;
+    });
+    // --- END: Smart Layout Algorithm ---
 
     return { nodes, connections, title };
 };

@@ -141,7 +141,7 @@ const AIBrainDump: React.FC<AIBrainDumpProps> = ({ onAddTask, onAddEvent, onAddQ
         setResult(null);
 
         const today = new Date().toISOString().split('T')[0];
-        const prompt = `You are a productivity assistant for an app called Maven. Analyze the following unstructured text, which is a 'brain dump' from a user. Your goal is to extract actionable items and categorize them.
+        const prompt = `You are an automated text processing engine for an app called Maven. Analyze the following unstructured text, which is a 'brain dump' from a user. Your sole function is to extract actionable items and categorize them according to the provided JSON schema.
 
 - Identify specific to-do items and list them as tasks.
 - Identify calendar events. Infer dates and times where possible. If a specific date isn't mentioned (e.g., "tomorrow", "next Wednesday"), calculate the date based on today's date, which is ${today}. If no time is mentioned, use a sensible default like "12:00". Format dates as YYYY-MM-DD and times as HH:MM (24-hour).
@@ -153,7 +153,7 @@ The user's text is:
 ${input}
 ---
 
-Structure your response strictly as a JSON object matching the provided schema. If a category has no items, you can omit the key or provide an empty array.`;
+Structure your response strictly as a JSON object matching the provided schema. Do not add any conversational text, greetings, or explanations. Behave as a silent, efficient text processor. If a category has no items, you can omit the key or provide an empty array.`;
 
         const schema = {
             type: Type.OBJECT,

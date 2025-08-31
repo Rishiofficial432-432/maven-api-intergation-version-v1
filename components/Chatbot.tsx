@@ -355,7 +355,7 @@ const Chatbot: React.FC<ChatbotProps> = (props) => {
               parts: msg.parts.map(part => ({ text: part.text as string }))
           })),
           config: {
-            systemInstruction: "You are a helpful and versatile AI assistant for the Maven application. Your primary role is to help users manage their tasks, notes, events, and other productivity features by using the available tools. You can also engage in general conversation on any topic the user wishes to discuss. Be friendly, conversational, and efficient.",
+            systemInstruction: "You are Maven's AI assistant. Your role is to execute specific, individual commands using the provided tools, like adding a single task or scheduling one event. You are a conversational, command-based assistant. You must not analyze or categorize large, unstructured blocks of mixed text. If a user pastes a large 'brain dump' and asks you to sort it, you must politely decline and direct them to use the dedicated 'AI Brain Dump' feature in the Dashboard. You can also engage in general conversation on any topic.",
             tools
           }
         });
