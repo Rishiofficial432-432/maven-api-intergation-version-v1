@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
@@ -21,7 +22,8 @@ interface Session {
     id: string; // UUID
     created_at: string;
     expires_at: string;
-    teacher_id: number;
+    // FIX: Updated teacher_id to be nullable to match database schema for better type safety.
+    teacher_id: number | null;
     is_active: boolean;
 }
 
@@ -68,7 +70,8 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
         if (!supabase) return;
         const { data, error } = await supabase.from('portal_users').select('*').eq('role', 'student').order('name');
         if (error) { console.error("Error fetching students:", error); }
-        else { setStudents(data || []); }
+        // FIX: Cast Supabase data to the local User type to resolve role property mismatch ('string' vs. 'student' | 'teacher').
+        else { setStudents((data as User[]) || []); }
     }, []);
 
     const endSession = useCallback(async (sessionId?: string) => {
@@ -94,7 +97,7 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
         }
 
         if (data && new Date(data.expires_at).getTime() > Date.now()) {
-            setActiveSession(data);
+            setActiveSession(data as Session);
             const url = `${window.location.origin}${window.location.pathname}?session=${data.id}`;
             QRCode.toDataURL(url, { width: 300, margin: 1 }).then(setQrCode);
         } else if (data) {
@@ -138,7 +141,6 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes session
         
         const { data, error } = await supabase.from('portal_sessions').insert({ expires_at: expiresAt.toISOString(), teacher_id: teacher.id }).select().single();
-        // FIX: Check if data is null after insert
         if (error || !data) {
             setError(`Failed to start session: ${error?.message || 'Could not retrieve session data.'}`);
             setIsStartingSession(false);
@@ -148,7 +150,7 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
         const url = `${window.location.origin}${window.location.pathname}?session=${data.id}`;
         const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 1 });
         setQrCode(qrDataUrl);
-        setActiveSession(data);
+        setActiveSession(data as Session);
         setPresentStudents(new Set());
         setIsStartingSession(false);
     };
@@ -192,7 +194,7 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
 
     return (
       <div className="flex flex-col md:flex-row h-full bg-secondary/30">
-        <aside className="w-full md:w-80 lg:w-96 bg-card p-4 md:p-6 flex flex-col border-r border-border flex-shrink-0">
+        <aside className="w-full md:w-80 lg:w-96 bg-card p-4 md:p-6 flex flex-col border-b md:border-b-0 md:border-r border-border flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center"><UserIcon size={20}/></div>
@@ -207,7 +209,7 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
             {activeSession && qrCode ? (
                 <>
                     <h3 className="font-semibold mb-2">Session is Live</h3>
-                    <img src={qrCode} alt="Attendance QR Code" className="rounded-lg border-4 border-white shadow-lg"/>
+                    <img src={qrCode} alt="Attendance QR Code" className="rounded-lg border-4 border-white shadow-lg w-full max-w-[250px]"/>
                     <div className="mt-4 flex items-center gap-3 bg-card px-4 py-2 rounded-full">
                         <Clock size={20} className="text-primary"/>
                         <Timer endTime={activeSession.expires_at} onEnd={() => checkActiveSession()} />
@@ -226,20 +228,20 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
             </div>
         </aside>
         <main className="flex-1 p-4 md:p-6 flex flex-col overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
                 <h2 className="text-xl font-bold">Student Roster ({students.length})</h2>
             </div>
             {error && <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-4 flex items-center justify-between"><span>{error}</span><button onClick={() => setError(null)}><X size={16}/></button></div>}
             
-            <form onSubmit={handleAddStudent} className="flex flex-wrap gap-2 items-end mb-4 p-4 bg-secondary/50 rounded-lg">
-                <div className="flex-1 min-w-[150px]"><label className="text-xs text-muted-foreground">Name</label><input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Full Name" required className="w-full bg-input border-border rounded-md px-3 py-2 mt-1"/></div>
-                <div className="flex-1 min-w-[120px]"><label className="text-xs text-muted-foreground">Enrollment ID</label><input type="text" value={newStudentEnrollment} onChange={e => setNewStudentEnrollment(e.target.value)} placeholder="Enrollment ID" required className="w-full bg-input border-border rounded-md px-3 py-2 mt-1"/></div>
-                <div className="flex-1 min-w-[120px]"><label className="text-xs text-muted-foreground">Phone (Optional)</label><input type="tel" value={newStudentPhone} onChange={e => setNewStudentPhone(e.target.value)} placeholder="Phone Number" className="w-full bg-input border-border rounded-md px-3 py-2 mt-1"/></div>
-                <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex items-center gap-2"><Plus size={16}/> Add Student</button>
+            <form onSubmit={handleAddStudent} className="flex flex-col sm:flex-row flex-wrap gap-4 items-end mb-4 p-4 bg-secondary/50 rounded-lg">
+                <div className="w-full sm:flex-1"><label className="text-xs text-muted-foreground">Name</label><input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Full Name" required className="w-full bg-input border-border rounded-md px-3 py-2 mt-1"/></div>
+                <div className="w-full sm:flex-1"><label className="text-xs text-muted-foreground">Enrollment ID</label><input type="text" value={newStudentEnrollment} onChange={e => setNewStudentEnrollment(e.target.value)} placeholder="Enrollment ID" required className="w-full bg-input border-border rounded-md px-3 py-2 mt-1"/></div>
+                <div className="w-full sm:flex-1"><label className="text-xs text-muted-foreground">Phone (Optional)</label><input type="tel" value={newStudentPhone} onChange={e => setNewStudentPhone(e.target.value)} placeholder="Phone Number" className="w-full bg-input border-border rounded-md px-3 py-2 mt-1"/></div>
+                <button type="submit" className="w-full sm:w-auto bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex items-center justify-center gap-2"><Plus size={16}/> Add</button>
             </form>
 
             <div className="flex-1 overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {students.map(s => (
                         <div key={s.id} className={`p-4 rounded-lg border transition-all ${presentStudents.has(s.id) ? 'bg-green-500/10 border-green-500/30' : 'bg-card border-border'}`}>
                             {editingStudentId === s.id ? (
@@ -247,12 +249,12 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
                                     <input type="text" value={editingName} onChange={e => setEditingName(e.target.value)} className="w-full bg-input border-border rounded-md px-2 py-1"/>
                                     <input type="tel" value={editingPhone} onChange={e => setEditingPhone(e.target.value)} className="w-full bg-input border-border rounded-md px-2 py-1"/>
                                     <div className="flex gap-2">
-                                        <button onClick={() => handleSaveEdit(s.id)} className="p-1.5 bg-primary text-primary-foreground rounded-md"><Save size={14}/></button>
-                                        <button onClick={() => setEditingStudentId(null)} className="p-1.5 bg-secondary rounded-md"><X size={14}/></button>
+                                        <button onClick={() => handleSaveEdit(s.id)} className="p-2 bg-primary text-primary-foreground rounded-md"><Save size={16}/></button>
+                                        <button onClick={() => setEditingStudentId(null)} className="p-2 bg-secondary rounded-md"><X size={16}/></button>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex items-start justify-between">
+                                <div className="flex flex-col sm:flex-row items-start justify-between gap-2">
                                     <div>
                                         <div className="flex items-center gap-2">
                                             {presentStudents.has(s.id) ? <CheckCircle size={16} className="text-green-500"/> : <Clock size={16} className="text-muted-foreground"/>}
@@ -261,9 +263,9 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
                                         <p className="text-sm text-muted-foreground">{s.enrollment_id}</p>
                                         <p className="text-sm text-muted-foreground">{s.phone}</p>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                        <button onClick={() => { setEditingStudentId(s.id); setEditingName(s.name); setEditingPhone(s.phone || ''); }} className="p-1.5 text-muted-foreground hover:text-primary"><Edit size={14}/></button>
-                                        <button onClick={() => handleDeleteStudent(s.id)} className="p-1.5 text-muted-foreground hover:text-destructive"><Trash2 size={14}/></button>
+                                    <div className="flex self-end sm:self-auto items-center gap-2 flex-shrink-0">
+                                        <button onClick={() => { setEditingStudentId(s.id); setEditingName(s.name); setEditingPhone(s.phone || ''); }} className="p-2 text-muted-foreground hover:text-primary"><Edit size={16}/></button>
+                                        <button onClick={() => handleDeleteStudent(s.id)} className="p-2 text-muted-foreground hover:text-destructive"><Trash2 size={16}/></button>
                                     </div>
                                 </div>
                             )}
@@ -357,10 +359,11 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
                         return;
                     }
 
+                    // FIX: Changed from deprecated `insert` with `upsert` option to the `upsert` method.
                     // Insert attendance record
                     const { error: insertError } = await supabase
                         .from('portal_attendance')
-                        .insert({ student_id: student.id, session_id: sessionId }, { upsert: true }); // Use upsert to prevent duplicates
+                        .upsert({ student_id: student.id, session_id: sessionId }); // Use upsert to prevent duplicates
 
                     if (insertError) {
                         setScanError(`Failed to mark attendance: ${insertError.message}`);
@@ -403,7 +406,7 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
                     {isScanning && (
                         <>
                             <p className="text-muted-foreground mb-4">Point your camera at the QR code.</p>
-                            <div id={scannerContainerId} className="w-full rounded-lg overflow-hidden border-2 border-primary"></div>
+                            <div id={scannerContainerId} className="w-full aspect-square rounded-lg overflow-hidden border-2 border-primary bg-black"></div>
                         </>
                     )}
 
@@ -460,7 +463,8 @@ const Login: React.FC<{ onLogin: (user: User) => void, error: string | null, set
         // Note: This is a simple, insecure password check for demo purposes.
         // In a real application, you should use Supabase Auth with hashed passwords.
         if (data.password === password) {
-            onLogin(data);
+            // FIX: Cast Supabase data to the local User type to resolve role property mismatch.
+            onLogin(data as User);
         } else {
             setError("Invalid credentials or user not found.");
         }
