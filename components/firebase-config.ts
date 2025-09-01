@@ -114,7 +114,7 @@ VALUES ('Teacher', 'teacher@example.com', 'teacher', 'password123')
 ON CONFLICT (email) DO NOTHING;
 */
 
-// FIX: Define database types for Supabase to enable type safety
+// Define database types for Supabase to enable type safety
 export type Json =
   | string
   | number
@@ -242,24 +242,29 @@ export interface Database {
 
 
 // --- Supabase Configuration ---
-const supabaseUrl = 'https://djgnzprigxgbloruuayw.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZ256cHJpZ3hnYmxvcnV1YXl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MTk5MDgsImV4cCI6MjA3MjE5NTkwOH0.sbFsHtBPNhi-4-ZJ90w-4SYl49lesWhzXKHuwTRz2hc';
+// IMPORTANT: Replace with your Supabase project's URL and Anon Key.
+// You can find these in your Supabase project dashboard under Settings > API.
+const supabaseUrl = 'YOUR_SUPABASE_URL'; // e.g., 'https://xyz.supabase.co'
+const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY'; // e.g., 'ey...'
 
 let supabase: ReturnType<typeof createClient<Database>> | null = null;
+export let isSupabaseConfigured = false;
 
 const isUrlPlaceholder = supabaseUrl.includes('YOUR_SUPABASE_URL');
 const isKeyPlaceholder = supabaseAnonKey.includes('YOUR_SUPABASE_ANON_KEY');
 
 if (!isUrlPlaceholder && !isKeyPlaceholder) {
     try {
-        // FIX: Pass the Database generic to createClient for type safety
+        // Pass the Database generic to createClient for type safety
         supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+        isSupabaseConfigured = true;
     } catch (e) {
         console.error("Supabase initialization error:", e);
         supabase = null;
+        isSupabaseConfigured = false;
     }
 } else {
-    console.error("Supabase is not configured. Please add your credentials to components/firebase-config.ts and run the SQL script provided in the comments to enable the real-time portal.");
+    console.log("Supabase credentials not found. Student/Teacher Portal is running in a local-only mock mode.");
 }
 
 export { supabase };

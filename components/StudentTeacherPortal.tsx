@@ -1,11 +1,10 @@
 
 
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { CheckCircle, Clock, Loader, LogOut, Info, WifiOff, Users, GraduationCap, User as UserIcon, XCircle, Edit, Save, Plus, Trash2, Camera, Mail, Lock, BookOpen, Smartphone, ShieldCheck, X } from 'lucide-react';
-import { supabase } from './firebase-config';
+import { supabase, isSupabaseConfigured } from './firebase-config';
 
 // --- TYPES ---
 interface User {
@@ -23,12 +22,32 @@ interface Session {
     id: string; // UUID
     created_at: string;
     expires_at: string;
-    // FIX: Updated teacher_id to be nullable to match database schema for better type safety.
     teacher_id: number | null;
     is_active: boolean;
 }
 
-// --- SUB-COMPONENTS ---
+interface NewUser {
+    name: string;
+    email: string;
+    password?: string;
+    role: 'teacher' | 'student';
+    enrollment_id: string | null;
+}
+
+// =================================================================
+// MOCK DATA AND CONFIG (for when Supabase is not configured)
+// =================================================================
+const MOCK_TEACHER: User = { id: 101, created_at: new Date().toISOString(), name: 'Dr. Evelyn Reed', email: 'teacher@example.com', role: 'teacher', enrollment_id: null, phone: '555-0101', password: 'password123' };
+const MOCK_STUDENTS: User[] = [
+    { id: 201, created_at: new Date().toISOString(), name: 'Alex Johnson', email: 'alex@example.com', role: 'student', enrollment_id: 'S201', phone: '555-0102', password: 'password123' },
+    { id: 202, created_at: new Date().toISOString(), name: 'Maria Garcia', email: 'maria@example.com', role: 'student', enrollment_id: 'S202', phone: '555-0103', password: 'password123' },
+    { id: 203, created_at: new Date().toISOString(), name: 'Chen Wei', email: 'chen@example.com', role: 'student', enrollment_id: 'S203', phone: '555-0104', password: 'password123' },
+];
+
+
+// =================================================================
+// PRESENTATIONAL SUB-COMPONENTS
+// =================================================================
 
 const Timer: React.FC<{ endTime: string, onEnd: () => void }> = ({ endTime, onEnd }) => {
     const [timeLeft, setTimeLeft] = useState(Math.max(0, new Date(endTime).getTime() - Date.now()));
@@ -51,146 +70,216 @@ const Timer: React.FC<{ endTime: string, onEnd: () => void }> = ({ endTime, onEn
 };
 
 
-// --- VIEWS ---
+const LoginView: React.FC<{ onLogin: (email: string, pass: string) => Promise<void>, error: string | null, setError: (err: string | null) => void, setViewMode: (mode: 'signup') => void, pendingSessionId: string | null }> = ({ onLogin, error, setError, setViewMode, pendingSessionId }) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setIsSubmitting(true);
+        await onLogin(email, password);
+        setIsSubmitting(false);
+    };
 
-const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ teacher, onLogout }) => {
-    const [qrCode, setQrCode] = useState<string | null>(null);
-    const [isStartingSession, setIsStartingSession] = useState(false);
-    const [students, setStudents] = useState<User[]>([]);
-    const [presentStudents, setPresentStudents] = useState<Set<number>>(new Set());
-    const [activeSession, setActiveSession] = useState<Session | null>(null);
+    return (
+        <div className="flex-1 flex items-center justify-center bg-secondary/30 p-4">
+            <div className="w-full max-w-sm bg-card p-8 rounded-xl shadow-lg border border-border">
+                <div className="text-center mb-6">
+                    <BookOpen size={48} className="mx-auto text-primary mb-2" />
+                    <h1 className="text-2xl font-bold">Portal Login</h1>
+                    <p className="text-muted-foreground text-sm">Sign in to access your dashboard.</p>
+                </div>
+                {pendingSessionId && (
+                    <div className="bg-blue-500/10 text-blue-300 text-sm p-3 rounded-md mb-4 text-center flex items-center gap-2">
+                        <Info size={16} />
+                        <span>Please sign in to mark your attendance.</span>
+                    </div>
+                )}
+                {error && <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-4">{error}</div>}
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div>
+                        <label className="text-sm font-medium" htmlFor="email">Email</label>
+                        <div className="relative mt-1">
+                            <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
+                        </div>
+                    </div>
+                    <div>
+                         <label className="text-sm font-medium" htmlFor="password">Password</label>
+                        <div className="relative mt-1">
+                            <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
+                        </div>
+                    </div>
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {isSubmitting ? <><Loader className="animate-spin"/> Signing In...</> : 'Sign In'}
+                    </button>
+                </form>
+                 <p className="text-center text-sm text-muted-foreground mt-6">
+                    Don't have an account?{' '}
+                    <button onClick={() => setViewMode('signup')} className="font-semibold text-primary hover:underline">
+                        Sign Up
+                    </button>
+                </p>
+            </div>
+        </div>
+    );
+};
+
+const SignUpView: React.FC<{ onRegister: (details: NewUser) => Promise<void>, error: string | null, setError: (err: string | null) => void, setViewMode: (mode: 'login') => void }> = ({ onRegister, error, setError, setViewMode }) => {
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [role, setRole] = useState<'student' | 'teacher'>('student');
+    const [enrollmentId, setEnrollmentId] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleRegister = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (password !== confirmPassword) {
+            setError("Passwords do not match.");
+            return;
+        }
+        if (role === 'student' && !enrollmentId.trim()) {
+            setError("Enrollment ID is required for students.");
+            return;
+        }
+        setError(null);
+        setIsSubmitting(true);
+        await onRegister({ name, email, password, role, enrollment_id: role === 'student' ? enrollmentId : null });
+        setIsSubmitting(false);
+    };
+
+    return (
+        <div className="flex-1 flex items-center justify-center bg-secondary/30 p-4">
+            <div className="w-full max-w-sm bg-card p-8 rounded-xl shadow-lg border border-border">
+                <div className="text-center mb-6">
+                    <UserIcon size={48} className="mx-auto text-primary mb-2" />
+                    <h1 className="text-2xl font-bold">Create Account</h1>
+                    <p className="text-muted-foreground text-sm">Join the portal to get started.</p>
+                </div>
+                {error && <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-4">{error}</div>}
+                <form onSubmit={handleRegister} className="space-y-4">
+                    <div>
+                        <label className="text-sm font-medium" htmlFor="name">Full Name</label>
+                        <div className="relative mt-1">
+                            <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <input id="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Doe" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
+                        </div>
+                    </div>
+                     <div>
+                        <label className="text-sm font-medium" htmlFor="signup-email">Email</label>
+                        <div className="relative mt-1">
+                            <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
+                        </div>
+                    </div>
+                     <div>
+                        <label className="text-sm font-medium" htmlFor="signup-password">Password</label>
+                        <div className="relative mt-1">
+                            <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-sm font-medium" htmlFor="confirm-password">Confirm Password</label>
+                        <div className="relative mt-1">
+                            <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
+                        </div>
+                    </div>
+                     <div>
+                        <label className="text-sm font-medium">Role</label>
+                        <div className="flex gap-4 mt-2">
+                            <label className="flex items-center gap-2"><input type="radio" name="role" value="student" checked={role === 'student'} onChange={() => setRole('student')} /> Student</label>
+                            <label className="flex items-center gap-2"><input type="radio" name="role" value="teacher" checked={role === 'teacher'} onChange={() => setRole('teacher')} /> Teacher</label>
+                        </div>
+                    </div>
+                    {role === 'student' && (
+                         <div style={{ transition: 'opacity 0.3s', opacity: 1 }}>
+                            <label className="text-sm font-medium" htmlFor="enrollment">Enrollment ID</label>
+                            <div className="relative mt-1">
+                                <BookOpen size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                <input id="enrollment" type="text" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} placeholder="e.g., S12345" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
+                            </div>
+                        </div>
+                    )}
+                    <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {isSubmitting ? <><Loader className="animate-spin"/> Creating Account...</> : 'Sign Up'}
+                    </button>
+                </form>
+                 <p className="text-center text-sm text-muted-foreground mt-6">
+                    Already have an account?{' '}
+                    <button onClick={() => setViewMode('login')} className="font-semibold text-primary hover:underline">
+                        Sign In
+                    </button>
+                </p>
+            </div>
+        </div>
+    );
+};
+
+interface AuthPortalProps {
+    onLogin: (email: string, pass: string) => Promise<void>;
+    onRegister: (details: NewUser) => Promise<void>;
+    error: string | null;
+    setError: (err: string | null) => void;
+    pendingSessionId: string | null;
+}
+
+const AuthPortal: React.FC<AuthPortalProps> = ({ onLogin, onRegister, error, setError, pendingSessionId }) => {
+    const [viewMode, setViewMode] = useState<'login' | 'signup'>('login');
+
+    if (viewMode === 'login') {
+        return <LoginView onLogin={onLogin} error={error} setError={setError} setViewMode={setViewMode} pendingSessionId={pendingSessionId} />;
+    }
+    return <SignUpView onRegister={onRegister} error={error} setError={setError} setViewMode={setViewMode} />;
+};
+
+
+interface TeacherDashboardProps {
+    teacher: User;
+    onLogout: () => void;
+    qrCode: string | null;
+    isStartingSession: boolean;
+    students: User[];
+    presentStudents: Set<number>;
+    activeSession: Session | null;
+    error: string | null;
+    setError: (err: string | null) => void;
+    onStartSession: () => Promise<void>;
+    onEndSession: (sessionId?: string) => Promise<void>;
+    onAddStudent: (name: string, enrollment: string, phone: string) => Promise<void>;
+    onSaveEdit: (id: number, name: string, phone: string) => Promise<void>;
+    onDeleteStudent: (id: number) => Promise<void>;
+    onCheckActiveSession: () => void;
+}
+
+const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ 
+    teacher, onLogout, qrCode, isStartingSession, students, presentStudents, activeSession, error,
+    setError, onStartSession, onEndSession, onAddStudent, onSaveEdit, onDeleteStudent, onCheckActiveSession
+}) => {
     const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
     const [editingName, setEditingName] = useState('');
     const [editingPhone, setEditingPhone] = useState('');
     const [newStudentName, setNewStudentName] = useState('');
     const [newStudentEnrollment, setNewStudentEnrollment] = useState('');
     const [newStudentPhone, setNewStudentPhone] = useState('');
-    const [error, setError] = useState<string | null>(null);
-
-    const loadStudents = useCallback(async () => {
-        if (!supabase) return;
-        const { data, error } = await supabase.from('portal_users').select('*').eq('role', 'student').order('name');
-        if (error) { console.error("Error fetching students:", error); }
-        // FIX: Cast Supabase data to the local User type to resolve role property mismatch ('string' vs. 'student' | 'teacher').
-        else { setStudents((data as User[]) || []); }
-    }, []);
-
-    const endSession = useCallback(async (sessionId?: string) => {
-        if (!supabase) return;
-        const id = sessionId || activeSession?.id;
-        if (!id) return;
-
-        await supabase.from('portal_sessions').update({ is_active: false }).eq('id', id);
-
-        if (activeSession?.id === id) {
-            setActiveSession(null);
-            setQrCode(null);
-        }
-    }, [activeSession]);
-
-    const checkActiveSession = useCallback(async () => {
-        if (!supabase) return;
-        const { data, error } = await supabase.from('portal_sessions').select('*').eq('is_active', true).single();
-
-        if (error && error.code !== 'PGRST116') { // Ignore 'not found'
-            console.error("Error fetching active session:", error);
-            return;
-        }
-
-        if (data && new Date(data.expires_at).getTime() > Date.now()) {
-            setActiveSession(data as Session);
-            const qrContent = `MAVEN_SESSION::${data.id}`;
-            QRCode.toDataURL(qrContent, { width: 300, margin: 1 }).then(setQrCode);
-        } else if (data) {
-            // Expired session found, clean it up
-            endSession(data.id);
-        }
-    }, [endSession]);
-
-    useEffect(() => {
-        loadStudents();
-        checkActiveSession();
-    }, [loadStudents, checkActiveSession]);
-    
-    useEffect(() => {
-        if (!activeSession || !supabase) return;
-
-        const fetchInitialAttendance = async () => {
-            const { data, error } = await supabase.from('portal_attendance').select('student_id').eq('session_id', activeSession.id);
-            if (error) { console.error("Error fetching initial attendance:", error); return; }
-            setPresentStudents(new Set(data.map(d => d.student_id)));
-        };
-        fetchInitialAttendance();
-
-        const channel = supabase.channel(`attendance-${activeSession.id}`);
-        const subscription = channel
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_attendance', filter: `session_id=eq.${activeSession.id}`}, 
-            (payload) => {
-                setPresentStudents(prev => new Set(prev).add((payload.new as any).student_id));
-            })
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
-    }, [activeSession]);
-
-    const startSession = async () => {
-        if (!supabase) return;
-        setIsStartingSession(true);
-        // Ensure any old sessions are closed before starting a new one
-        await supabase.from('portal_sessions').update({ is_active: false }).eq('is_active', true);
-
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes session
-        
-        const { data, error } = await supabase.from('portal_sessions').insert({ expires_at: expiresAt.toISOString(), teacher_id: teacher.id }).select().single();
-        if (error || !data) {
-            setError(`Failed to start session: ${error?.message || 'Could not retrieve session data.'}`);
-            setIsStartingSession(false);
-            return;
-        }
-        
-        const qrContent = `MAVEN_SESSION::${data.id}`;
-        const qrDataUrl = await QRCode.toDataURL(qrContent, { width: 300, margin: 1 });
-        setQrCode(qrDataUrl);
-        setActiveSession(data as Session);
-        setPresentStudents(new Set());
-        setIsStartingSession(false);
-    };
 
     const handleAddStudent = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null);
-        if (!supabase || !newStudentName.trim() || !newStudentEnrollment.trim()) return;
+        await onAddStudent(newStudentName, newStudentEnrollment, newStudentPhone);
+        setNewStudentName('');
+        setNewStudentEnrollment('');
+        setNewStudentPhone('');
+    };
 
-        const { error } = await supabase.from('portal_users').insert({ name: newStudentName, enrollment_id: newStudentEnrollment, phone: newStudentPhone || null, role: 'student' });
-        if (error) {
-            setError(`Failed to add student: ${error.message}`);
-        } else {
-            setNewStudentName('');
-            setNewStudentEnrollment('');
-            setNewStudentPhone('');
-            loadStudents();
-        }
-    };
-    
-    const handleSaveEdit = async (studentId: number) => {
-        if (!supabase) return;
-        const { error } = await supabase.from('portal_users').update({ name: editingName, phone: editingPhone || null }).eq('id', studentId);
-        if (error) {
-            setError(`Failed to update student: ${error.message}`);
-        } else {
-            setEditingStudentId(null);
-            loadStudents();
-        }
-    };
-    
-    const handleDeleteStudent = async (studentId: number) => {
-        if (!supabase || !window.confirm("Are you sure you want to delete this student? All their attendance records will be removed.")) return;
-        const { error } = await supabase.from('portal_users').delete().eq('id', studentId);
-        if (error) {
-            setError(`Failed to delete student: ${error.message}`);
-        } else {
-            loadStudents();
-        }
+    const handleSaveEdit = (studentId: number) => {
+        onSaveEdit(studentId, editingName, editingPhone);
+        setEditingStudentId(null);
     };
 
     return (
@@ -213,15 +302,15 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
                     <img src={qrCode} alt="Attendance QR Code" className="rounded-lg border-4 border-white shadow-lg w-full max-w-[250px]"/>
                     <div className="mt-4 flex items-center gap-3 bg-card px-4 py-2 rounded-full">
                         <Clock size={20} className="text-primary"/>
-                        <Timer endTime={activeSession.expires_at} onEnd={() => checkActiveSession()} />
+                        <Timer endTime={activeSession.expires_at} onEnd={onCheckActiveSession} />
                     </div>
-                    <button onClick={() => endSession()} className="mt-4 w-full bg-destructive text-destructive-foreground py-2 rounded-lg hover:bg-destructive/90 transition-colors">End Session</button>
+                    <button onClick={() => onEndSession()} className="mt-4 w-full bg-destructive text-destructive-foreground py-2 rounded-lg hover:bg-destructive/90 transition-colors">End Session</button>
                 </>
             ) : (
                 <>
                     <Users size={48} className="text-muted-foreground mb-4"/>
                     <p className="text-muted-foreground mb-4">Start a new 10-minute session to take attendance.</p>
-                    <button onClick={startSession} disabled={isStartingSession} className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                    <button onClick={onStartSession} disabled={isStartingSession} className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                         {isStartingSession ? <><Loader className="animate-spin"/> Starting...</> : 'Start New Session'}
                     </button>
                 </>
@@ -266,7 +355,7 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
                                     </div>
                                     <div className="flex self-end sm:self-auto items-center gap-2 flex-shrink-0">
                                         <button onClick={() => { setEditingStudentId(s.id); setEditingName(s.name); setEditingPhone(s.phone || ''); }} className="p-2 text-muted-foreground hover:text-primary"><Edit size={16}/></button>
-                                        <button onClick={() => handleDeleteStudent(s.id)} className="p-2 text-muted-foreground hover:text-destructive"><Trash2 size={16}/></button>
+                                        <button onClick={() => onDeleteStudent(s.id)} className="p-2 text-muted-foreground hover:text-destructive"><Trash2 size={16}/></button>
                                     </div>
                                 </div>
                             )}
@@ -279,7 +368,14 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
     );
 };
 
-const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ student, onLogout }) => {
+interface StudentDashboardProps {
+    student: User;
+    onLogout: () => void;
+    pendingSessionId: string | null;
+    onProcessSessionId: (sessionId: string) => Promise<void>;
+}
+
+const StudentDashboard: React.FC<StudentDashboardProps> = ({ student, onLogout, pendingSessionId, onProcessSessionId }) => {
     const [scanResult, setScanResult] = useState<string | null>(null);
     const [scanError, setScanError] = useState<string | null>(null);
     const [scanSuccess, setScanSuccess] = useState<string | null>(null);
@@ -287,7 +383,40 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const scannerContainerId = "qr-reader";
 
-    const startScan = useCallback(async () => {
+    const processScan = useCallback(async (sessionId: string) => {
+        setScanSuccess(null);
+        setScanError(null);
+        try {
+            await onProcessSessionId(sessionId);
+            setScanSuccess('Attendance marked successfully!');
+        } catch(e: any) {
+            setScanError(e.message || "An error occurred.");
+        }
+    }, [onProcessSessionId]);
+
+    useEffect(() => {
+        if (pendingSessionId) {
+            processScan(pendingSessionId);
+        }
+    }, [pendingSessionId, processScan]);
+
+    useEffect(() => {
+        if (scanResult) {
+            let sessionId: string | null = null;
+            try {
+                const url = new URL(scanResult);
+                sessionId = url.searchParams.get('session');
+            } catch (e) { /* Not a URL, ignore */ }
+            
+            if (sessionId) {
+                processScan(sessionId);
+            } else {
+                setScanError("Invalid QR code format. Please scan a valid attendance code.");
+            }
+        }
+    }, [scanResult, processScan]);
+
+     const startScan = useCallback(async () => {
         setScanResult(null);
         setScanError(null);
         setScanSuccess(null);
@@ -302,15 +431,13 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
                 await qrScanner.start(
                     { facingMode: "environment" },
                     { fps: 10, qrbox: { width: 250, height: 250 } },
-                    (decodedText, decodedResult) => {
+                    (decodedText) => {
                         setScanResult(decodedText);
                         qrScanner.stop();
                         setIsScanning(false);
                     },
-                    (errorMessage) => {
-                        // This callback is called frequently, so we don't set error here to avoid flickering.
-                    }
-                ).catch(err => {
+                    () => {}
+                ).catch(() => {
                     setScanError("Could not start scanner. Please grant camera permissions.");
                     setIsScanning(false);
                 });
@@ -325,74 +452,12 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
     }, []);
 
     useEffect(() => {
-        return () => { // Cleanup on unmount
+        return () => {
             if (scannerRef.current && scannerRef.current.getState() === Html5QrcodeScannerState.SCANNING) {
                 scannerRef.current.stop().catch(err => console.error("Error stopping scanner:", err));
             }
         };
     }, []);
-
-    useEffect(() => {
-        if (scanResult && supabase) {
-            const markAttendance = async () => {
-                try {
-                    let sessionId: string | null = null;
-                    
-                    if (scanResult.startsWith('MAVEN_SESSION::')) {
-                        sessionId = scanResult.split('::')[1];
-                    } else {
-                        // Fallback for old URL-based QR codes, with better error handling.
-                        try {
-                            const url = new URL(scanResult);
-                            sessionId = url.searchParams.get('session');
-                        } catch (urlError) {
-                             // It's not a valid URL, so we can ignore it. sessionId remains null.
-                        }
-                    }
-    
-                    if (!sessionId) {
-                        setScanError("Invalid QR code. This is not a valid attendance session code.");
-                        return;
-                    }
-
-                    // Check if session is valid and active
-                    const { data: session, error: sessionError } = await supabase
-                        .from('portal_sessions')
-                        .select('*')
-                        .eq('id', sessionId)
-                        .single();
-
-                    if (sessionError || !session) {
-                        setScanError("Session not found or has expired.");
-                        return;
-                    }
-                    if (!session.is_active || new Date(session.expires_at).getTime() < Date.now()) {
-                        setScanError("This attendance session is no longer active.");
-                        return;
-                    }
-
-                    // Insert attendance record
-                    const { error: insertError } = await supabase
-                        .from('portal_attendance')
-                        .upsert({ student_id: student.id, session_id: sessionId });
-
-                    if (insertError) {
-                        // Check if the error is a unique constraint violation, meaning they already checked in.
-                        if (insertError.code === '23505') { 
-                             setScanSuccess(`You have already been marked present for this session at ${new Date(session.created_at).toLocaleTimeString()}!`);
-                        } else {
-                            setScanError(`Failed to mark attendance: ${insertError.message}`);
-                        }
-                    } else {
-                        setScanSuccess(`Attendance marked successfully for session at ${new Date(session.created_at).toLocaleTimeString()}!`);
-                    }
-                } catch (e) {
-                    setScanError("An unexpected error occurred while processing the QR code.");
-                }
-            };
-            markAttendance();
-        }
-    }, [scanResult, student.id]);
     
     return (
         <div className="flex-1 flex flex-col h-full bg-secondary/30 p-4">
@@ -418,14 +483,12 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
                             </button>
                         </>
                     )}
-
                     {isScanning && (
                         <>
                             <p className="text-muted-foreground mb-4">Point your camera at the QR code.</p>
                             <div id={scannerContainerId} className="w-full aspect-square rounded-lg overflow-hidden border-2 border-primary bg-black"></div>
                         </>
                     )}
-
                     {scanSuccess && (
                         <div className="flex flex-col items-center">
                             <CheckCircle size={64} className="text-green-500 mb-4" />
@@ -434,7 +497,6 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
                              <button onClick={() => { setScanSuccess(null); setScanResult(null); }} className="w-full bg-secondary text-secondary-foreground py-2 rounded-lg hover:bg-secondary/80">Scan Again</button>
                         </div>
                     )}
-                    
                     {scanError && (
                          <div className="flex flex-col items-center">
                             <XCircle size={64} className="text-destructive mb-4" />
@@ -449,81 +511,346 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
     );
 };
 
-const Login: React.FC<{ onLogin: (user: User) => void, error: string | null, setError: (err: string | null) => void }> = ({ onLogin, error, setError }) => {
-    const [email, setEmail] = useState('teacher@example.com');
-    const [password, setPassword] = useState('password123');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError(null);
-        setIsSubmitting(true);
 
-        if (!supabase) {
-            setError("Database is not connected.");
-            setIsSubmitting(false);
-            return;
-        }
+// =================================================================
+// LOGIC CONTAINERS
+// =================================================================
 
-        const { data, error: dbError } = await supabase.from('portal_users')
-            .select('*')
-            .eq('email', email.toLowerCase().trim())
-            .single();
-
-        if (dbError || !data) {
-            setError("Invalid credentials or user not found.");
-            setIsSubmitting(false);
-            return;
-        }
-
-        // Note: This is a simple, insecure password check for demo purposes.
-        // In a real application, you should use Supabase Auth with hashed passwords.
-        if (data.password === password) {
-            // FIX: Cast Supabase data to the local User type to resolve role property mismatch.
-            onLogin(data as User);
-        } else {
-            setError("Invalid credentials or user not found.");
-        }
-        setIsSubmitting(false);
-    };
-
-    return (
-        <div className="flex-1 flex items-center justify-center bg-secondary/30 p-4">
-            <div className="w-full max-w-sm bg-card p-8 rounded-xl shadow-lg border border-border">
-                <div className="text-center mb-6">
-                    <BookOpen size={48} className="mx-auto text-primary mb-2" />
-                    <h1 className="text-2xl font-bold">Portal Login</h1>
-                    <p className="text-muted-foreground text-sm">Sign in to access your dashboard.</p>
-                </div>
-                {error && <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-4">{error}</div>}
-                <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                        <label className="text-sm font-medium" htmlFor="email">Email</label>
-                        <div className="relative mt-1">
-                            <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                            <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="teacher@example.com" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                        </div>
-                    </div>
-                    <div>
-                         <label className="text-sm font-medium" htmlFor="password">Password</label>
-                        <div className="relative mt-1">
-                            <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                            <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                        </div>
-                    </div>
-                    <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                        {isSubmitting ? <><Loader className="animate-spin"/> Signing In...</> : 'Sign In'}
-                    </button>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-const StudentTeacherPortal: React.FC = () => {
+const SupabasePortal: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+
+    // Teacher state
+    const [qrCode, setQrCode] = useState<string | null>(null);
+    const [isStartingSession, setIsStartingSession] = useState(false);
+    const [students, setStudents] = useState<User[]>([]);
+    const [presentStudents, setPresentStudents] = useState<Set<number>>(new Set());
+    const [activeSession, setActiveSession] = useState<Session | null>(null);
+    
+    // --- COMMON LOGIC ---
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+        if (sessionId) {
+            setPendingSessionId(sessionId);
+            const url = new URL(window.location.href);
+            url.searchParams.delete('session');
+            window.history.replaceState({}, document.title, url.toString());
+        }
+    }, []);
+
+    const handleLogin = async (email: string, pass: string) => {
+        if (!supabase) return;
+        const { data, error: dbError } = await supabase.from('portal_users').select('*').eq('email', email.toLowerCase().trim()).single();
+        if (dbError || !data || data.password !== pass) {
+            setError("Invalid credentials or user not found.");
+            return;
+        }
+        setUser(data as User);
+        sessionStorage.setItem('portalUser', JSON.stringify(data));
+    };
+
+    const handleRegister = async (details: NewUser) => {
+        if (!supabase) return;
+        const { data, error: dbError } = await supabase.from('portal_users').insert({
+            name: details.name,
+            email: details.email.toLowerCase().trim(),
+            password: details.password,
+            role: details.role,
+            enrollment_id: details.role === 'student' ? details.enrollment_id : null,
+        }).select().single();
+
+        if (dbError) {
+            if (dbError.code === '23505') {
+                 setError('An account with this email or enrollment ID already exists.');
+            } else {
+                setError(`Registration failed: ${dbError.message}`);
+            }
+            return;
+        }
+        if (data) {
+            setUser(data as User);
+            sessionStorage.setItem('portalUser', JSON.stringify(data));
+        }
+    };
+
+    const handleLogout = () => {
+        setUser(null);
+        sessionStorage.removeItem('portalUser');
+    };
+    
+    useEffect(() => {
+        try {
+            const storedUser = sessionStorage.getItem('portalUser');
+            if (storedUser) setUser(JSON.parse(storedUser));
+        } catch (e) { console.error(e); }
+        setIsLoading(false);
+    }, []);
+    
+    // --- TEACHER LOGIC ---
+    const loadStudents = useCallback(async () => {
+        if (!supabase) return;
+        const { data, error } = await supabase.from('portal_users').select('*').eq('role', 'student').order('name');
+        if (error) console.error("Error fetching students:", error);
+        else setStudents((data as User[]) || []);
+    }, []);
+
+    const endSession = useCallback(async (sessionId?: string) => {
+        if (!supabase) return;
+        const id = sessionId || activeSession?.id;
+        if (!id) return;
+        await supabase.from('portal_sessions').update({ is_active: false }).eq('id', id);
+        if (activeSession?.id === id) {
+            setActiveSession(null);
+            setQrCode(null);
+        }
+    }, [activeSession]);
+
+    const checkActiveSession = useCallback(async () => {
+        if (!supabase) return;
+        const { data, error } = await supabase.from('portal_sessions').select('*').eq('is_active', true).single();
+        if (error && error.code !== 'PGRST116') return; // Ignore 'not found'
+        if (data && new Date(data.expires_at).getTime() > Date.now()) {
+            setActiveSession(data as Session);
+            const url = new URL(window.location.href);
+            url.searchParams.set('view', 'portal');
+            url.searchParams.set('session', data.id);
+            QRCode.toDataURL(url.toString(), { width: 300, margin: 1 }).then(setQrCode);
+        } else if (data) {
+            endSession(data.id);
+        }
+    }, [endSession]);
+
+    useEffect(() => {
+        if (user?.role === 'teacher') {
+            loadStudents();
+            checkActiveSession();
+        }
+    }, [user, loadStudents, checkActiveSession]);
+    
+    useEffect(() => {
+        if (!activeSession || !supabase) return;
+        const fetchInitialAttendance = async () => {
+            const { data, error } = await supabase.from('portal_attendance').select('student_id').eq('session_id', activeSession.id);
+            if (!error) setPresentStudents(new Set(data.map(d => d.student_id)));
+        };
+        fetchInitialAttendance();
+        const channel = supabase.channel(`attendance-${activeSession.id}`);
+        const subscription = channel
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_attendance', filter: `session_id=eq.${activeSession.id}`}, 
+            (payload) => setPresentStudents(prev => new Set(prev).add((payload.new as any).student_id)))
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [activeSession]);
+
+    const startSession = async () => {
+        if (!supabase || !user) return;
+        setIsStartingSession(true);
+        await supabase.from('portal_sessions').update({ is_active: false }).eq('is_active', true);
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        const { data, error } = await supabase.from('portal_sessions').insert({ expires_at: expiresAt.toISOString(), teacher_id: user.id }).select().single();
+        if (error || !data) { setError(`Failed to start session: ${error?.message}`); setIsStartingSession(false); return; }
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'portal');
+        url.searchParams.set('session', data.id);
+        setQrCode(await QRCode.toDataURL(url.toString(), { width: 300, margin: 1 }));
+        setActiveSession(data as Session);
+        setPresentStudents(new Set());
+        setIsStartingSession(false);
+    };
+    
+    const handleAddStudent = async (name: string, enrollment_id: string, phone: string) => {
+        if (!supabase) return;
+        const { error } = await supabase.from('portal_users').insert({ name, enrollment_id, phone: phone || null, role: 'student', password: 'password123' });
+        if (error) setError(`Failed to add student: ${error.message}`);
+        else loadStudents();
+    };
+    const handleSaveEdit = async (id: number, name: string, phone: string) => {
+        if (!supabase) return;
+        const { error } = await supabase.from('portal_users').update({ name, phone: phone || null }).eq('id', id);
+        if (error) setError(`Failed to update student: ${error.message}`);
+        else loadStudents();
+    };
+    const handleDeleteStudent = async (id: number) => {
+        if (!supabase || !window.confirm("Are you sure? This will delete the student and all their attendance records.")) return;
+        const { error } = await supabase.from('portal_users').delete().eq('id', id);
+        if (error) setError(`Failed to delete student: ${error.message}`);
+        else loadStudents();
+    };
+    
+    // --- STUDENT LOGIC ---
+    const processStudentScan = useCallback(async (sessionId: string) => {
+        if (!supabase || !user) throw new Error("Portal is not connected.");
+        const { data: session, error: sessionError } = await supabase.from('portal_sessions').select('created_at, expires_at, is_active').eq('id', sessionId).single();
+        if (sessionError || !session) throw new Error("Session not found or has expired.");
+        if (!session.is_active || new Date(session.expires_at).getTime() < Date.now()) throw new Error("This attendance session is no longer active.");
+        const { error: insertError } = await supabase.from('portal_attendance').upsert({ student_id: user.id, session_id: sessionId });
+        if (insertError) {
+             if (insertError.code === '23505') throw new Error("You have already been marked present for this session!");
+             throw new Error(`Failed to mark attendance: ${insertError.message}`);
+        }
+    }, [user]);
+    
+    // --- RENDER LOGIC ---
+    if (isLoading) return <div className="flex-1 flex items-center justify-center bg-secondary/30"><Loader className="animate-spin text-primary" size={48}/></div>;
+    if (!user) return <AuthPortal onLogin={handleLogin} onRegister={handleRegister} error={error} setError={setError} pendingSessionId={pendingSessionId} />;
+    if (user.role === 'teacher') return <TeacherDashboard 
+        teacher={user} onLogout={handleLogout} qrCode={qrCode} isStartingSession={isStartingSession} students={students} presentStudents={presentStudents} 
+        activeSession={activeSession} error={error} setError={setError} onStartSession={startSession} onEndSession={endSession} onAddStudent={handleAddStudent}
+        onSaveEdit={handleSaveEdit} onDeleteStudent={handleDeleteStudent} onCheckActiveSession={checkActiveSession} />;
+    return <StudentDashboard student={user} onLogout={handleLogout} pendingSessionId={pendingSessionId} onProcessSessionId={processStudentScan} />;
+};
+
+
+const MockPortal: React.FC = () => {
+    const [user, setUser] = useState<User | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+    
+    const [mockUsers, setMockUsers] = useState([MOCK_TEACHER, ...MOCK_STUDENTS]);
+    const [students, setStudents] = useState<User[]>(MOCK_STUDENTS);
+    const [activeSession, setActiveSession] = useState<Session | null>(null);
+    const [presentStudents, setPresentStudents] = useState<Set<number>>(new Set());
+    const [qrCode, setQrCode] = useState<string | null>(null);
+
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('session')) {
+            setPendingSessionId(urlParams.get('session'));
+            const url = new URL(window.location.href);
+            url.searchParams.delete('session');
+            window.history.replaceState({}, document.title, url.toString());
+        }
+        try {
+            const storedUser = sessionStorage.getItem('portalUserMock');
+            if (storedUser) setUser(JSON.parse(storedUser));
+        } catch(e) {}
+        setIsLoading(false);
+    }, []);
+
+    const handleLogin = async (email: string, pass: string) => {
+        const foundUser = mockUsers.find(u => u.email?.toLowerCase() === email.toLowerCase().trim() && u.password === pass);
+        if (foundUser) {
+            setUser(foundUser);
+            sessionStorage.setItem('portalUserMock', JSON.stringify(foundUser));
+        } else {
+            setError("Invalid credentials. Try 'teacher@example.com' or a student email with password 'password123'.");
+        }
+    };
+
+    const handleRegister = async (details: NewUser) => {
+        if (mockUsers.some(u => u.email?.toLowerCase() === details.email.toLowerCase().trim())) {
+            setError('An account with this email already exists.');
+            return;
+        }
+        if (details.role === 'student' && mockUsers.some(u => u.enrollment_id === details.enrollment_id)) {
+            setError('An account with this enrollment ID already exists.');
+            return;
+        }
+
+        const newUser: User = {
+            id: Date.now(),
+            created_at: new Date().toISOString(),
+            name: details.name,
+            email: details.email.toLowerCase().trim(),
+            password: details.password,
+            role: details.role,
+            enrollment_id: details.role === 'student' ? details.enrollment_id : null,
+            phone: null,
+        };
+
+        setMockUsers(prev => [...prev, newUser]);
+        
+        if (newUser.role === 'student') {
+            setStudents(prev => [...prev, newUser]);
+        }
+        
+        setUser(newUser);
+        sessionStorage.setItem('portalUserMock', JSON.stringify(newUser));
+    };
+
+
+    const handleLogout = () => {
+        setUser(null);
+        sessionStorage.removeItem('portalUserMock');
+    };
+
+    const startSession = async () => {
+        const session: Session = {
+            id: crypto.randomUUID(),
+            created_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+            teacher_id: MOCK_TEACHER.id,
+            is_active: true,
+        };
+        setActiveSession(session);
+        setPresentStudents(new Set());
+        const url = new URL(window.location.href);
+        url.searchParams.set('view', 'portal');
+        url.searchParams.set('session', session.id);
+        setQrCode(await QRCode.toDataURL(url.toString(), { width: 300, margin: 1 }));
+    };
+
+    const endSession = async () => {
+        setActiveSession(null);
+        setQrCode(null);
+    };
+
+    const handleAddStudent = async (name: string, enrollment_id: string, phone: string) => {
+        const newUser: User = { id: Date.now(), created_at: new Date().toISOString(), name, enrollment_id, phone, role: 'student', email: `${name.split(' ')[0].toLowerCase()}@example.com`, password: 'password123' };
+        setStudents(prev => [...prev, newUser]);
+        setMockUsers(prev => [...prev, newUser]);
+    };
+    
+    const handleSaveEdit = async (id: number, name: string, phone: string) => {
+        setStudents(prev => prev.map(s => s.id === id ? { ...s, name, phone } : s));
+    };
+
+    const handleDeleteStudent = async (id: number) => {
+        if (window.confirm("Are you sure?")) setStudents(prev => prev.filter(s => s.id !== id));
+    };
+
+    const processStudentScan = async (sessionId: string) => {
+        if (!activeSession || sessionId !== activeSession.id) throw new Error("Session not found or has expired.");
+        if (!activeSession.is_active || new Date(activeSession.expires_at).getTime() < Date.now()) throw new Error("This attendance session is no longer active.");
+        if (presentStudents.has(user!.id)) throw new Error("You have already been marked present!");
+        setPresentStudents(prev => new Set(prev).add(user!.id));
+    };
+
+    if (isLoading) return <div className="flex-1 flex items-center justify-center bg-secondary/30"><Loader className="animate-spin text-primary" size={48}/></div>;
+    if (!user) return <AuthPortal onLogin={handleLogin} onRegister={handleRegister} error={error} setError={setError} pendingSessionId={pendingSessionId} />;
+    
+    if (user.role === 'teacher') {
+        return <TeacherDashboard 
+            teacher={user} 
+            onLogout={handleLogout}
+            qrCode={qrCode}
+            isStartingSession={false}
+            students={students}
+            presentStudents={presentStudents}
+            activeSession={activeSession}
+            error={error}
+            setError={setError}
+            onStartSession={startSession}
+            onEndSession={endSession}
+            onAddStudent={handleAddStudent}
+            onSaveEdit={handleSaveEdit}
+            onDeleteStudent={handleDeleteStudent}
+            onCheckActiveSession={() => { if(activeSession && new Date(activeSession.expires_at).getTime() < Date.now()) endSession(); }}
+        />;
+    }
+
+    return <StudentDashboard student={user} onLogout={handleLogout} pendingSessionId={pendingSessionId} onProcessSessionId={processStudentScan} />;
+};
+
+// =================================================================
+// MAIN EXPORTED COMPONENT
+// =================================================================
+
+const StudentTeacherPortal: React.FC = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     useEffect(() => {
@@ -537,39 +864,17 @@ const StudentTeacherPortal: React.FC = () => {
         };
     }, []);
 
-    const handleLogin = (loggedInUser: User) => {
-        setUser(loggedInUser);
-        sessionStorage.setItem('portalUser', JSON.stringify(loggedInUser));
-    };
-
-    const handleLogout = () => {
-        setUser(null);
-        sessionStorage.removeItem('portalUser');
-    };
+    if (!isSupabaseConfigured) {
+        return <MockPortal />;
+    }
     
-    useEffect(() => {
-        const checkSession = () => {
-            try {
-                const storedUser = sessionStorage.getItem('portalUser');
-                if (storedUser) {
-                    setUser(JSON.parse(storedUser));
-                }
-            } catch (e) {
-                console.error("Failed to parse user from session storage", e);
-                sessionStorage.removeItem('portalUser');
-            }
-            setIsLoading(false);
-        };
-        checkSession();
-    }, []);
-
     if (!supabase) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center p-6 bg-secondary/30 text-center">
                  <div className="p-8 bg-card rounded-lg shadow-lg max-w-md">
                     <ShieldCheck size={48} className="mx-auto text-destructive mb-4" />
                     <h1 className="text-2xl font-bold mb-2">Portal Offline</h1>
-                    <p className="text-muted-foreground">The real-time Student & Teacher Portal is currently offline because it has not been configured correctly. Please refer to the setup instructions in the source code to enable this feature.</p>
+                    <p className="text-muted-foreground">The real-time Student & Teacher Portal is currently offline due to a configuration error. Please check the setup instructions.</p>
                 </div>
             </div>
         );
@@ -587,19 +892,7 @@ const StudentTeacherPortal: React.FC = () => {
         );
     }
 
-    if (isLoading) {
-        return <div className="flex-1 flex items-center justify-center bg-secondary/30"><Loader className="animate-spin text-primary" size={48}/></div>
-    }
-
-    if (!user) {
-        return <Login onLogin={handleLogin} setError={setError} error={error} />;
-    }
-
-    if (user.role === 'teacher') {
-        return <TeacherDashboard teacher={user} onLogout={handleLogout} />;
-    } else {
-        return <StudentDashboard student={user} onLogout={handleLogout} />;
-    }
+    return <SupabasePortal />;
 };
 
 export default StudentTeacherPortal;
