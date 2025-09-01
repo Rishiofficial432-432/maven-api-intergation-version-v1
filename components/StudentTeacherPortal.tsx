@@ -34,6 +34,9 @@ interface NewUser {
     enrollment_id: string | null;
 }
 
+type ScanStatus = { type: 'success' | 'error' | 'info' | 'idle', message: string | null };
+
+
 // =================================================================
 // MOCK DATA AND CONFIG (for when Supabase is not configured)
 // =================================================================
@@ -371,55 +374,37 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 interface StudentDashboardProps {
     student: User;
     onLogout: () => void;
-    pendingSessionId: string | null;
     onProcessSessionId: (sessionId: string) => Promise<void>;
+    scanStatus: ScanStatus;
+    setScanStatus: (status: ScanStatus) => void;
 }
 
-const StudentDashboard: React.FC<StudentDashboardProps> = ({ student, onLogout, pendingSessionId, onProcessSessionId }) => {
-    const [scanResult, setScanResult] = useState<string | null>(null);
-    const [scanError, setScanError] = useState<string | null>(null);
-    const [scanSuccess, setScanSuccess] = useState<string | null>(null);
+const StudentDashboard: React.FC<StudentDashboardProps> = ({ student, onLogout, onProcessSessionId, scanStatus, setScanStatus }) => {
     const [isScanning, setIsScanning] = useState(false);
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const scannerContainerId = "qr-reader";
 
-    const processScan = useCallback(async (sessionId: string) => {
-        setScanSuccess(null);
-        setScanError(null);
+    const processScan = useCallback(async (decodedText: string) => {
+        let sessionId: string | null = null;
         try {
-            await onProcessSessionId(sessionId);
-            setScanSuccess('Attendance marked successfully!');
-        } catch(e: any) {
-            setScanError(e.message || "An error occurred.");
-        }
-    }, [onProcessSessionId]);
-
-    useEffect(() => {
-        if (pendingSessionId) {
-            processScan(pendingSessionId);
-        }
-    }, [pendingSessionId, processScan]);
-
-    useEffect(() => {
-        if (scanResult) {
-            let sessionId: string | null = null;
+            const url = new URL(decodedText);
+            sessionId = url.searchParams.get('session');
+        } catch (e) { /* Not a URL, ignore */ }
+        
+        if (sessionId) {
             try {
-                const url = new URL(scanResult);
-                sessionId = url.searchParams.get('session');
-            } catch (e) { /* Not a URL, ignore */ }
-            
-            if (sessionId) {
-                processScan(sessionId);
-            } else {
-                setScanError("Invalid QR code format. Please scan a valid attendance code.");
+                await onProcessSessionId(sessionId);
+            } catch (e: any) {
+                // This catch is a fallback; primary status is set by parent
+                setScanStatus({ type: 'error', message: e.message || "An unknown error occurred." });
             }
+        } else {
+            setScanStatus({ type: 'error', message: "Invalid QR code. Please scan a valid code." });
         }
-    }, [scanResult, processScan]);
+    }, [onProcessSessionId, setScanStatus]);
 
      const startScan = useCallback(async () => {
-        setScanResult(null);
-        setScanError(null);
-        setScanSuccess(null);
+        setScanStatus({ type: 'idle', message: null });
         setIsScanning(true);
 
         try {
@@ -432,24 +417,24 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ student, onLogout, 
                     { facingMode: "environment" },
                     { fps: 10, qrbox: { width: 250, height: 250 } },
                     (decodedText) => {
-                        setScanResult(decodedText);
                         qrScanner.stop();
                         setIsScanning(false);
+                        processScan(decodedText);
                     },
                     () => {}
                 ).catch(() => {
-                    setScanError("Could not start scanner. Please grant camera permissions.");
+                    setScanStatus({ type: 'error', message: "Could not start scanner. Please grant camera permissions."});
                     setIsScanning(false);
                 });
             } else {
-                setScanError("No camera found on this device.");
+                setScanStatus({ type: 'error', message: "No camera found on this device."});
                 setIsScanning(false);
             }
         } catch (err) {
-            setScanError("Failed to initialize camera. Please ensure you have a camera and have granted permissions.");
+            setScanStatus({ type: 'error', message: "Failed to initialize camera. Please ensure you have a camera and have granted permissions."});
             setIsScanning(false);
         }
-    }, []);
+    }, [setScanStatus, processScan]);
 
     useEffect(() => {
         return () => {
@@ -473,7 +458,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ student, onLogout, 
             </header>
             <main className="flex-1 flex items-center justify-center">
                  <div className="w-full max-w-md bg-card p-6 rounded-xl shadow-lg border border-border text-center">
-                    {!isScanning && !scanSuccess && !scanError && (
+                    {scanStatus.type === 'idle' && !isScanning && (
                         <>
                             <Smartphone size={48} className="mx-auto text-primary mb-4" />
                             <h2 className="text-2xl font-bold mb-2">Mark Your Attendance</h2>
@@ -489,20 +474,20 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ student, onLogout, 
                             <div id={scannerContainerId} className="w-full aspect-square rounded-lg overflow-hidden border-2 border-primary bg-black"></div>
                         </>
                     )}
-                    {scanSuccess && (
+                    {scanStatus.type === 'success' && (
                         <div className="flex flex-col items-center">
                             <CheckCircle size={64} className="text-green-500 mb-4" />
                             <h2 className="text-2xl font-bold mb-2">Success!</h2>
-                            <p className="text-muted-foreground mb-6">{scanSuccess}</p>
-                             <button onClick={() => { setScanSuccess(null); setScanResult(null); }} className="w-full bg-secondary text-secondary-foreground py-2 rounded-lg hover:bg-secondary/80">Scan Again</button>
+                            <p className="text-muted-foreground mb-6">{scanStatus.message}</p>
+                             <button onClick={() => setScanStatus({ type: 'idle', message: null })} className="w-full bg-secondary text-secondary-foreground py-2 rounded-lg hover:bg-secondary/80">Done</button>
                         </div>
                     )}
-                    {scanError && (
+                    {scanStatus.type === 'error' && (
                          <div className="flex flex-col items-center">
                             <XCircle size={64} className="text-destructive mb-4" />
                             <h2 className="text-2xl font-bold mb-2">Error</h2>
-                            <p className="text-muted-foreground mb-6">{scanError}</p>
-                            <button onClick={() => { setScanError(null); setScanResult(null); }} className="w-full bg-secondary text-secondary-foreground py-2 rounded-lg hover:bg-secondary/80">Try Again</button>
+                            <p className="text-muted-foreground mb-6">{scanStatus.message}</p>
+                            <button onClick={() => setScanStatus({ type: 'idle', message: null })} className="w-full bg-secondary text-secondary-foreground py-2 rounded-lg hover:bg-secondary/80">Try Again</button>
                         </div>
                     )}
                 </div>
@@ -521,6 +506,7 @@ const SupabasePortal: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+    const [scanStatus, setScanStatus] = useState<ScanStatus>({ type: 'idle', message: null });
 
     // Teacher state
     const [qrCode, setQrCode] = useState<string | null>(null);
@@ -541,6 +527,37 @@ const SupabasePortal: React.FC = () => {
         }
     }, []);
 
+    const processStudentScan = useCallback(async (sessionId: string, studentUser: User) => {
+        setScanStatus({ type: 'info', message: 'Verifying session...' });
+        if (!supabase) {
+            setScanStatus({ type: 'error', message: 'Portal is not connected.' });
+            return;
+        }
+
+        const { data: session, error: sessionError } = await supabase.from('portal_sessions').select('created_at, expires_at, is_active').eq('id', sessionId).single();
+        
+        if (sessionError || !session) {
+            setScanStatus({ type: 'error', message: "Session not found. It might be invalid." });
+            return;
+        }
+        if (!session.is_active || new Date(session.expires_at).getTime() < Date.now()) {
+            setScanStatus({ type: 'error', message: "This attendance session has expired or is no longer active." });
+            return;
+        }
+
+        const { error: insertError } = await supabase.from('portal_attendance').upsert({ student_id: studentUser.id, session_id: sessionId });
+        
+        if (insertError) {
+             if (insertError.code === '23505') { // Unique constraint violation
+                setScanStatus({ type: 'success', message: "You have already been marked present for this session!" });
+             } else {
+                setScanStatus({ type: 'error', message: `Failed to mark attendance: ${insertError.message}` });
+             }
+        } else {
+             setScanStatus({ type: 'success', message: 'Attendance marked successfully!' });
+        }
+    }, []);
+
     const handleLogin = async (email: string, pass: string) => {
         if (!supabase) return;
         const { data, error: dbError } = await supabase.from('portal_users').select('*').eq('email', email.toLowerCase().trim()).single();
@@ -548,8 +565,14 @@ const SupabasePortal: React.FC = () => {
             setError("Invalid credentials or user not found.");
             return;
         }
-        setUser(data as User);
-        sessionStorage.setItem('portalUser', JSON.stringify(data));
+        const loggedInUser = data as User;
+        setUser(loggedInUser);
+        sessionStorage.setItem('portalUser', JSON.stringify(loggedInUser));
+
+        if (loggedInUser.role === 'student' && pendingSessionId) {
+            await processStudentScan(pendingSessionId, loggedInUser);
+            setPendingSessionId(null);
+        }
     };
 
     const handleRegister = async (details: NewUser) => {
@@ -571,13 +594,19 @@ const SupabasePortal: React.FC = () => {
             return;
         }
         if (data) {
-            setUser(data as User);
-            sessionStorage.setItem('portalUser', JSON.stringify(data));
+            const newUser = data as User;
+            setUser(newUser);
+            sessionStorage.setItem('portalUser', JSON.stringify(newUser));
+             if (newUser.role === 'student' && pendingSessionId) {
+                await processStudentScan(pendingSessionId, newUser);
+                setPendingSessionId(null);
+            }
         }
     };
 
     const handleLogout = () => {
         setUser(null);
+        setScanStatus({ type: 'idle', message: null });
         sessionStorage.removeItem('portalUser');
     };
     
@@ -680,19 +709,6 @@ const SupabasePortal: React.FC = () => {
         else loadStudents();
     };
     
-    // --- STUDENT LOGIC ---
-    const processStudentScan = useCallback(async (sessionId: string) => {
-        if (!supabase || !user) throw new Error("Portal is not connected.");
-        const { data: session, error: sessionError } = await supabase.from('portal_sessions').select('created_at, expires_at, is_active').eq('id', sessionId).single();
-        if (sessionError || !session) throw new Error("Session not found or has expired.");
-        if (!session.is_active || new Date(session.expires_at).getTime() < Date.now()) throw new Error("This attendance session is no longer active.");
-        const { error: insertError } = await supabase.from('portal_attendance').upsert({ student_id: user.id, session_id: sessionId });
-        if (insertError) {
-             if (insertError.code === '23505') throw new Error("You have already been marked present for this session!");
-             throw new Error(`Failed to mark attendance: ${insertError.message}`);
-        }
-    }, [user]);
-    
     // --- RENDER LOGIC ---
     if (isLoading) return <div className="flex-1 flex items-center justify-center bg-secondary/30"><Loader className="animate-spin text-primary" size={48}/></div>;
     if (!user) return <AuthPortal onLogin={handleLogin} onRegister={handleRegister} error={error} setError={setError} pendingSessionId={pendingSessionId} />;
@@ -700,7 +716,8 @@ const SupabasePortal: React.FC = () => {
         teacher={user} onLogout={handleLogout} qrCode={qrCode} isStartingSession={isStartingSession} students={students} presentStudents={presentStudents} 
         activeSession={activeSession} error={error} setError={setError} onStartSession={startSession} onEndSession={endSession} onAddStudent={handleAddStudent}
         onSaveEdit={handleSaveEdit} onDeleteStudent={handleDeleteStudent} onCheckActiveSession={checkActiveSession} />;
-    return <StudentDashboard student={user} onLogout={handleLogout} pendingSessionId={pendingSessionId} onProcessSessionId={processStudentScan} />;
+    
+    return <StudentDashboard student={user} onLogout={handleLogout} onProcessSessionId={(sessionId) => processStudentScan(sessionId, user)} scanStatus={scanStatus} setScanStatus={setScanStatus} />;
 };
 
 
@@ -709,6 +726,7 @@ const MockPortal: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+    const [scanStatus, setScanStatus] = useState<ScanStatus>({ type: 'idle', message: null });
     
     const [mockUsers, setMockUsers] = useState([MOCK_TEACHER, ...MOCK_STUDENTS]);
     const [students, setStudents] = useState<User[]>(MOCK_STUDENTS);
@@ -716,26 +734,36 @@ const MockPortal: React.FC = () => {
     const [presentStudents, setPresentStudents] = useState<Set<number>>(new Set());
     const [qrCode, setQrCode] = useState<string | null>(null);
 
-    useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('session')) {
-            setPendingSessionId(urlParams.get('session'));
-            const url = new URL(window.location.href);
-            url.searchParams.delete('session');
-            window.history.replaceState({}, document.title, url.toString());
+     const processStudentScan = useCallback(async (sessionId: string, studentUser: User) => {
+        setScanStatus({ type: 'info', message: 'Verifying session...' });
+        await new Promise(res => setTimeout(res, 500)); // Simulate network delay
+
+        if (!activeSession || sessionId !== activeSession.id) {
+            setScanStatus({ type: 'error', message: "Session not found or has expired." });
+            return;
         }
-        try {
-            const storedUser = sessionStorage.getItem('portalUserMock');
-            if (storedUser) setUser(JSON.parse(storedUser));
-        } catch(e) {}
-        setIsLoading(false);
-    }, []);
+        if (!activeSession.is_active || new Date(activeSession.expires_at).getTime() < Date.now()) {
+            setScanStatus({ type: 'error', message: "This attendance session is no longer active." });
+            return;
+        }
+        if (presentStudents.has(studentUser.id)) {
+            setScanStatus({ type: 'success', message: "You have already been marked present!" });
+            return;
+        }
+        setPresentStudents(prev => new Set(prev).add(studentUser.id));
+        setScanStatus({ type: 'success', message: 'Attendance marked successfully!' });
+    }, [activeSession, presentStudents]);
+
 
     const handleLogin = async (email: string, pass: string) => {
         const foundUser = mockUsers.find(u => u.email?.toLowerCase() === email.toLowerCase().trim() && u.password === pass);
         if (foundUser) {
             setUser(foundUser);
             sessionStorage.setItem('portalUserMock', JSON.stringify(foundUser));
+            if (foundUser.role === 'student' && pendingSessionId) {
+                await processStudentScan(pendingSessionId, foundUser);
+                setPendingSessionId(null);
+            }
         } else {
             setError("Invalid credentials. Try 'teacher@example.com' or a student email with password 'password123'.");
         }
@@ -770,8 +798,27 @@ const MockPortal: React.FC = () => {
         
         setUser(newUser);
         sessionStorage.setItem('portalUserMock', JSON.stringify(newUser));
+
+        if (newUser.role === 'student' && pendingSessionId) {
+            await processStudentScan(pendingSessionId, newUser);
+            setPendingSessionId(null);
+        }
     };
 
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('session')) {
+            setPendingSessionId(urlParams.get('session'));
+            const url = new URL(window.location.href);
+            url.searchParams.delete('session');
+            window.history.replaceState({}, document.title, url.toString());
+        }
+        try {
+            const storedUser = sessionStorage.getItem('portalUserMock');
+            if (storedUser) setUser(JSON.parse(storedUser));
+        } catch(e) {}
+        setIsLoading(false);
+    }, []);
 
     const handleLogout = () => {
         setUser(null);
@@ -813,13 +860,6 @@ const MockPortal: React.FC = () => {
         if (window.confirm("Are you sure?")) setStudents(prev => prev.filter(s => s.id !== id));
     };
 
-    const processStudentScan = async (sessionId: string) => {
-        if (!activeSession || sessionId !== activeSession.id) throw new Error("Session not found or has expired.");
-        if (!activeSession.is_active || new Date(activeSession.expires_at).getTime() < Date.now()) throw new Error("This attendance session is no longer active.");
-        if (presentStudents.has(user!.id)) throw new Error("You have already been marked present!");
-        setPresentStudents(prev => new Set(prev).add(user!.id));
-    };
-
     if (isLoading) return <div className="flex-1 flex items-center justify-center bg-secondary/30"><Loader className="animate-spin text-primary" size={48}/></div>;
     if (!user) return <AuthPortal onLogin={handleLogin} onRegister={handleRegister} error={error} setError={setError} pendingSessionId={pendingSessionId} />;
     
@@ -843,7 +883,7 @@ const MockPortal: React.FC = () => {
         />;
     }
 
-    return <StudentDashboard student={user} onLogout={handleLogout} pendingSessionId={pendingSessionId} onProcessSessionId={processStudentScan} />;
+    return <StudentDashboard student={user} onLogout={handleLogout} onProcessSessionId={(sessionId) => processStudentScan(sessionId, user)} scanStatus={scanStatus} setScanStatus={setScanStatus} />;
 };
 
 // =================================================================
