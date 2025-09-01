@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Spinner } from './Spinner';
 import { BrainCircuitIcon, CommandIcon, FileTextIcon, LanguagesIcon, ListTodoIcon, MessageSquareQuoteIcon, PlusIcon, TrashIcon, XIcon, ImageIcon } from './Icons';
 import { Bold, Italic, Underline, Strikethrough, Heading1, Heading2, List, ListOrdered } from 'lucide-react';
 import { geminiAI } from './gemini';

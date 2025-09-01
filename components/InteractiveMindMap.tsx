@@ -1,9 +1,8 @@
 
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Upload, FileText, ZoomIn, ZoomOut, RotateCcw, BrainCircuit, X, Plus } from 'lucide-react';
+import { Upload, FileText, ZoomIn, ZoomOut, RotateCcw, BrainCircuit, X, Plus, Loader } from 'lucide-react';
 import { geminiAI } from './gemini';
-import { Spinner } from './Spinner';
 
 // Helper function for text wrapping
 function wrapText(text: string, maxWidthChars: number): string[] {
@@ -572,7 +571,7 @@ const InteractiveMindMap: React.FC = () => {
                         <button onClick={resetView} className="p-1.5 hover:bg-accent rounded-md"><RotateCcw size={16}/></button>
                         <button onClick={() => setZoom(z => Math.max(0.1, z - 0.2))} className="p-1.5 hover:bg-accent rounded-md"><ZoomOut size={16}/></button>
                     </div>
-                    <label className="flex items-center gap-2 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 cursor-pointer">
+                    <label className="flex items-center gap-2 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 cursor-pointer transition-colors active:scale-95">
                         <Upload size={16} />
                         <span>Upload File</span>
                         <input type="file" className="hidden" onChange={handleFileUpload} accept=".txt,.md,.pdf,.doc,.docx,.ppt,.pptx" />
@@ -583,15 +582,15 @@ const InteractiveMindMap: React.FC = () => {
                 <main className="flex-1 relative bg-grid-pattern">
                     {isProcessing ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-10">
-                            <Spinner />
+                            <Loader className="w-8 h-8 text-primary animate-spin" />
                             <p className="mt-4 text-lg">Analyzing document...</p>
                         </div>
                     ) : !mindMapData ? (
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center p-8 bg-card/80 border border-border rounded-lg shadow-xl">
-                                <FileText size={48} className="mx-auto text-muted-foreground mb-4"/>
+                            <div className="text-center p-8 bg-card/80 border border-border rounded-lg shadow-xl max-w-lg">
+                                <BrainCircuit size={48} className="mx-auto text-primary mb-4"/>
                                 <h2 className="text-2xl font-bold">Visualize Your Documents</h2>
-                                <p className="text-muted-foreground mt-2">Upload a document (.txt, .md, .pdf, .docx, .pptx) to generate an interactive mind map.</p>
+                                <p className="text-muted-foreground mt-2">Upload a document (.txt, .md, .pdf, .docx, .pptx) to automatically generate an interactive mind map and explore its structure.</p>
                             </div>
                         </div>
                     ) : (
@@ -662,7 +661,7 @@ const InteractiveMindMap: React.FC = () => {
                         </svg>
                     )}
                 </main>
-                <aside className={`flex-shrink-0 border-l border-border transition-all duration-300 overflow-hidden ${selectedNode ? 'w-80' : 'w-0'}`}>
+                <aside className={`flex-shrink-0 border-l border-border transition-all duration-300 overflow-y-auto ${selectedNode ? 'w-80' : 'w-0'}`}>
                     {selectedNode && (
                         <div className="p-4 flex flex-col h-full">
                              <div className="flex items-start justify-between mb-4">
@@ -675,7 +674,7 @@ const InteractiveMindMap: React.FC = () => {
                             
                             <div className="mb-4">
                                 <h4 className="font-semibold text-sm mb-2 text-muted-foreground">Actions</h4>
-                                <button onClick={handleAddNode} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-accent text-accent-foreground rounded-md hover:bg-accent/80 transition-colors">
+                                <button onClick={handleAddNode} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-accent text-accent-foreground rounded-md hover:bg-accent/80 transition-colors active:scale-95">
                                     <Plus size={16} /> Add Child Node
                                 </button>
                             </div>
@@ -685,7 +684,7 @@ const InteractiveMindMap: React.FC = () => {
                                 <div className="flex flex-wrap gap-2">
                                     {['#60A5FA', '#FBBF24', '#4ADE80', '#F87171', '#A78BFA', '#4B5563', '#EC4899'].map(color => (
                                         <button key={color} onClick={() => handleColorChange(color)}
-                                            className={`w-6 h-6 rounded-full transition-transform hover:scale-110 ${selectedNode.color === color ? 'ring-2 ring-offset-2 ring-offset-background ring-foreground' : ''}`}
+                                            className={`w-6 h-6 rounded-full transition-transform hover:scale-110 active:scale-95 ${selectedNode.color === color ? 'ring-2 ring-offset-2 ring-offset-background ring-foreground' : ''}`}
                                             style={{ backgroundColor: color }} aria-label={`Change color to ${color}`}
                                         />
                                     ))}
@@ -694,7 +693,7 @@ const InteractiveMindMap: React.FC = () => {
                             
                             <div className="flex-1 overflow-y-auto text-sm text-foreground/90 border-t border-border pt-4 mt-2">
                                 <h4 className="font-semibold text-sm mb-2 text-muted-foreground">AI Explanation</h4>
-                                {isExplaining ? <div className="flex items-center gap-2"><Spinner/> Generating...</div> : <p className="whitespace-pre-wrap leading-relaxed">{explanation}</p>}
+                                {isExplaining ? <div className="flex items-center gap-2"><Loader className="w-4 h-4 animate-spin"/> Generating...</div> : <p className="whitespace-pre-wrap leading-relaxed">{explanation}</p>}
                             </div>
                         </div>
                     )}

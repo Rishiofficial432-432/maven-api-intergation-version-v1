@@ -19,6 +19,7 @@ interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
   onToggleSearch: () => void;
+  onGoToLandingPage: () => void;
 }
 
 const navItems = [
@@ -39,18 +40,23 @@ const navItems = [
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({
-  pages, activePageId, onSelectPage, onNewPage, view, setView, activeTab, setActiveTab, isCollapsed, setIsCollapsed, onToggleSearch
+  pages, activePageId, onSelectPage, onNewPage, view, setView, activeTab, setActiveTab, isCollapsed, setIsCollapsed, onToggleSearch, onGoToLandingPage
 }) => {
   return (
     <aside className={`bg-card/80 backdrop-blur-xl flex flex-col border-l border-border/50 flex-shrink-0 transition-all duration-300 ease-in-out ${isCollapsed ? 'w-20' : 'w-64'}`}>
       <div className="flex-shrink-0">
         <div className="p-4 border-b border-border/50 flex items-center justify-center">
-           <div className="flex items-center gap-2 overflow-hidden">
+           <button
+              type="button"
+              onClick={onGoToLandingPage}
+              className="flex items-center gap-2 overflow-hidden"
+              aria-label="Go to Landing Page"
+           >
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
                 <span className="text-primary-foreground font-bold text-lg">M</span>
               </div>
               {!isCollapsed && <h1 className="text-lg font-semibold text-foreground whitespace-nowrap">Maven</h1>}
-           </div>
+           </button>
         </div>
 
         <nav className="p-3 space-y-2 border-b border-border/50">

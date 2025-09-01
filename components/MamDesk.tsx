@@ -108,7 +108,7 @@ interface AIBrainDumpProps {
     onAddTask: (text: string) => void;
     onAddEvent: (title: string, date: string, time: string) => void;
     onAddQuickNote: (text: string) => void;
-    onNewPage: (title: string, content?: string) => Page;
+    onNewNote: (title: string, content?: string) => Page;
 }
 
 interface BrainDumpResponse {
@@ -126,7 +126,7 @@ interface SaveableItems {
 }
 
 
-const AIBrainDump: React.FC<AIBrainDumpProps> = ({ onAddTask, onAddEvent, onAddQuickNote, onNewPage }) => {
+const AIBrainDump: React.FC<AIBrainDumpProps> = ({ onAddTask, onAddEvent, onAddQuickNote, onNewNote }) => {
     const [input, setInput] = useState('');
     const [result, setResult] = useState<BrainDumpResponse | null>(null);
     const [itemsToSave, setItemsToSave] = useState<SaveableItems | null>(null);
@@ -206,7 +206,7 @@ Structure your response strictly as a JSON object matching the provided schema. 
         itemsToSave.tasks.forEach(t => { if (t.checked) { onAddTask(t.text); itemsAdded++; } });
         itemsToSave.events.forEach(e => { if (e.checked) { onAddEvent(e.item.title, e.item.date, e.item.time); itemsAdded++; } });
         itemsToSave.quickNotes.forEach(qn => { if (qn.checked) { onAddQuickNote(qn.text); itemsAdded++; } });
-        itemsToSave.newNotes.forEach(nn => { if (nn.checked) { onNewPage(nn.item.title, nn.item.content); itemsAdded++; } });
+        itemsToSave.newNotes.forEach(nn => { if (nn.checked) { onNewNote(nn.item.title, nn.item.content); itemsAdded++; } });
         
         setSuccessMessage(`${itemsAdded} items have been added to your workspace!`);
         setTimeout(() => setSuccessMessage(null), 4000);
@@ -227,10 +227,10 @@ Structure your response strictly as a JSON object matching the provided schema. 
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold flex items-center gap-2"><CheckCircle size={24}/> AI Suggestions</h2>
                     <div className="flex items-center gap-2">
-                         <button onClick={handleStartOver} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                         <button onClick={handleStartOver} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 active:scale-95 transition-transform">
                             <ArrowLeft size={16}/> Start Over
                         </button>
-                        <button onClick={handleSave} className="flex items-center gap-2 px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90">
+                        <button onClick={handleSave} className="flex items-center gap-2 px-4 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 active:scale-95 transition-transform">
                             <Save size={16}/> Save Selected Items
                         </button>
                     </div>
@@ -282,7 +282,7 @@ Structure your response strictly as a JSON object matching the provided schema. 
                 <button
                     onClick={handleProcess}
                     disabled={isProcessing || !input.trim()}
-                    className="mt-4 w-full max-w-xs flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg text-lg font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="mt-4 w-full max-w-xs flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg text-lg font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                 >
                     {isProcessing ? <><Loader className="animate-spin"/> Processing...</> : <><Wand2/> Process with AI</>}
                 </button>
@@ -340,7 +340,7 @@ interface MamDeskProps {
     onDeleteStudent: (id: string) => void;
     onSetAttendance: (date: string, studentId: string, status: 'Present' | 'Absent') => void;
     onAddStudentsBatch: (students: { name: string; enrollment: string; classId: string }[]) => string;
-    onNewPage: (title: string, content?: string) => Page;
+    onNewNote: (title: string, content?: string) => Page;
 }
 
 const formatDateToYYYYMMDD = (date: Date) => {
@@ -577,7 +577,7 @@ const AttendanceManager: React.FC<{
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
             {/* Class list and management */}
             <div className="lg:col-span-1 bg-card border border-border rounded-xl shadow-lg p-6 flex flex-col">
                 <h2 className="text-xl font-bold mb-4">Classes</h2>
@@ -589,13 +589,13 @@ const AttendanceManager: React.FC<{
                         placeholder="New class name"
                         className="flex-1 bg-input border-border rounded-md px-3 py-2 focus:ring-ring focus:border-primary"
                     />
-                    <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
+                    <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 active:scale-95 transition-transform">Add</button>
                 </form>
                 <div className="flex-1 overflow-y-auto space-y-2">
                     {classes.map(c => (
                         <div key={c.id} className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${activeClassId === c.id ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-secondary/80'}`} onClick={() => setActiveClassId(c.id)}>
                             <span className="font-medium">{c.name}</span>
-                            <button onClick={(e) => { e.stopPropagation(); onDeleteClass(c.id); if(activeClassId === c.id) setActiveClassId(classes.find(cls => cls.id !== c.id)?.id || null); }} className={`text-muted-foreground hover:text-destructive ${activeClassId === c.id ? 'text-primary-foreground/70 hover:text-white' : ''}`}><Trash2 size={16}/></button>
+                            <button onClick={(e) => { e.stopPropagation(); onDeleteClass(c.id); if(activeClassId === c.id) setActiveClassId(classes.find(cls => cls.id !== c.id)?.id || null); }} className={`p-1 rounded-full transition-colors ${activeClassId === c.id ? 'text-primary-foreground/70 hover:text-white hover:bg-white/10' : 'text-muted-foreground hover:text-destructive hover:bg-destructive/10'}`}><Trash2 size={16}/></button>
                         </div>
                     ))}
                     {classes.length === 0 && <p className="text-muted-foreground text-center py-8">No classes created yet.</p>}
@@ -606,7 +606,7 @@ const AttendanceManager: React.FC<{
             <div className="lg:col-span-2 bg-card border border-border rounded-xl shadow-lg p-6 flex flex-col">
                 {activeClassId ? (
                     <>
-                        <div className="flex flex-wrap items-center justify-between mb-4 gap-4">
+                        <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
                             <h2 className="text-xl font-bold">Manage Attendance: <span className="text-primary">{classes.find(c=>c.id === activeClassId)?.name}</span></h2>
                              <div className="flex items-center gap-2">
                                 <div className="flex items-center gap-1 bg-secondary rounded-md p-1">
@@ -621,7 +621,7 @@ const AttendanceManager: React.FC<{
                                     </button>
                                 </div>
                                 <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-input border-border rounded-md px-3 py-2"/>
-                                <button onClick={handleExportAttendance} className="bg-secondary text-secondary-foreground px-3 py-2 rounded-md hover:bg-secondary/80 flex items-center gap-2 text-sm" title="Export attendance for this class">
+                                <button onClick={handleExportAttendance} className="bg-secondary text-secondary-foreground px-3 py-2 rounded-md hover:bg-secondary/80 flex items-center gap-2 text-sm active:scale-95 transition-transform" title="Export attendance for this class">
                                     <Download size={16} />
                                     Export
                                 </button>
@@ -644,8 +644,8 @@ const AttendanceManager: React.FC<{
                                             <td className="p-2 text-muted-foreground">{student.enrollment}</td>
                                             <td className="p-2">
                                                 <div className="flex justify-center gap-2">
-                                                    <button onClick={() => onSetAttendance(selectedDate, student.id, 'Present')} className={`px-3 py-1 text-xs rounded-full ${attendanceForDate[student.id] === 'Present' ? 'bg-green-500 text-white' : 'bg-secondary hover:bg-secondary/80'}`}>Present</button>
-                                                    <button onClick={() => onSetAttendance(selectedDate, student.id, 'Absent')} className={`px-3 py-1 text-xs rounded-full ${attendanceForDate[student.id] === 'Absent' ? 'bg-destructive text-white' : 'bg-secondary hover:bg-secondary/80'}`}>Absent</button>
+                                                    <button onClick={() => onSetAttendance(selectedDate, student.id, 'Present')} className={`px-3 py-1 text-xs rounded-full transition-colors ${attendanceForDate[student.id] === 'Present' ? 'bg-green-500 text-white' : 'bg-secondary hover:bg-secondary/80'}`}>Present</button>
+                                                    <button onClick={() => onSetAttendance(selectedDate, student.id, 'Absent')} className={`px-3 py-1 text-xs rounded-full transition-colors ${attendanceForDate[student.id] === 'Absent' ? 'bg-destructive text-white' : 'bg-secondary hover:bg-secondary/80'}`}>Absent</button>
                                                 </div>
                                             </td>
                                             <td className="p-2 text-right">
@@ -664,7 +664,10 @@ const AttendanceManager: React.FC<{
                                 <div className={`mb-4 p-3 rounded-md flex items-center justify-between text-sm ${
                                     importFeedback.type === 'success' ? 'bg-green-500/10 text-green-400' : 'bg-destructive/10 text-destructive'
                                 }`}>
-                                    <span>{importFeedback.message}</span>
+                                    <div className="flex items-center gap-2">
+                                        {importFeedback.type === 'success' ? <CheckCircle size={16}/> : <X size={16}/>}
+                                        <span>{importFeedback.message}</span>
+                                    </div>
                                     <button onClick={() => setImportFeedback(null)}><X size={16} /></button>
                                 </div>
                             )}
@@ -704,7 +707,7 @@ const AttendanceManager: React.FC<{
                             <form onSubmit={handleAddStudent} className="flex flex-wrap gap-2">
                                 <input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Student name" required className="flex-1 min-w-[150px] bg-input border-border rounded-md px-3 py-2"/>
                                 <input type="text" value={newStudentEnrollment} onChange={e => setNewStudentEnrollment(e.target.value)} placeholder="Enrollment No." required className="flex-1 min-w-[150px] bg-input border-border rounded-md px-3 py-2"/>
-                                <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add Student</button>
+                                <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 active:scale-95 transition-transform">Add Student</button>
                             </form>
                         </div>
                     </>
@@ -1009,7 +1012,7 @@ const MamDesk: React.FC<MamDeskProps> = (props) => {
       classes, students, attendance,
       onAddClass, onDeleteClass, onAddStudent, onDeleteStudent, onSetAttendance,
       onAddStudentsBatch,
-      onNewPage
+      onNewNote
   } = props;
   
   // Local UI State
@@ -1019,6 +1022,7 @@ const MamDesk: React.FC<MamDeskProps> = (props) => {
   const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem('gemini-api-key') || '');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeySaveState, setApiKeySaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const toast = useToast();
   
   const handleAddTaskUI = () => {
@@ -1109,8 +1113,12 @@ const MamDesk: React.FC<MamDeskProps> = (props) => {
   };
   
   const handleSaveApiKey = () => {
+    setApiKeySaveState('saving');
     updateApiKey(apiKeyInput.trim());
-    toast.success('API Key saved successfully!');
+    setTimeout(() => {
+        setApiKeySaveState('saved');
+        setTimeout(() => setApiKeySaveState('idle'), 2000);
+    }, 500);
   };
   
   const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
@@ -1119,12 +1127,12 @@ const MamDesk: React.FC<MamDeskProps> = (props) => {
     switch (activeTab) {
         case 'dashboard':
             return (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className={`${cardClasses} p-6 lg:col-span-2`}>
                          <h3 className="font-semibold mb-4 text-lg flex items-center gap-2"><ClipboardList /> Today's Focus</h3>
                          <div className="flex gap-2 mb-4">
                             <input type="text" value={newTask} onChange={e => setNewTask(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleAddTaskUI()} placeholder="Add a new task..." className="flex-1 bg-input border-border rounded-md px-3 py-2 focus:ring-ring focus:border-primary" />
-                            <button onClick={handleAddTaskUI} className="bg-primary px-4 py-2 rounded-md hover:bg-primary/90">Add Task</button>
+                            <button onClick={handleAddTaskUI} className="bg-primary px-4 py-2 rounded-md hover:bg-primary/90 active:scale-95 transition-transform">Add Task</button>
                         </div>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                             {tasks.filter(t => !t.completed).map(t => (
@@ -1147,7 +1155,7 @@ const MamDesk: React.FC<MamDeskProps> = (props) => {
                             placeholder="Jot down a quick thought..."
                             className="w-full bg-input border-border rounded-md px-3 py-2 mb-2 focus:ring-ring focus:border-primary min-h-[60px]"
                         />
-                        <button onClick={addNoteUI} className="bg-secondary text-secondary-foreground px-4 py-2 rounded-md hover:bg-secondary/80 w-full">Save Note</button>
+                        <button onClick={addNoteUI} className="bg-secondary text-secondary-foreground px-4 py-2 rounded-md hover:bg-secondary/80 w-full active:scale-95 transition-transform">Save Note</button>
                          <div className="space-y-2 mt-4 max-h-48 overflow-y-auto">
                              {quickNotes.map(note => (
                                 <div key={note.id} className="group flex justify-between items-start bg-secondary p-3 rounded-md">
@@ -1159,16 +1167,16 @@ const MamDesk: React.FC<MamDeskProps> = (props) => {
                     </div>
                      <div className={`${cardClasses} p-6 flex flex-col items-center justify-center text-center`}>
                         <h3 className="font-semibold mb-2 text-lg flex items-center gap-2"><Timer /> Pomodoro Timer</h3>
-                        <div className="text-6xl font-mono font-bold my-4 text-primary">{formatTime(pomodoroTime)}</div>
+                        <div className="text-7xl font-mono font-bold my-4 text-primary">{formatTime(pomodoroTime)}</div>
                         <div className="flex justify-center gap-4">
-                            <button onClick={onTogglePomodoro} className={`px-5 py-2 rounded-lg text-white ${pomodoroActive ? 'bg-destructive' : 'bg-green-600'}`}>{pomodoroActive ? 'Pause' : 'Start'}</button>
-                            <button onClick={onResetPomodoro} className="px-5 py-2 rounded-lg bg-secondary text-secondary-foreground">Reset</button>
+                            <button onClick={onTogglePomodoro} className={`px-5 py-2 rounded-lg text-white transition-all active:scale-95 ${pomodoroActive ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}>{pomodoroActive ? 'Pause' : 'Start'}</button>
+                            <button onClick={onResetPomodoro} className="px-5 py-2 rounded-lg bg-secondary text-secondary-foreground active:scale-95 transition-transform">Reset</button>
                         </div>
                     </div>
                 </div>
             );
         case 'braindump':
-            return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={handleAddQuickNote} onNewPage={onNewPage} />;
+            return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={handleAddQuickNote} onNewNote={onNewNote} />;
         case 'tasks':
              return (
                 <div className={`${cardClasses} p-6`}>
@@ -1432,15 +1440,21 @@ const MamDesk: React.FC<MamDeskProps> = (props) => {
                                     {showApiKey ? <EyeOff size={16}/> : <Eye size={16}/>}
                                 </button>
                             </div>
-                            <button onClick={handleSaveApiKey} className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex-shrink-0">
-                                Save
+                            <button 
+                                onClick={handleSaveApiKey} 
+                                className={`bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex-shrink-0 transition-all w-24 flex items-center justify-center ${apiKeySaveState === 'saved' ? '!bg-green-600' : ''}`}
+                                disabled={apiKeySaveState !== 'idle'}
+                            >
+                                {apiKeySaveState === 'idle' && 'Save'}
+                                {apiKeySaveState === 'saving' && <Loader className="w-4 h-4 animate-spin"/>}
+                                {apiKeySaveState === 'saved' && <Check size={16}/>}
                             </button>
                         </div>
                     </div>
                     <div className={`${cardClasses} p-6`}>
                         <h2 className="text-xl font-bold mb-4">Export Data</h2>
                         <p className="text-muted-foreground mb-4">Download all your MamDesk & Notes data as a single JSON file for backup.</p>
-                        <button onClick={exportData} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90">
+                        <button onClick={exportData} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 active:scale-95 transition-transform">
                             <Download size={16} />
                             Export My Data
                         </button>
@@ -1460,7 +1474,7 @@ const MamDesk: React.FC<MamDeskProps> = (props) => {
   }
 
   return (
-    <main className="flex-1 p-6 overflow-y-auto bg-background text-foreground">
+    <main className="flex-1 p-8 overflow-y-auto bg-background text-foreground">
         {renderContent()}
     </main>
   );

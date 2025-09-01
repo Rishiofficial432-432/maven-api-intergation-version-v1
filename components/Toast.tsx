@@ -50,10 +50,10 @@ const Toast: React.FC<{ message: ToastMessage; onDismiss: (id: number) => void }
     default: <Bell className="w-5 h-5 text-gray-400" />,
   };
   
-  const baseClasses = "flex items-center w-full max-w-xs p-4 space-x-3 text-gray-300 bg-card border border-border rounded-lg shadow-lg transform transition-all duration-300";
+  const baseClasses = "flex items-center w-full max-w-xs p-4 space-x-3 text-gray-300 bg-card/80 backdrop-blur-md border border-border rounded-lg shadow-lg transform transition-all duration-300";
   const animationClasses = isExiting
-    ? 'opacity-0 translate-y-4'
-    : 'opacity-100 translate-y-0';
+    ? 'opacity-0 translate-x-full'
+    : 'opacity-100 translate-x-0';
 
   return (
     <div className={`${baseClasses} ${animationClasses}`}>
@@ -61,7 +61,7 @@ const Toast: React.FC<{ message: ToastMessage; onDismiss: (id: number) => void }
       <div className="text-sm font-normal flex-1">{message.message}</div>
       <button
         onClick={handleDismiss}
-        className="-mx-1.5 -my-1.5 bg-card text-gray-400 hover:text-gray-100 hover:bg-secondary rounded-lg focus:ring-2 focus:ring-gray-600 p-1.5 inline-flex h-8 w-8 transition-colors"
+        className="-mx-1.5 -my-1.5 bg-card/50 text-gray-400 hover:text-gray-100 hover:bg-secondary rounded-lg focus:ring-2 focus:ring-gray-600 p-1.5 inline-flex h-8 w-8 transition-colors"
         aria-label="Close"
       >
         <X className="w-5 h-5" />

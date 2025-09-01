@@ -244,6 +244,18 @@ const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNew
                 top: 0;
                 left: 0;
             }
+            @keyframes breathing {
+                0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(var(--primary-values), 0.3); }
+                50% { transform: scale(1.05); box-shadow: 0 0 30px rgba(var(--primary-values), 0.5); }
+            }
+            .animate-breathing {
+                animation: breathing 4s ease-in-out infinite;
+                --primary-values: 262 83% 58%; /* Fallback, should be set by theme */
+            }
+            .theme-dark .animate-breathing { --primary-values: 262 83% 58%; }
+            .theme-light .animate-breathing { --primary-values: 262 83% 58%; }
+            .theme-midlight .animate-breathing { --primary-values: 195 85% 41%; }
+            .theme-midnight .animate-breathing { --primary-values: 210 90% 60%; }
         `}</style>
         <input
             type="file"
@@ -287,16 +299,16 @@ const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNew
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 title={tool.name}
-                                className={`w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground transition-colors duration-200 hover:bg-accent ${tool.color}`}
+                                className={`w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-accent/80 hover:scale-110 active:scale-95 ${tool.color}`}
                             >
                                 {tool.icon}
                             </a>
                         ))}
                         <div className="w-px h-6 bg-border mx-2"></div>
-                        <button onClick={() => imageInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent rounded-full transition-colors" aria-label="Insert image">
+                        <button onClick={() => imageInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent/80 rounded-full transition-all duration-200 hover:scale-110 active:scale-95" aria-label="Insert image">
                             <ImageIcon className="w-5 h-5" />
                         </button>
-                        <button onClick={() => onDeletePage(page.id)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-accent rounded-full transition-colors" aria-label="Delete page">
+                        <button onClick={() => onDeletePage(page.id)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-accent/80 rounded-full transition-all duration-200 hover:scale-110 active:scale-95" aria-label="Delete page">
                             <TrashIcon className="w-5 h-5" />
                         </button>
                     </div>
@@ -315,7 +327,7 @@ const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNew
          {isAiLoading && <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center text-foreground">Generating...</div>}
          <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="absolute bottom-8 right-8 w-14 h-14 bg-primary rounded-full flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/50 hover:bg-primary/90 transition-all duration-200 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-primary/50"
+            className="absolute bottom-8 right-8 w-14 h-14 bg-primary rounded-full flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/50 transition-all duration-200 animate-breathing"
             aria-label="Open AI Command Palette"
         >
             <Wand2Icon className="w-7 h-7" />

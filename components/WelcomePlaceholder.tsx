@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { geminiAI } from './gemini';
+import { Loader } from 'lucide-react';
 
 interface WelcomePlaceholderProps {
     onNewPage: () => void;
@@ -64,27 +65,28 @@ export const WelcomePlaceholder: React.FC<WelcomePlaceholderProps> = ({ onNewPag
 
 
     return (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background">
-            <div className="w-full max-w-4xl min-h-[12rem] flex flex-col items-center justify-center">
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background relative overflow-hidden">
+             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-primary/10 animate-gradient-shift"></div>
+            <div className="w-full max-w-4xl min-h-[12rem] flex flex-col items-center justify-center z-10">
                 <h1 
-                    className="text-5xl sm:text-6xl lg:text-7xl text-foreground tracking-wider mb-6 animate-fade-in"
+                    className="text-5xl sm:text-6xl lg:text-7xl text-foreground tracking-wider mb-6 animate-fade-in-up"
                     style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, animationDelay: '0s' }}
                 >
                     MAVEN
                 </h1>
                 <p 
-                  className="text-xl sm:text-2xl lg:text-3xl font-medium text-muted-foreground leading-tight animate-fade-in"
+                  className="text-xl sm:text-2xl lg:text-3xl font-medium text-muted-foreground leading-tight animate-fade-in-up"
                   style={{ animationDelay: '0.2s' }}
                 >
-                    Hello Ma'am. {salutation}.
+                    Hello. {salutation}.
                 </p>
                  <div className="mt-8 space-y-3 h-28 flex flex-col justify-center items-center">
                     {isLoading ? (
-                         <div className="w-6 h-6 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin"></div>
+                         <Loader className="w-6 h-6 text-muted-foreground animate-spin"/>
                     ) : (
                         quote && (
                             <p 
-                                className="text-md font-light text-muted-foreground italic animate-fade-in"
+                                className="text-md font-light text-muted-foreground italic animate-fade-in-up"
                                 style={{ animationDelay: `0.5s` }}
                             >
                                 "{quote}"
@@ -94,13 +96,21 @@ export const WelcomePlaceholder: React.FC<WelcomePlaceholderProps> = ({ onNewPag
                 </div>
             </div>
             <style>{`
-                @keyframes fade-in {
-                    from { opacity: 0; transform: translateY(10px); }
+                @keyframes gradient-shift {
+                    0% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                    100% { background-position: 0% 50%; }
+                }
+                .animate-gradient-shift {
+                    background-size: 200% 200%;
+                    animation: gradient-shift 15s ease infinite;
+                }
+                @keyframes fade-in-up {
+                    from { opacity: 0; transform: translateY(20px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
-                .animate-fade-in {
-                    animation: fade-in 0.8s ease-out forwards;
-                    opacity: 0; /* Start hidden for animation */
+                .animate-fade-in-up {
+                    animation: fade-in-up 0.8s ease-out forwards;
                 }
             `}</style>
         </div>

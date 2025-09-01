@@ -1,5 +1,5 @@
 {
-  "name": "copy-of-copy-of-copy-of-copy-of-maven-3.1.2-final-hackathon-final-done",
+  "name": "copy-of-copy-of-copy-of-copy-of-copy-of-maven-3.1.3final-hackathon-final-done",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,7 +15,8 @@
     "lucide-react": "0.408.0",
     "qrcode": "1.5.3",
     "html5-qrcode": "2.3.8",
-    "@supabase/supabase-js": "2.44.2"
+    "@supabase/supabase-js": "2.44.2",
+    "ogl": "1.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

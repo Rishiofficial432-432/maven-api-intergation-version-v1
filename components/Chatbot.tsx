@@ -2,10 +2,9 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Tool, Part, Type, Chat } from '@google/genai';
 import { geminiAI } from './gemini';
 import { MessageCircleIcon, SendHorizonalIcon, MicIcon, MicOffIcon } from './Icons';
-import { Spinner } from './Spinner';
 import Clock from './Clock';
 import { Page } from '../App';
-import { ChevronRight, Sun } from 'lucide-react';
+import { ChevronRight, Sun, Loader } from 'lucide-react';
 
 interface Message {
     role: 'user' | 'model';
@@ -485,6 +484,20 @@ const Chatbot: React.FC<ChatbotProps> = (props) => {
 
     return (
         <div className="flex flex-col h-full bg-background/50 border-t border-border/50">
+            <style>{`
+                @keyframes pop-in {
+                    from { transform: scale(0.9); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+                .animate-pop-in { animation: pop-in 0.3s ease-out; }
+
+                @keyframes pulse-ring {
+                    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+                    70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+                }
+                .pulse-ring-animation { animation: pulse-ring 2s infinite; }
+            `}</style>
             <div className="p-3 border-b border-border/50 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2">
                     <MessageCircleIcon className="w-5 h-5 text-muted-foreground" />
@@ -503,7 +516,7 @@ const Chatbot: React.FC<ChatbotProps> = (props) => {
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-4">
                 {messages.length === 0 && (
-                    <div className="flex items-start gap-2.5">
+                    <div className="flex items-start gap-2.5 animate-pop-in">
                         <div className="w-7 h-7 rounded-full bg-primary flex-shrink-0"></div>
                         <div className="p-3 rounded-xl max-w-xs md:max-w-sm break-words bg-accent text-accent-foreground/90 rounded-bl-none">
                             <p className="text-sm leading-6">Hello! I'm your AI assistant. How can I help you manage your day?</p>
@@ -518,7 +531,7 @@ const Chatbot: React.FC<ChatbotProps> = (props) => {
                     </div>
                 )}
                 {messages.map((msg, index) => (
-                    <div key={index} className={`flex items-start gap-2.5 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                    <div key={index} className={`flex items-start gap-2.5 ${msg.role === 'user' ? 'justify-end' : ''} animate-pop-in`}>
                         {msg.role === 'model' && <div className="w-7 h-7 rounded-full bg-primary flex-shrink-0"></div>}
                         <div className={`p-3 rounded-xl max-w-xs md:max-w-sm break-words ${
                             msg.role === 'user'
@@ -530,10 +543,10 @@ const Chatbot: React.FC<ChatbotProps> = (props) => {
                     </div>
                 ))}
                 {isLoading && (
-                     <div className="flex items-start gap-2.5">
+                     <div className="flex items-start gap-2.5 animate-pop-in">
                         <div className="w-7 h-7 rounded-full bg-primary flex-shrink-0"></div>
                         <div className="p-3 rounded-xl rounded-bl-none bg-accent">
-                            <Spinner />
+                            <Loader className="w-5 h-5 text-foreground animate-spin" />
                         </div>
                     </div>
                 )}
@@ -553,12 +566,13 @@ const Chatbot: React.FC<ChatbotProps> = (props) => {
                         type="button" 
                         onClick={handleToggleListening}
                         disabled={!recognitionRef.current || isLoading}
-                        className={`p-2.5 rounded-md transition-colors disabled:opacity-50 ${isListening ? 'bg-destructive text-destructive-foreground animate-pulse' : 'bg-secondary text-secondary-foreground/90 hover:bg-secondary/80'}`}
+                        className={`p-2.5 rounded-md transition-colors disabled:opacity-50 relative ${isListening ? 'bg-destructive text-destructive-foreground' : 'bg-secondary text-secondary-foreground/90 hover:bg-secondary/80'}`}
                         aria-label={isListening ? 'Stop listening' : 'Start voice input'}
                     >
+                         {isListening && <div className="absolute inset-0 rounded-md pulse-ring-animation"></div>}
                         {isListening ? <MicOffIcon className="w-4 h-4" /> : <MicIcon className="w-4 h-4" />}
                     </button>
-                    <button type="submit" disabled={isLoading || !input.trim()} className="p-2.5 bg-primary text-primary-foreground rounded-md disabled:bg-secondary disabled:text-muted-foreground hover:bg-primary/90 transition-colors">
+                    <button type="submit" disabled={isLoading || !input.trim()} className="p-2.5 bg-primary text-primary-foreground rounded-md disabled:bg-secondary disabled:text-muted-foreground hover:bg-primary/90 active:scale-95 transition-all">
                         <SendHorizonalIcon className="w-4 h-4" />
                     </button>
                 </form>

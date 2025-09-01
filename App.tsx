@@ -9,9 +9,10 @@ import JournalView from './components/JournalView';
 import InteractiveMindMap from './components/InteractiveMindMap';
 import GoogleWorkspace from './components/GoogleWorkspace';
 import { geminiAI } from './components/gemini';
-import StudentTeacherPortal from './components/StudentTeacherPortal';
+import { StudentTeacherPortal } from './components/StudentTeacherPortal';
 import { ToastProvider, useToast } from './components/Toast';
 import SearchPalette from './components/SearchPalette';
+import LandingPage from './components/LandingPage';
 
 // --- IndexedDB Utility for Banners ---
 const DB_NAME = 'MavenDB';
@@ -160,7 +161,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 };
 
 
-const AppContent: React.FC = () => {
+const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLandingPage }) => {
   // Initialize DB on mount
   useEffect(() => {
     initDB().catch(err => console.error("Failed to initialize DB:", err));
@@ -825,6 +826,7 @@ const AppContent: React.FC = () => {
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
         onToggleSearch={() => setIsSearchOpen(!isSearchOpen)}
+        onGoToLandingPage={onGoToLandingPage}
       />
       <div className="flex-1 flex flex-col min-w-0">
           {view === 'notes' && (
@@ -864,7 +866,7 @@ const AppContent: React.FC = () => {
               onAddClass={handleAddClass} onDeleteClass={handleDeleteClass}
               onAddStudent={handleAddStudent} onDeleteStudent={handleDeleteStudent}
               onSetAttendance={handleSetAttendance} onAddStudentsBatch={handleAddStudentsBatch}
-              onNewPage={handleNewPage}
+              onNewNote={handleNewPage}
             />
           }
            {view === 'journal' && <JournalView entries={journalEntries} onUpdate={handleUpdateJournalEntry} onDelete={handleDeleteJournalEntry} />}
@@ -905,6 +907,7 @@ const AppContent: React.FC = () => {
                 onAddExpense={handleAddExpense}
                 onAddPersonalQuote={handleAddPersonalQuote}
                 isCollapsed={isChatbotCollapsed}
+// FIX: Corrected a typo. The state setter for the chatbot is `setIsChatbotCollapsed`.
                 setIsCollapsed={setIsChatbotCollapsed}
             />
        </div>
@@ -919,11 +922,19 @@ const AppContent: React.FC = () => {
 };
 
 
-const App: React.FC = () => (
-    <ToastProvider>
-        <AppContent />
-    </ToastProvider>
-);
+const App: React.FC = () => {
+    const [hasEnteredApp, setHasEnteredApp] = usePersistentState<boolean>('maven-has-entered', false);
+
+    if (!hasEnteredApp) {
+        return <LandingPage onEnter={() => setHasEnteredApp(true)} />;
+    }
+
+    return (
+        <ToastProvider>
+            <AppContent onGoToLandingPage={() => setHasEnteredApp(false)} />
+        </ToastProvider>
+    );
+};
 
 export default App;
 export { useToast };
