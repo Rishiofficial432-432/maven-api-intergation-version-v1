@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
@@ -98,8 +99,8 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
 
         if (data && new Date(data.expires_at).getTime() > Date.now()) {
             setActiveSession(data as Session);
-            const url = `${window.location.origin}${window.location.pathname}?session=${data.id}`;
-            QRCode.toDataURL(url, { width: 300, margin: 1 }).then(setQrCode);
+            const qrContent = `MAVEN_SESSION::${data.id}`;
+            QRCode.toDataURL(qrContent, { width: 300, margin: 1 }).then(setQrCode);
         } else if (data) {
             // Expired session found, clean it up
             endSession(data.id);
@@ -147,8 +148,8 @@ const TeacherDashboard: React.FC<{ teacher: User, onLogout: () => void }> = ({ t
             return;
         }
         
-        const url = `${window.location.origin}${window.location.pathname}?session=${data.id}`;
-        const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 1 });
+        const qrContent = `MAVEN_SESSION::${data.id}`;
+        const qrDataUrl = await QRCode.toDataURL(qrContent, { width: 300, margin: 1 });
         setQrCode(qrDataUrl);
         setActiveSession(data as Session);
         setPresentStudents(new Set());
@@ -335,11 +336,22 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
         if (scanResult && supabase) {
             const markAttendance = async () => {
                 try {
-                    const url = new URL(scanResult);
-                    const sessionId = url.searchParams.get('session');
-
+                    let sessionId: string | null = null;
+                    
+                    if (scanResult.startsWith('MAVEN_SESSION::')) {
+                        sessionId = scanResult.split('::')[1];
+                    } else {
+                        // Fallback for old URL-based QR codes, with better error handling.
+                        try {
+                            const url = new URL(scanResult);
+                            sessionId = url.searchParams.get('session');
+                        } catch (urlError) {
+                             // It's not a valid URL, so we can ignore it. sessionId remains null.
+                        }
+                    }
+    
                     if (!sessionId) {
-                        setScanError("Invalid QR code. This is not a valid attendance session.");
+                        setScanError("Invalid QR code. This is not a valid attendance session code.");
                         return;
                     }
 
@@ -359,19 +371,23 @@ const StudentDashboard: React.FC<{ student: User, onLogout: () => void }> = ({ s
                         return;
                     }
 
-                    // FIX: Changed from deprecated `insert` with `upsert` option to the `upsert` method.
                     // Insert attendance record
                     const { error: insertError } = await supabase
                         .from('portal_attendance')
-                        .upsert({ student_id: student.id, session_id: sessionId }); // Use upsert to prevent duplicates
+                        .upsert({ student_id: student.id, session_id: sessionId });
 
                     if (insertError) {
-                        setScanError(`Failed to mark attendance: ${insertError.message}`);
+                        // Check if the error is a unique constraint violation, meaning they already checked in.
+                        if (insertError.code === '23505') { 
+                             setScanSuccess(`You have already been marked present for this session at ${new Date(session.created_at).toLocaleTimeString()}!`);
+                        } else {
+                            setScanError(`Failed to mark attendance: ${insertError.message}`);
+                        }
                     } else {
                         setScanSuccess(`Attendance marked successfully for session at ${new Date(session.created_at).toLocaleTimeString()}!`);
                     }
                 } catch (e) {
-                    setScanError("Invalid QR code format. Please scan a valid attendance code.");
+                    setScanError("An unexpected error occurred while processing the QR code.");
                 }
             };
             markAttendance();
