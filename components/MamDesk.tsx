@@ -13,7 +13,8 @@ import RandomDecisionMaker from './RandomDecisionMaker';
 import { Page } from '../App';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
-import { useToast } from '../App';
+// Fix: Corrected useToast import path
+import { useToast } from './Toast';
 import { updateApiKey } from './gemini';
 
 

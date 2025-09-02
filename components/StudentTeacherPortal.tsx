@@ -1,7 +1,11 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from './firebase-config';
+import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, QrCode, Copy, ToggleLeft, ToggleRight, RefreshCw, Video, VideoOff, AlertTriangle } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from './supabase-config';
+import QRCode from 'qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
+// Fix: Corrected useToast import path
+import { useToast } from './Toast';
+
 
 // --- TYPES ---
 interface User {
@@ -22,6 +26,7 @@ interface Session {
     teacher_id: number | null;
     is_active: boolean;
     session_code?: string;
+    location_enforced: boolean; 
 }
 
 interface Curriculum {
@@ -53,6 +58,25 @@ const MOCK_STUDENTS: User[] = [
     { id: 202, created_at: new Date().toISOString(), name: 'Maria Garcia', email: 'maria@example.com', role: 'student', enrollment_id: 'S202', phone: '555-0103', password: 'password123' },
     { id: 203, created_at: new Date().toISOString(), name: 'Chen Wei', email: 'chen@example.com', role: 'student', enrollment_id: 'S203', phone: '555-0104', password: 'password123' },
 ];
+
+// =================================================================
+// HELPER FUNCTIONS
+// =================================================================
+
+const haversineDistance = (coords1: { lat: number; lon: number }, coords2: { lat: number; lon: number }): number => {
+    const R = 6371e3; // metres
+    const φ1 = coords1.lat * Math.PI / 180;
+    const φ2 = coords2.lat * Math.PI / 180;
+    const Δφ = (coords2.lat - coords1.lat) * Math.PI / 180;
+    const Δλ = (coords2.lon - coords1.lon) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // in metres
+};
 
 
 // =================================================================
@@ -110,6 +134,7 @@ const LoginView: React.FC<{ onLogin: (email: string, pass: string) => Promise<vo
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showMockInfo, setShowMockInfo] = useState(true);
     
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -126,6 +151,18 @@ const LoginView: React.FC<{ onLogin: (email: string, pass: string) => Promise<vo
                 <h1 className="text-2xl font-bold">Portal Login</h1>
                 <p className="text-muted-foreground text-sm">Sign in to access your dashboard.</p>
             </div>
+            {showMockInfo && !isSupabaseConfigured && (
+                 <div className="bg-blue-900/50 border border-blue-500/50 text-blue-200 text-xs p-3 rounded-md mb-4 relative">
+                    <button onClick={() => setShowMockInfo(false)} className="absolute top-2 right-2 text-blue-300 hover:text-white"><X size={14}/></button>
+                    <h4 className="font-bold mb-1">Mock Mode Active</h4>
+                    <p>Use these credentials for testing:</p>
+                    <ul className="list-disc pl-4 mt-1">
+                        <li><b>Teacher:</b> teacher@example.com</li>
+                        <li><b>Student:</b> alex@example.com</li>
+                        <li><b>Password:</b> password123</li>
+                    </ul>
+                </div>
+            )}
             {pendingSessionId && (
                 <div className="bg-blue-500/10 text-blue-300 text-sm p-3 rounded-md mb-4 text-center flex items-center gap-2">
                     <Info size={16} />
@@ -239,31 +276,37 @@ const SignUpView: React.FC<{ onRegister: (details: NewUser) => Promise<void>, er
                     </div>
                     <PasswordStrengthIndicator password={password} />
                 </div>
-                <div>
+                 <div>
                     <label className="text-sm font-medium" htmlFor="confirm-password">Confirm Password</label>
                     <div className="relative mt-1">
                         <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
                     </div>
                 </div>
-                 <div>
+                <div>
                     <label className="text-sm font-medium">Role</label>
-                    <div className="flex gap-4 mt-2">
-                        <label className="flex items-center gap-2"><input type="radio" name="role" value="student" checked={role === 'student'} onChange={() => setRole('student')} /> Student</label>
-                        <label className="flex items-center gap-2"><input type="radio" name="role" value="teacher" checked={role === 'teacher'} onChange={() => setRole('teacher')} /> Teacher</label>
+                    <div className="flex gap-4 mt-1">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="role" value="student" checked={role === 'student'} onChange={() => setRole('student')} className="form-radio text-primary focus:ring-primary" />
+                            <span>Student</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="role" value="teacher" checked={role === 'teacher'} onChange={() => setRole('teacher')} className="form-radio text-primary focus:ring-primary" />
+                            <span>Teacher</span>
+                        </label>
                     </div>
                 </div>
                 {role === 'student' && (
-                     <div style={{ transition: 'opacity 0.3s', opacity: 1 }}>
-                        <label className="text-sm font-medium" htmlFor="enrollment">Enrollment ID</label>
+                    <div>
+                        <label className="text-sm font-medium" htmlFor="enrollmentId">Enrollment ID</label>
                         <div className="relative mt-1">
-                            <BookOpen size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                            <input id="enrollment" type="text" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} placeholder="e.g., S12345" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
+                            <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <input id="enrollmentId" type="text" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} placeholder="S12345" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
                         </div>
                     </div>
                 )}
                 <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                    {isSubmitting ? <><Loader className="animate-spin"/> Creating Account...</> : 'Sign Up'}
+                    {isSubmitting ? <><Loader className="animate-spin"/> Creating Account...</> : 'Create Account'}
                 </button>
             </form>
             <p className="text-center text-sm text-muted-foreground mt-6">
@@ -276,858 +319,459 @@ const SignUpView: React.FC<{ onRegister: (details: NewUser) => Promise<void>, er
     );
 };
 
-const ForgotPasswordView: React.FC<{ setViewMode: (mode: ViewMode) => void, onForgotPassword: (email: string) => void }> = ({ setViewMode, onForgotPassword }) => {
-    const [email, setEmail] = useState('');
+const TeacherDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLogout }) => {
+    const [session, setSession] = useState<Session | null>(null);
+    const [enforceLocation, setEnforceLocation] = useState(true);
+    const [qrCodeUrl, setQrCodeUrl] = useState('');
+    const [copySuccess, setCopySuccess] = useState('');
+    const sessionUrl = session ? `${window.location.origin}${window.location.pathname}?session_id=${session.id}` : '';
+    const toast = useToast();
+
+    const [campusLocation, setCampusLocation] = useState<{ lat: number; lon: number } | null>(null);
+    const [locationRadius, setLocationRadius] = useState(100);
+    const [isFetchingLocation, setIsFetchingLocation] = useState(false);
     
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        onForgotPassword(email);
-        setViewMode('forgot_password_confirmation');
-    };
-
-    return (
-        <div className="w-full max-w-sm bg-card p-8 rounded-xl shadow-lg border border-border">
-             <div className="text-center mb-8">
-                <ShieldCheck size={48} className="mx-auto text-primary mb-2" />
-                <h1 className="text-2xl font-bold">Forgot Password</h1>
-                <p className="text-muted-foreground text-sm">Enter your email to receive reset instructions.</p>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                    <label className="text-sm font-medium" htmlFor="forgot-email">Email</label>
-                    <div className="relative mt-1">
-                        <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="forgot-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                    </div>
-                </div>
-                 <button type="submit" className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors">
-                    Send Reset Instructions
-                </button>
-            </form>
-            <p className="text-center text-sm text-muted-foreground mt-6">
-                Remembered your password?{' '}
-                <button onClick={() => setViewMode('login')} className="font-semibold text-primary hover:underline">
-                    Sign In
-                </button>
-            </p>
-        </div>
-    );
-};
-
-const ForgotPasswordConfirmationView: React.FC<{ setViewMode: (mode: ViewMode) => void }> = ({ setViewMode }) => {
-    return (
-        <div className="w-full max-w-sm bg-card p-8 rounded-xl shadow-lg border border-border text-center">
-            <Mail size={48} className="mx-auto text-primary mb-4" />
-            <h1 className="text-2xl font-bold">Check Your Email</h1>
-            <p className="text-muted-foreground text-sm my-4">If an account with that email exists, we've sent instructions to reset your password.</p>
-            <button onClick={() => setViewMode('login')} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors">
-                Back to Login
-            </button>
-        </div>
-    );
-};
-
-
-interface AuthPortalProps {
-    onLogin: (email: string, pass: string) => Promise<void>;
-    onRegister: (details: NewUser) => Promise<void>;
-    onForgotPassword: (email: string) => void;
-    error: string | null;
-    setError: (err: string | null) => void;
-    pendingSessionId: string | null;
-}
-
-const AuthPortal: React.FC<AuthPortalProps> = ({ onLogin, onRegister, onForgotPassword, error, setError, pendingSessionId }) => {
-    const [viewMode, setViewMode] = useState<ViewMode>('login');
-
-    const renderView = () => {
-        switch (viewMode) {
-            case 'signup':
-                return <SignUpView onRegister={onRegister} error={error} setError={setError} setViewMode={setViewMode} />;
-            case 'forgot_password':
-                return <ForgotPasswordView setViewMode={setViewMode} onForgotPassword={onForgotPassword} />;
-            case 'forgot_password_confirmation':
-                return <ForgotPasswordConfirmationView setViewMode={setViewMode} />;
-            case 'login':
-            default:
-                return <LoginView onLogin={onLogin} error={error} setError={setError} setViewMode={setViewMode} pendingSessionId={pendingSessionId} />;
+    useEffect(() => {
+        const savedLocation = localStorage.getItem(`maven-teacher-location-${user.id}`);
+        if (savedLocation) {
+            const parsed = JSON.parse(savedLocation);
+            setCampusLocation({ lat: parsed.lat, lon: parsed.lon });
+            setLocationRadius(parsed.radius || 100);
         }
-    };
-    
-    return (
-         <div className="flex-1 flex items-center justify-center bg-secondary/30 p-4">
-            {renderView()}
-        </div>
-    );
-};
+    }, [user.id]);
 
-const formatDate = (date: Date) => {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-};
-
-const CurriculumManager: React.FC<{
-    teacher: User;
-    onSave: (curriculum: Curriculum) => Promise<void>;
-    onFetch: (date: string) => Promise<Curriculum | null>;
-}> = ({ teacher, onSave, onFetch }) => {
-    const [selectedDate, setSelectedDate] = useState(formatDate(new Date()));
-    const [topic, setTopic] = useState('');
-    const [activities, setActivities] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-
-    useEffect(() => {
-        const fetchCurriculum = async () => {
-            setIsLoading(true);
-            const data = await onFetch(selectedDate);
-            setTopic(data?.topic || '');
-            setActivities(data?.activities || '');
-            setIsLoading(false);
-        };
-        fetchCurriculum();
-    }, [selectedDate, onFetch]);
-
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSaving(true);
-        await onSave({
-            teacher_id: teacher.id,
-            date: selectedDate,
-            topic,
-            activities,
-        });
-        setIsSaving(false);
-    };
-
-    return (
-        <div className="bg-card p-6 rounded-xl shadow-lg border border-border flex flex-col h-full">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Calendar size={20}/> Curriculum Log
-            </h2>
-            <div className="mb-4">
-                <label htmlFor="curriculum-date" className="text-sm font-medium text-muted-foreground">Select Date</label>
-                <input
-                    type="date"
-                    id="curriculum-date"
-                    value={selectedDate}
-                    onChange={e => setSelectedDate(e.target.value)}
-                    className="w-full mt-1 bg-input border-border rounded-md px-3 py-2"
-                />
-            </div>
-            {isLoading ? (
-                <div className="flex-1 flex items-center justify-center">
-                    <Loader className="animate-spin" />
-                </div>
-            ) : (
-                <form onSubmit={handleSave} className="flex flex-col flex-1">
-                    <div className="mb-4">
-                        <label htmlFor="topic" className="text-sm font-medium text-muted-foreground">Topic of the Day</label>
-                        <input
-                            id="topic"
-                            value={topic}
-                            onChange={e => setTopic(e.target.value)}
-                            placeholder="e.g., Introduction to Algebra"
-                            className="w-full mt-1 bg-input border-border rounded-md px-3 py-2"
-                        />
-                    </div>
-                    <div className="flex-1 flex flex-col mb-4">
-                        <label htmlFor="activities" className="text-sm font-medium text-muted-foreground">Activities & Notes</label>
-                        <textarea
-                            id="activities"
-                            value={activities}
-                            onChange={e => setActivities(e.target.value)}
-                            placeholder="Describe the activities covered, homework assigned, etc."
-                            className="w-full mt-1 bg-input border-border rounded-md px-3 py-2 flex-1 resize-none"
-                        />
-                    </div>
-                    <button type="submit" disabled={isSaving} className="w-full bg-primary text-primary-foreground py-2 rounded-lg hover:bg-primary/90 flex items-center justify-center gap-2">
-                        {isSaving ? <><Loader size={16} className="animate-spin" /> Saving...</> : 'Save Curriculum'}
-                    </button>
-                </form>
-            )}
-        </div>
-    );
-};
-
-interface TeacherDashboardProps {
-    teacher: User;
-    onLogout: () => void;
-    sessionCode: string | null;
-    isStartingSession: boolean;
-    students: User[];
-    presentStudents: Set<number>;
-    activeSession: Session | null;
-    error: string | null;
-    setError: (err: string | null) => void;
-    onStartSession: () => Promise<void>;
-    onEndSession: (sessionId?: string) => Promise<void>;
-    onAddStudent: (name: string, enrollment: string, phone: string) => Promise<void>;
-    onSaveEdit: (id: number, name: string, phone: string) => Promise<void>;
-    onDeleteStudent: (id: number) => Promise<void>;
-    onCheckActiveSession: () => void;
-    onSaveCurriculum: (curriculum: Curriculum) => Promise<void>;
-    onFetchCurriculum: (date: string) => Promise<Curriculum | null>;
-}
-
-const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ 
-    teacher, onLogout, sessionCode, isStartingSession, students, presentStudents, activeSession, error,
-    setError, onStartSession, onEndSession, onAddStudent, onSaveEdit, onDeleteStudent, onCheckActiveSession,
-    onSaveCurriculum, onFetchCurriculum
-}) => {
-    const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
-    const [editingName, setEditingName] = useState('');
-    const [editingPhone, setEditingPhone] = useState('');
-    const [newStudentName, setNewStudentName] = useState('');
-    const [newStudentEnrollment, setNewStudentEnrollment] = useState('');
-    const [newStudentPhone, setNewStudentPhone] = useState('');
-    const [view, setView] = useState<'attendance' | 'curriculum'>('attendance');
-
-    const handleAddStudent = async (e: React.FormEvent) => {
-        e.preventDefault();
-        await onAddStudent(newStudentName, newStudentEnrollment, newStudentPhone);
-        setNewStudentName('');
-        setNewStudentEnrollment('');
-        setNewStudentPhone('');
-    };
-
-    const handleSaveEdit = (studentId: number) => {
-        onSaveEdit(studentId, editingName, editingPhone);
-        setEditingStudentId(null);
-    };
-
-    const startEditing = (student: User) => {
-        setEditingStudentId(student.id);
-        setEditingName(student.name);
-        setEditingPhone(student.phone || '');
-    };
-    
-    useEffect(() => {
-        onCheckActiveSession();
-    }, []);
-
-    return (
-        <div className="flex-1 flex flex-col p-6 bg-secondary/30">
-            <header className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold">Teacher Dashboard</h1>
-                    <p className="text-muted-foreground">Welcome, {teacher.name}</p>
-                </div>
-                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1 bg-card p-1 rounded-lg">
-                        <button onClick={() => setView('attendance')} className={`px-3 py-1.5 text-sm rounded-md ${view === 'attendance' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Attendance</button>
-                        <button onClick={() => setView('curriculum')} className={`px-3 py-1.5 text-sm rounded-md ${view === 'curriculum' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Curriculum</button>
-                    </div>
-                    <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 bg-card text-muted-foreground hover:text-foreground rounded-lg transition-colors">
-                        <LogOut size={16} /> Logout
-                    </button>
-                </div>
-            </header>
-
-            {view === 'curriculum' && (
-                <CurriculumManager teacher={teacher} onSave={onSaveCurriculum} onFetch={onFetchCurriculum} />
-            )}
-            
-            {view === 'attendance' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-                    <div className="lg:col-span-1 flex flex-col items-center justify-center bg-card p-6 rounded-xl shadow-lg border border-border">
-                        {error && <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-4 w-full text-center">{error}</div>}
-                        {activeSession ? (
-                            <>
-                                <h2 className="text-xl font-semibold mb-2">Session is Live</h2>
-                                <p className="text-muted-foreground mb-4">Share this code with your students:</p>
-                                <div className="bg-primary/10 text-primary p-4 rounded-lg font-mono text-5xl tracking-widest font-bold mb-4">
-                                    {sessionCode}
-                                </div>
-                                <div className="flex items-center gap-2 text-lg text-accent-foreground mb-4">
-                                    <Clock />
-                                    <Timer endTime={activeSession.expires_at} onEnd={() => onEndSession(activeSession.id)} />
-                                </div>
-                                <button onClick={() => onEndSession(activeSession.id)} className="w-full bg-destructive text-destructive-foreground py-2 rounded-lg hover:bg-destructive/90">
-                                    End Session
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <h2 className="text-xl font-semibold mb-2">Start a New Session</h2>
-                                <p className="text-muted-foreground mb-6 text-center">Click below to start a 10-minute attendance session.</p>
-                                <button onClick={onStartSession} disabled={isStartingSession} className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2 text-lg">
-                                    {isStartingSession ? <><Loader className="animate-spin"/> Starting...</> : 'Start New Session'}
-                                </button>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="lg:col-span-2 bg-card p-6 rounded-xl shadow-lg border border-border flex flex-col min-h-0">
-                        <h2 className="text-xl font-bold mb-4">Student Roster & Attendance</h2>
-                        <div className="flex-1 overflow-y-auto pr-2">
-                            <table className="w-full text-left">
-                                <thead>
-                                    <tr className="border-b border-border">
-                                        <th className="p-2">Name</th>
-                                        <th className="p-2">Enrollment ID</th>
-                                        <th className="p-2">Phone</th>
-                                        <th className="p-2 text-center">Status</th>
-                                        <th className="p-2"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {students.map(student => (
-                                        <tr key={student.id} className="border-b border-border/50 hover:bg-secondary/50">
-                                            {editingStudentId === student.id ? (
-                                                <>
-                                                    <td className="p-2"><input value={editingName} onChange={e => setEditingName(e.target.value)} className="bg-input w-full p-1 rounded"/></td>
-                                                    <td className="p-2">{student.enrollment_id}</td>
-                                                    <td className="p-2"><input value={editingPhone} onChange={e => setEditingPhone(e.target.value)} className="bg-input w-full p-1 rounded"/></td>
-                                                    <td className="p-2"></td>
-                                                    <td className="p-2"><button onClick={() => handleSaveEdit(student.id)} className="p-1 text-green-400"><Save size={16}/></button></td>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <td className="p-2">{student.name}</td>
-                                                    <td className="p-2">{student.enrollment_id}</td>
-                                                    <td className="p-2">{student.phone}</td>
-                                                    <td className="p-2 text-center">
-                                                        {presentStudents.has(student.id) ? 
-                                                            <span className="text-green-400 font-semibold flex items-center justify-center gap-1"><CheckCircle size={14}/> Present</span> : 
-                                                            <span className="text-muted-foreground text-sm">Absent</span>}
-                                                    </td>
-                                                    <td className="p-2 flex gap-2">
-                                                        <button onClick={() => startEditing(student)} className="p-1 text-muted-foreground hover:text-primary"><Edit size={14}/></button>
-                                                        <button onClick={() => onDeleteStudent(student.id)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 size={14}/></button>
-                                                    </td>
-                                                </>
-                                            )}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                             {students.length === 0 && <p className="text-muted-foreground text-center py-8">No students enrolled yet.</p>}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-interface StudentDashboardProps {
-    student: User;
-    onLogout: () => void;
-    onCheckIn: (code: string) => Promise<void>;
-    onFetchTodaysCurriculum: () => Promise<Curriculum | null>;
-    status: ScanStatus;
-}
-
-const StudentDashboard: React.FC<StudentDashboardProps> = ({ student, onLogout, onCheckIn, onFetchTodaysCurriculum, status }) => {
-    const [sessionCode, setSessionCode] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [todaysAgenda, setTodaysAgenda] = useState<Curriculum | null>(null);
-    const [isLoadingAgenda, setIsLoadingAgenda] = useState(true);
-
-    useEffect(() => {
-        const fetchAgenda = async () => {
-            setIsLoadingAgenda(true);
-            const agenda = await onFetchTodaysCurriculum();
-            setTodaysAgenda(agenda);
-            setIsLoadingAgenda(false);
-        };
-        fetchAgenda();
-    }, [onFetchTodaysCurriculum]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!sessionCode.trim()) return;
-        setIsSubmitting(true);
-        await onCheckIn(sessionCode.trim().toUpperCase());
-        setIsSubmitting(false);
-    };
-
-    const StatusDisplay: React.FC<{ status: ScanStatus }> = ({ status }) => {
-        if (status.type === 'idle') return null;
-        
-        const icons = {
-            success: <CheckCircle className="text-green-400" />,
-            error: <X className="text-destructive" />,
-            info: <Info className="text-blue-400" />
-        };
-        const colors = {
-            success: 'bg-green-500/10 text-green-300',
-            error: 'bg-destructive/10 text-destructive',
-            info: 'bg-blue-500/10 text-blue-300'
-        }
-
-        return (
-            <div className={`p-4 rounded-lg flex items-center gap-3 ${colors[status.type]}`}>
-                {icons[status.type]}
-                <span className="font-medium">{status.message}</span>
-            </div>
+    const handleSetCurrentLocation = () => {
+        setIsFetchingLocation(true);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setCampusLocation({
+                    lat: position.coords.latitude,
+                    lon: position.coords.longitude,
+                });
+                toast.success('Location fetched successfully!');
+                setIsFetchingLocation(false);
+            },
+            (error: any) => {
+                let message = "An unknown error occurred when fetching location.";
+                if (error && typeof error === 'object' && 'code' in error) {
+                    const geoError = error as GeolocationPositionError;
+                    switch(geoError.code) {
+                        case geoError.PERMISSION_DENIED:
+                            message = "Permission to access location was denied. Please enable it in your browser settings.";
+                            break;
+                        case geoError.POSITION_UNAVAILABLE:
+                            message = "Location information is currently unavailable. Check your connection or device settings.";
+                            break;
+                        case geoError.TIMEOUT:
+                            message = "The request to get your location timed out. Please try again.";
+                            break;
+                        default:
+                            message = geoError.message || "An unspecified location error occurred.";
+                            break;
+                    }
+                } else if (error && error.message) {
+                    message = error.message;
+                } else if (error) {
+                    message = String(error);
+                }
+                
+                toast.error(`Geolocation error: ${message}`);
+                console.error("Geolocation error object:", error);
+                setIsFetchingLocation(false);
+            },
+            { enableHighAccuracy: true }
         );
     };
 
+    const saveCampusLocation = () => {
+        if (campusLocation) {
+            localStorage.setItem(`maven-teacher-location-${user.id}`, JSON.stringify({ ...campusLocation, radius: locationRadius }));
+            toast.success('Campus location saved!');
+        } else {
+            toast.error('No location is set to be saved.');
+        }
+    };
+
+
+    const handleStartSession = useCallback(async () => {
+        if (session) return;
+        
+        const now = new Date();
+        const expires = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
+        const newSession: Session = {
+            id: crypto.randomUUID(),
+            created_at: now.toISOString(),
+            expires_at: expires.toISOString(),
+            teacher_id: user.id,
+            is_active: true,
+            session_code: Math.random().toString(36).substring(2, 7).toUpperCase(),
+            location_enforced: enforceLocation,
+        };
+        setSession(newSession);
+
+        const url = `${window.location.origin}${window.location.pathname}?session_id=${newSession.id}`;
+        const dataUrl = await QRCode.toDataURL(url, { errorCorrectionLevel: 'H', margin: 2, scale: 6 });
+        setQrCodeUrl(dataUrl);
+    }, [session, user.id, enforceLocation]);
+
+    const handleEndSession = useCallback(() => {
+        setSession(null);
+        setQrCodeUrl('');
+    }, []);
+    
+    const copyToClipboard = (text: string, type: 'Code' | 'Link') => {
+        navigator.clipboard.writeText(text).then(() => {
+            setCopySuccess(`${type} copied!`);
+            setTimeout(() => setCopySuccess(''), 2000);
+        }, () => {
+            setCopySuccess('Failed to copy.');
+            setTimeout(() => setCopySuccess(''), 2000);
+        });
+    };
+
     return (
-        <div className="flex-1 flex flex-col p-6 bg-secondary/30">
-            <header className="flex justify-between items-center mb-6">
+        <div className="flex-1 p-6 sm:p-8 bg-background text-foreground overflow-y-auto">
+            <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold">Student Dashboard</h1>
-                    <p className="text-muted-foreground">Welcome, {student.name} ({student.enrollment_id})</p>
+                    <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
+                    <p className="text-muted-foreground">Welcome back, {user.name}!</p>
                 </div>
-                <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 bg-card text-muted-foreground hover:text-foreground rounded-lg transition-colors">
+                <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                    <LogOut size={16} /> Logout
+                </button>
+            </header>
+            
+             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                <div className="lg:col-span-3 space-y-8">
+                    {/* Session Control */}
+                    <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
+                        <h2 className="text-xl font-bold mb-4">Attendance Session</h2>
+                        {session ? (
+                            <div className="flex flex-col sm:flex-row gap-6 items-center">
+                                <div className="flex-1 text-center">
+                                    <p className="text-muted-foreground">Session is active.</p>
+                                    <div className="my-3 p-3 bg-secondary rounded-lg">
+                                        <p className="text-xs text-muted-foreground">Ends in:</p>
+                                        <Timer endTime={session.expires_at} onEnd={handleEndSession} />
+                                    </div>
+                                    <div className="flex items-center justify-center gap-2">
+                                        <p className="font-mono text-3xl tracking-widest bg-input p-2 rounded-md">{session.session_code}</p>
+                                        <button onClick={() => copyToClipboard(session.session_code || '', 'Code')} title="Copy Code" className="p-2 bg-secondary rounded-md hover:bg-accent"><Copy size={16}/></button>
+                                    </div>
+                                    <button onClick={() => copyToClipboard(sessionUrl, 'Link')} className="text-xs text-primary hover:underline flex items-center gap-1 mx-auto mt-2">
+                                        <Copy size={12}/> Copy Check-in Link
+                                    </button>
+                                    {copySuccess && <p className="text-xs text-green-500 mt-1">{copySuccess}</p>}
+                                    <button onClick={handleEndSession} className="mt-4 w-full bg-destructive text-destructive-foreground py-2 rounded-lg hover:bg-destructive/90">
+                                        End Session
+                                    </button>
+                                </div>
+                                <div className="flex-shrink-0">
+                                     {qrCodeUrl && <img src={qrCodeUrl} alt="Session QR Code" className="w-48 h-48 mx-auto rounded-lg border-4 border-primary p-1" />}
+                                     <div className={`mt-2 text-xs flex items-center justify-center gap-1 ${session.location_enforced ? 'text-green-400' : 'text-yellow-400'}`}>
+                                        {session.location_enforced ? <><ShieldCheck size={14}/> Location check is ON</> : <><ShieldCheck size={14} className="opacity-50"/> Location check is OFF</>}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full">
+                                <p className="text-muted-foreground mb-4">Start a new 5-minute session for attendance.</p>
+                                <div className="flex items-center gap-3 mb-6 bg-secondary p-3 rounded-lg">
+                                    <label htmlFor="enforce-location" className="text-sm font-medium flex items-center gap-2 cursor-pointer">
+                                        <MapPin size={16} className={`${enforceLocation ? 'text-primary' : 'text-muted-foreground'}`} />
+                                        Enforce On-Campus Location
+                                    </label>
+                                    <button onClick={() => setEnforceLocation(!enforceLocation)}>
+                                        {enforceLocation ? <ToggleRight size={32} className="text-primary"/> : <ToggleLeft size={32} className="text-muted-foreground"/>}
+                                    </button>
+                                </div>
+                                <button onClick={handleStartSession} className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 text-lg font-semibold">
+                                    Start New Session
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                     {/* Location Settings */}
+                    <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><MapPin /> Campus Location Settings</h2>
+                        <div className="bg-secondary p-4 rounded-lg">
+                            {campusLocation ? (
+                                <div>
+                                    <p className="text-sm font-medium text-foreground/80">Current Center Point:</p>
+                                    <p className="font-mono text-xs text-muted-foreground">
+                                        Lat: {campusLocation.lat.toFixed(6)}, Lon: {campusLocation.lon.toFixed(6)}
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground text-sm">No campus location set.</p>
+                            )}
+
+                            <div className="mt-4">
+                                <label htmlFor="radius" className="text-sm font-medium text-foreground/80">Required Radius</label>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input id="radius" type="number" value={locationRadius} onChange={(e) => setLocationRadius(Math.max(10, parseInt(e.target.value, 10)))} className="bg-input border-border rounded-md px-3 py-1.5 w-28" />
+                                    <span className="text-muted-foreground">meters</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-4">
+                            <button onClick={handleSetCurrentLocation} disabled={isFetchingLocation} className="flex-1 min-w-[200px] flex items-center justify-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 disabled:opacity-50">
+                                {isFetchingLocation ? <><Loader size={16} className="animate-spin" /> Fetching...</> : <><RefreshCw size={16} /> Use My Location</>}
+                            </button>
+                            <button onClick={saveCampusLocation} disabled={!campusLocation} className="flex-1 min-w-[150px] flex items-center justify-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50">
+                                <Save size={16} /> Save Location
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div className="lg:col-span-2 bg-card border border-border p-6 rounded-xl shadow-lg">
+                    <h2 className="text-xl font-bold mb-4">Curriculum & Students</h2>
+                    <p className="text-muted-foreground">Manage your daily topics and student roster here. (Feature coming soon)</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const StudentDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLogout }) => {
+    const [cameraPermission, setCameraPermission] = useState<'pending' | 'granted' | 'denied'>('pending');
+    const [locationPermission, setLocationPermission] = useState<'pending' | 'granted' | 'denied'>('pending');
+    const [locationError, setLocationError] = useState<string | null>(null);
+
+    useEffect(() => {
+        // Request camera permission
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(() => setCameraPermission('granted'))
+            .catch((err) => {
+                console.error("Camera access error:", err);
+                setCameraPermission('denied');
+            });
+        
+        // Request location permission
+        setLocationPermission('pending');
+        navigator.geolocation.getCurrentPosition(
+            () => {
+                setLocationPermission('granted');
+            },
+            (error: any) => {
+                let message = "An unknown error occurred while verifying location.";
+                if (error && typeof error === 'object' && 'code' in error) {
+                    const geoError = error as GeolocationPositionError;
+                    switch(geoError.code) {
+                        case geoError.PERMISSION_DENIED:
+                            message = "Location access denied. Please enable location services in your browser settings to use the portal.";
+                            break;
+                        case geoError.POSITION_UNAVAILABLE:
+                            message = "Your location is currently unavailable. Check your connection or device settings.";
+                            break;
+                        case geoError.TIMEOUT:
+                            message = "The request to get your location timed out.";
+                            break;
+                        default:
+                            message = geoError.message || "An unspecified location error occurred.";
+                            break;
+                    }
+                } else if (error && error.message) {
+                    message = error.message;
+                } else if (error) {
+                    message = String(error);
+                }
+
+                setLocationError(message);
+                setLocationPermission('denied');
+            },
+            { enableHighAccuracy: true }
+        );
+    }, []);
+    
+    if (locationPermission === 'pending') {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background">
+                <div className="p-8 border border-border rounded-lg bg-card/50 text-center">
+                    <Loader className="w-12 h-12 text-primary mx-auto mb-4 animate-spin" />
+                    <h2 className="text-2xl font-bold mb-2">Requesting Location Access</h2>
+                    <p className="text-muted-foreground max-w-sm">
+                        Please grant location access. This is required for attendance check-in.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (locationPermission === 'denied') {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background">
+                <div className="p-8 border border-destructive/50 rounded-lg bg-destructive/10 text-center">
+                    <MapPin className="w-12 h-12 text-destructive mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold mb-2 text-destructive">Location Access Required</h2>
+                    <p className="text-destructive/80 max-w-sm mb-4">
+                        {locationError}
+                    </p>
+                    <p className="text-xs text-destructive/60">You may need to refresh the page after changing browser settings.</p>
+                </div>
+            </div>
+        );
+    }
+
+    const CameraStatusIcon = () => {
+        switch (cameraPermission) {
+            case 'granted': return <CheckCircle className="text-green-400" />;
+            case 'denied': return <AlertTriangle className="text-destructive" />;
+            case 'pending':
+            default: return <Loader className="animate-spin text-muted-foreground" />;
+        }
+    };
+
+    const CameraStatusText = () => {
+        switch (cameraPermission) {
+            case 'granted': return "Camera is ready.";
+            case 'denied': return "Camera access denied.";
+            case 'pending':
+            default: return "Requesting camera access...";
+        }
+    };
+
+    return (
+         <div className="flex-1 p-6 sm:p-8 bg-background text-foreground overflow-y-auto">
+            <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold">Student Dashboard</h1>
+                    <p className="text-muted-foreground">Welcome, {user.name} ({user.enrollment_id})</p>
+                </div>
+                <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
                     <LogOut size={16} /> Logout
                 </button>
             </header>
 
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
-                 <div className="w-full max-w-md mx-auto bg-card p-8 rounded-xl shadow-lg border border-border">
-                    <div className="text-center mb-6">
-                        <Smartphone size={48} className="mx-auto text-primary mb-2" />
-                        <h2 className="text-2xl font-bold">Attendance Check-In</h2>
-                        <p className="text-muted-foreground">Enter the session code from your teacher.</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="md:col-span-2 bg-card border border-border p-6 rounded-xl shadow-lg">
+                    <h2 className="text-xl font-bold mb-4">Today's Curriculum</h2>
+                     <div className="text-center py-12 text-muted-foreground">
+                        <BookOpen size={32} className="mx-auto mb-4"/>
+                        <p>Today's topics and activities will appear here.</p>
                     </div>
-                    
-                    <form onSubmit={handleSubmit} className="space-y-4 mb-6">
-                        <input
-                            type="text"
-                            value={sessionCode}
-                            onChange={(e) => setSessionCode(e.target.value)}
-                            placeholder="A4B7C"
-                            maxLength={5}
-                            className="w-full p-4 bg-input text-center text-3xl font-mono tracking-[0.5em] uppercase rounded-lg border-border focus:ring-2 focus:ring-primary"
-                            />
-                        <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-lg">
-                           {isSubmitting ? <><Loader className="animate-spin"/> Checking In...</> : 'Check In'}
-                        </button>
-                    </form>
-                    
-                    <StatusDisplay status={status} />
                 </div>
-                <div className="w-full max-w-md mx-auto bg-card p-8 rounded-xl shadow-lg border border-border h-full flex flex-col">
-                    <div className="text-center mb-6">
-                         <Calendar size={48} className="mx-auto text-primary mb-2" />
-                         <h2 className="text-2xl font-bold">Today's Agenda</h2>
-                         <p className="text-muted-foreground">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-                    </div>
-                    {isLoadingAgenda ? <Loader className="mx-auto animate-spin"/> : (
-                        todaysAgenda ? (
-                             <div className="space-y-4 text-left">
-                                <div>
-                                    <h3 className="font-semibold text-muted-foreground">Topic:</h3>
-                                    <p className="text-lg">{todaysAgenda.topic}</p>
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-muted-foreground">Activities:</h3>
-                                    <p className="whitespace-pre-wrap text-foreground/80">{todaysAgenda.activities}</p>
-                                </div>
+
+                <div className="space-y-8">
+                    <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
+                        <h2 className="text-xl font-bold mb-4">Attendance Check-in</h2>
+                        <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg mb-4">
+                           <CameraStatusIcon />
+                           <p className="text-sm font-medium"><CameraStatusText/></p>
+                        </div>
+                        {cameraPermission === 'granted' && (
+                            <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 flex items-center justify-center gap-2 text-lg font-semibold">
+                                <QrCode /> Scan QR Code
+                            </button>
+                        )}
+                        {cameraPermission === 'denied' && (
+                            <p className="text-xs text-destructive text-center">Please enable camera access in your browser settings to check in.</p>
+                        )}
+                         {cameraPermission === 'pending' && (
+                            <div className="w-full bg-secondary text-muted-foreground py-3 rounded-lg flex items-center justify-center gap-2 text-lg font-semibold">
+                                Waiting...
                             </div>
-                        ) : (
-                            <p className="text-muted-foreground text-center flex-1 flex items-center justify-center">No curriculum has been logged for today.</p>
-                        )
-                    )}
+                        )}
+                    </div>
+                     <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
+                        <h2 className="text-xl font-bold mb-4">My Schedule</h2>
+                        <div className="text-center py-6 text-muted-foreground">
+                           <Calendar size={24} className="mx-auto mb-2"/>
+                            <p className="text-sm">Upcoming events will be shown here.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
-// =================================================================
-// SUPABASE PORTAL IMPLEMENTATION (Live Mode)
-// =================================================================
-const SupabasePortal: React.FC = () => {
-    const [user, setUser] = useState<User | null>(null);
-    const [loginError, setLoginError] = useState<string | null>(null);
-    const [activeSession, setActiveSession] = useState<Session | null>(null);
-    const [sessionCode, setSessionCode] = useState<string | null>(null);
-    const [isStartingSession, setIsStartingSession] = useState(false);
-    const [students, setStudents] = useState<User[]>([]);
-    const [presentStudents, setPresentStudents] = useState<Set<number>>(new Set());
-    const [studentStatus, setStudentStatus] = useState<ScanStatus>({ type: 'idle', message: null });
-    const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
-
-    const fetchStudents = useCallback(async () => {
-        if (!supabase) return;
-        const { data, error } = await supabase.from('portal_users').select('*').eq('role', 'student');
-        if (error) console.error("Error fetching students:", error);
-        else setStudents(data as User[]);
-    }, []);
-
-    useEffect(() => {
-        fetchStudents();
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionIdFromUrl = urlParams.get('session_id');
-        if (sessionIdFromUrl) {
-            setPendingSessionId(sessionIdFromUrl);
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-    }, [fetchStudents]);
-
-    const handleLogin = async (email: string, pass: string) => {
-        if (!supabase) return;
-        const { data, error } = await supabase.from('portal_users').select('*').eq('email', email).single();
-        if (error || !data || data.password !== pass) {
-            setLoginError("Invalid credentials. Please try again.");
-        } else {
-            setUser(data as User);
-            setLoginError(null);
-            if (data.role === 'student' && pendingSessionId) {
-                await handleStudentCheckInWithId(data.id, pendingSessionId);
-            }
-        }
-    };
-    
-    const handleRegister = async (details: NewUser) => {
-        if (!supabase) return;
-        const { data: existingUser } = await supabase.from('portal_users').select('id').or(`email.eq.${details.email},enrollment_id.eq.${details.enrollment_id}`).single();
-        if(existingUser){
-            setLoginError("An account with this email or enrollment ID already exists.");
-            return;
-        }
-
-        const { data, error } = await supabase.from('portal_users').insert([details]).select().single();
-        if (error) {
-            setLoginError("Registration failed: " + error.message);
-        } else if (data) {
-            setUser(data as User);
-            setLoginError(null);
-        }
-    };
-    
-    const handleLogout = () => setUser(null);
-    
-    const checkActiveSession = useCallback(async (teacherId?: number) => {
-        if (!supabase || !teacherId) return;
-        const { data, error } = await supabase.from('portal_sessions')
-            .select('*').eq('teacher_id', teacherId).eq('is_active', true).single();
-        if (data) {
-            setActiveSession(data as Session);
-            setSessionCode(data.session_code || null);
-            fetchPresentStudents(data.id);
-        } else {
-            setActiveSession(null);
-            setSessionCode(null);
-        }
-        if (error && error.code !== 'PGRST116') console.error("Error checking active session:", error);
-    }, []);
-
-    const handleStartSession = async () => {
-        if (!supabase || !user || user.role !== 'teacher') return;
-        setIsStartingSession(true);
-        setLoginError(null);
-        const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-        const code = Math.random().toString(36).substring(2, 7).toUpperCase();
-        
-        const { data, error } = await supabase.from('portal_sessions').insert({ teacher_id: user.id, expires_at, session_code: code }).select().single();
-        if (error) {
-            setLoginError("Failed to start session: " + error.message);
-        } else {
-            setActiveSession(data as Session);
-            setSessionCode(data.session_code);
-            setPresentStudents(new Set());
-        }
-        setIsStartingSession(false);
-    };
-
-    const handleEndSession = async (sessionId?: string) => {
-        if (!supabase || !sessionId) return;
-        await supabase.from('portal_sessions').update({ is_active: false }).eq('id', sessionId);
-        setActiveSession(null);
-        setSessionCode(null);
-        setPresentStudents(new Set());
-    };
-    
-    const fetchPresentStudents = useCallback(async (sessionId: string) => {
-        if (!supabase) return;
-        const { data, error } = await supabase.from('portal_attendance').select('student_id').eq('session_id', sessionId);
-        if (error) console.error("Error fetching present students:", error);
-        else setPresentStudents(new Set(data.map(d => d.student_id)));
-    }, []);
-    
-    const handleStudentCheckIn = async (code: string) => {
-         if (!supabase || !user || user.role !== 'student') return;
-         setStudentStatus({ type: 'idle', message: null });
-
-         const { data: sessionData, error: sessionError } = await supabase.from('portal_sessions')
-            .select('*').eq('session_code', code).eq('is_active', true).single();
-        
-        if (sessionError || !sessionData) {
-            setStudentStatus({ type: 'error', message: "Invalid or expired session code." });
-            return;
-        }
-
-        await handleStudentCheckInWithId(user.id, sessionData.id);
-    };
-
-    const handleStudentCheckInWithId = async (studentId: number, sessionId: string) => {
-        if(!supabase) return;
-        setPendingSessionId(null);
-        const { error: insertError } = await supabase.from('portal_attendance')
-            .insert({ student_id: studentId, session_id: sessionId });
-
-        if (insertError) {
-             if (insertError.code === '23505') { 
-                setStudentStatus({ type: 'info', message: "You've already been marked present for this session." });
-            } else {
-                setStudentStatus({ type: 'error', message: "Check-in failed: " + insertError.message });
-            }
-        } else {
-            setStudentStatus({ type: 'success', message: "Attendance marked successfully!" });
-        }
-    };
-
-    const handleAddStudent = async (name: string, enrollment: string, phone: string) => {
-        if (!supabase) return;
-        await supabase.from('portal_users').insert({ name, enrollment_id: enrollment, phone, role: 'student', email: `${enrollment}@school.local` });
-        fetchStudents();
-    };
-    const handleSaveEdit = async (id: number, name: string, phone: string) => {
-        if (!supabase) return;
-        await supabase.from('portal_users').update({ name, phone }).eq('id', id);
-        fetchStudents();
-    };
-    const handleDeleteStudent = async (id: number) => {
-        if (!supabase) return;
-        await supabase.from('portal_users').delete().eq('id', id);
-        fetchStudents();
-    };
-
-    const handleSaveCurriculum = async (curriculum: Curriculum) => {
-        if (!supabase) return;
-        const { error } = await supabase.from('portal_curriculum').upsert(curriculum, { onConflict: 'teacher_id,date' });
-        if(error) console.error("Error saving curriculum:", error);
-    };
-
-    const handleFetchCurriculum = async (date: string): Promise<Curriculum | null> => {
-        if (!supabase || !user) return null;
-        const { data, error } = await supabase.from('portal_curriculum').select('*').eq('teacher_id', user.id).eq('date', date).single();
-        if (error && error.code !== 'PGRST116') console.error("Error fetching curriculum:", error);
-        return data as Curriculum | null;
-    };
-
-    const handleFetchTodaysCurriculum = async (): Promise<Curriculum | null> => {
-        if (!supabase) return null;
-        const today = formatDate(new Date());
-        const { data, error } = await supabase.from('portal_curriculum').select('*').eq('date', today).limit(1).single();
-        if (error && error.code !== 'PGRST116') console.error("Error fetching today's curriculum:", error);
-        return data as Curriculum | null;
-    };
-
-    useEffect(() => {
-        if (activeSession) {
-            const interval = setInterval(() => fetchPresentStudents(activeSession.id), 5000);
-            return () => clearInterval(interval);
-        }
-    }, [activeSession, fetchPresentStudents]);
-
-    if (!user) {
-        return <AuthPortal onLogin={handleLogin} onRegister={handleRegister} onForgotPassword={()=>{}} error={loginError} setError={setLoginError} pendingSessionId={pendingSessionId} />;
-    }
-    if (user.role === 'teacher') {
-        return <TeacherDashboard 
-            teacher={user} 
-            onLogout={handleLogout} 
-            sessionCode={sessionCode}
-            isStartingSession={isStartingSession} 
-            students={students} 
-            presentStudents={presentStudents} 
-            activeSession={activeSession}
-            error={loginError}
-            setError={setLoginError}
-            onStartSession={handleStartSession} 
-            onEndSession={handleEndSession}
-            onAddStudent={handleAddStudent}
-            onSaveEdit={handleSaveEdit}
-            onDeleteStudent={handleDeleteStudent}
-            onCheckActiveSession={() => checkActiveSession(user?.id)}
-            onSaveCurriculum={handleSaveCurriculum}
-            onFetchCurriculum={handleFetchCurriculum}
-        />;
-    }
-    return <StudentDashboard student={user} onLogout={handleLogout} onCheckIn={handleStudentCheckIn} onFetchTodaysCurriculum={handleFetchTodaysCurriculum} status={studentStatus} />;
-};
-
-// =================================================================
-// MOCK PORTAL IMPLEMENTATION (Local/Offline Mode)
-// =================================================================
-const MockPortal: React.FC = () => {
-    const [users, setUsers] = useState<User[]>([MOCK_TEACHER, ...MOCK_STUDENTS]);
-    const [user, setUser] = useState<User | null>(null);
-    const [loginError, setLoginError] = useState<string | null>(null);
-    const [activeSession, setActiveSession] = useState<Session | null>(null);
-    const [sessionCode, setSessionCode] = useState<string | null>(null);
-    const [presentStudents, setPresentStudents] = useState<Set<number>>(new Set());
-    const [studentStatus, setStudentStatus] = useState<ScanStatus>({ type: 'idle', message: null });
-    const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
-    const [curriculumLog, setCurriculumLog] = useState<Curriculum[]>([]);
-
-    useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionIdFromUrl = urlParams.get('session_id');
-        if (sessionIdFromUrl) {
-            setPendingSessionId(sessionIdFromUrl);
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-    }, []);
-
-    const handleLogin = async (email: string, pass: string) => {
-        const foundUser = users.find(u => u.email === email && u.password === pass);
-        if (foundUser) {
-            setUser(foundUser);
-            setLoginError(null);
-            if (foundUser.role === 'student' && pendingSessionId) {
-                await handleStudentCheckInWithId(foundUser.id, pendingSessionId);
-            }
-        } else {
-            setLoginError("Invalid credentials for local mock mode.");
-        }
-    };
-    
-    const handleRegister = async (details: NewUser) => {
-        if(users.some(u => u.email === details.email || u.enrollment_id === details.enrollment_id)){
-            setLoginError("An account with this email or enrollment ID already exists in mock mode.");
-            return;
-        }
-        const newUser: User = {
-            id: Date.now(),
-            created_at: new Date().toISOString(),
-            ...details,
-        };
-        setUsers(prev => [...prev, newUser]);
-        setUser(newUser);
-        setLoginError(null);
-    };
-    
-    const handleForgotPassword = (email: string) => {
-        console.log(`Password reset requested for mock user: ${email}`);
-    };
-
-    const handleLogout = () => setUser(null);
-
-    const handleStartSession = async () => {
-        if (!user || user.role !== 'teacher') return;
-        const code = Math.random().toString(36).substring(2, 7).toUpperCase();
-        const session: Session = {
-            id: crypto.randomUUID(),
-            created_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-            teacher_id: user.id,
-            is_active: true,
-            session_code: code,
-        };
-        setActiveSession(session);
-        setSessionCode(code);
-        setPresentStudents(new Set());
-    };
-
-    const handleEndSession = async () => {
-        setActiveSession(null);
-        setSessionCode(null);
-    };
-
-    const handleStudentCheckIn = async (code: string) => {
-        if (!user || user.role !== 'student') return;
-        setStudentStatus({type: 'idle', message: null});
-
-        if (activeSession && activeSession.session_code === code && activeSession.is_active) {
-            await handleStudentCheckInWithId(user.id, activeSession.id);
-        } else {
-            setStudentStatus({ type: 'error', message: "Invalid or expired session code." });
-        }
-    };
-
-    const handleStudentCheckInWithId = async (studentId: number, sessionId: string) => {
-        setPendingSessionId(null);
-        if (activeSession && activeSession.id === sessionId && new Date(activeSession.expires_at) > new Date()) {
-             if (presentStudents.has(studentId)) {
-                setStudentStatus({ type: 'info', message: "You've already been marked present." });
-            } else {
-                setPresentStudents(prev => new Set(prev).add(studentId));
-                setStudentStatus({ type: 'success', message: "Attendance marked successfully!" });
-            }
-        } else {
-            setStudentStatus({type: 'error', message: 'The session is invalid or has expired.'});
-        }
-    }
-
-    const handleAddStudent = async (name: string, enrollment: string, phone: string) => {
-        const newUser: User = { id: Date.now(), created_at: new Date().toISOString(), name, email: `${enrollment}@school.local`, role: 'student', enrollment_id: enrollment, phone };
-        setUsers(prev => [...prev, newUser]);
-    };
-    const handleSaveEdit = async (id: number, name: string, phone: string) => {
-        setUsers(prev => prev.map(u => u.id === id ? { ...u, name, phone } : u));
-    };
-    const handleDeleteStudent = async (id: number) => {
-        setUsers(prev => prev.filter(u => u.id !== id));
-    };
-    
-    const handleSaveCurriculum = async (curriculum: Curriculum) => {
-        setCurriculumLog(prev => {
-            const existingIndex = prev.findIndex(c => c.date === curriculum.date);
-            if (existingIndex > -1) {
-                const updatedLog = [...prev];
-                updatedLog[existingIndex] = curriculum;
-                return updatedLog;
-            }
-            return [...prev, curriculum];
-        });
-    };
-
-    const handleFetchCurriculum = async (date: string): Promise<Curriculum | null> => {
-        return curriculumLog.find(c => c.date === date) || null;
-    };
-    
-    const handleFetchTodaysCurriculum = async (): Promise<Curriculum | null> => {
-        const today = formatDate(new Date());
-        return curriculumLog.find(c => c.date === today) || null;
-    };
-
-    if (!user) {
-        return <AuthPortal onLogin={handleLogin} onRegister={handleRegister} onForgotPassword={handleForgotPassword} error={loginError} setError={setLoginError} pendingSessionId={pendingSessionId} />;
-    }
-
-    if (user.role === 'teacher') {
-        return <TeacherDashboard 
-            teacher={user}
-            onLogout={handleLogout}
-            sessionCode={sessionCode}
-            isStartingSession={false}
-            students={users.filter(u => u.role === 'student')}
-            presentStudents={presentStudents}
-            activeSession={activeSession}
-            error={loginError}
-            setError={setLoginError}
-            onStartSession={handleStartSession}
-            onEndSession={handleEndSession}
-            onAddStudent={handleAddStudent}
-            onSaveEdit={handleSaveEdit}
-            onDeleteStudent={handleDeleteStudent}
-            onCheckActiveSession={() => {}}
-            onSaveCurriculum={handleSaveCurriculum}
-            onFetchCurriculum={handleFetchCurriculum}
-        />;
-    }
-    return <StudentDashboard student={user} onLogout={handleLogout} onCheckIn={handleStudentCheckIn} onFetchTodaysCurriculum={handleFetchTodaysCurriculum} status={studentStatus} />;
-};
-
-
-// =================================================================
-// CONTAINER COMPONENT
-// =================================================================
 export const StudentTeacherPortal: React.FC = () => {
-  const [isReady, setIsReady] = useState(false);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [viewMode, setViewMode] = useState<ViewMode>('login');
+    const [error, setError] = useState<string | null>(null);
+    const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setIsReady(true), 50);
-    return () => clearTimeout(timer);
-  }, []);
+    const handleLogin = async (email: string, pass: string): Promise<void> => {
+        setError(null);
+        if (!isSupabaseConfigured) {
+            // Mock login
+            await new Promise(res => setTimeout(res, 500)); // Simulate network delay
+            const user = [MOCK_TEACHER, ...MOCK_STUDENTS].find(u => u.email === email && u.password === pass);
+            if (user) {
+                setCurrentUser(user);
+            } else {
+                setError("Invalid email or password.");
+            }
+            return;
+        }
+        // Placeholder for real Supabase logic
+        setError("Supabase login not implemented.");
+    };
 
-  if (!isReady) {
+    const handleRegister = async (details: NewUser): Promise<void> => {
+         setError(null);
+        if (!isSupabaseConfigured) {
+            // Mock register
+            await new Promise(res => setTimeout(res, 500)); // Simulate network delay
+            const userExists = [MOCK_TEACHER, ...MOCK_STUDENTS].find(u => u.email === details.email);
+            if (userExists) {
+                setError("An account with this email already exists.");
+                return;
+            }
+            const newUser: User = {
+                id: Math.floor(Math.random() * 1000) + 300,
+                created_at: new Date().toISOString(),
+                ...details
+            };
+            setCurrentUser(newUser);
+        }
+        // Placeholder for real Supabase logic
+        setError("Supabase registration not implemented.");
+    };
+    
+    const handleLogout = () => {
+        setCurrentUser(null);
+        setViewMode('login');
+    };
+
+    if (!currentUser) {
+        const AuthView = () => {
+            switch(viewMode) {
+                case 'signup':
+                    return <SignUpView onRegister={handleRegister} error={error} setError={setError} setViewMode={setViewMode} />;
+                // Add other views like 'forgot_password' here if implemented
+                case 'login':
+                default:
+                    return <LoginView onLogin={handleLogin} error={error} setError={setError} setViewMode={setViewMode} pendingSessionId={pendingSessionId} />;
+            }
+        };
+
+        return (
+            <div className="flex-1 flex items-center justify-center bg-background p-4">
+                <AuthView />
+            </div>
+        );
+    }
+
+    if (currentUser.role === 'teacher') {
+        return <TeacherDashboard user={currentUser} onLogout={handleLogout} />;
+    }
+
+    if (currentUser.role === 'student') {
+        return <StudentDashboard user={currentUser} onLogout={handleLogout} />;
+    }
+
+    // Fallback view, should ideally not be reached
     return (
-      <div className="flex-1 flex items-center justify-center bg-background">
-        <Loader className="animate-spin text-primary" size={48} />
-      </div>
+        <div className="flex-1 flex items-center justify-center bg-background p-4">
+            <div className="text-center">
+                <h2 className="text-xl font-bold">Student & Teacher Portal</h2>
+                <p className="text-muted-foreground mt-2">
+                    Loading portal...
+                </p>
+                { currentUser && <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-destructive text-destructive-foreground rounded-md">Log Out</button> }
+            </div>
+        </div>
     );
-  }
-
-  return isSupabaseConfigured ? <SupabasePortal /> : <MockPortal />;
 };

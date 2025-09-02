@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, FileText, ZoomIn, ZoomOut, RotateCcw, BrainCircuit, X, Plus, Loader } from 'lucide-react';
 import { geminiAI } from './gemini';
@@ -647,7 +645,6 @@ const InteractiveMindMap: React.FC = () => {
                                             />
                                         </foreignObject>
                                     ) : (
-                                        // FIX: Replaced invalid `title` attribute on SVG `<g>` element with a `<title>` child element for tooltip.
                                         <g key={node.id} transform={`translate(${node.x - node.width / 2}, ${node.y - node.height / 2})`} className="cursor-pointer" onMouseDown={(e) => handleNodeMouseDown(e, node)} onClick={() => handleNodeClick(node)} onDoubleClick={() => handleNodeDoubleClick(node)}>
                                             <title>Double-click to edit</title>
                                             <rect width={node.width} height={node.height} rx="8" fill={node.color} stroke={selectedNode?.id === node.id ? '#A78BFA' : '#1F2937'} strokeWidth="3" />

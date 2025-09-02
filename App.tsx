@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
@@ -13,6 +12,7 @@ import { StudentTeacherPortal } from './components/StudentTeacherPortal';
 import { ToastProvider, useToast } from './components/Toast';
 import SearchPalette from './components/SearchPalette';
 import LandingPage from './components/LandingPage';
+import { MapPin, Loader } from 'lucide-react';
 
 // --- IndexedDB Utility for Banners ---
 const DB_NAME = 'MavenDB';
@@ -543,8 +543,6 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
         return `💪 New habit added: "${name}". Let's get started!`;
     };
 
-    // FIX: Explicitly type updatedHabits to allow for the temporary 'alreadyCompleted' property,
-    // which resolves type errors in this function.
     const handleCompleteHabit = (name: string) => {
         const todayStr = new Date().toDateString();
         let habitFound = false;
@@ -657,7 +655,7 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
         if (existingEntryIndex > -1) {
             // Update existing entry
             const updatedEntries = [...journalEntries];
-            updatedEntries[existingEntryIndex] = { ...updatedEntries[existingEntryIndex], content: updatedEntries[existingEntryIndex].content + "\n\n" + content };
+            updatedEntries[existingEntryIndex].content = updatedEntries[existingEntryIndex].content + "\n\n" + content;
             setJournalEntries(updatedEntries);
             return `✍️ Added more thoughts to your journal entry for ${targetDate}.`;
         } else {
@@ -719,6 +717,21 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
         const newStudent: Student = { id: crypto.randomUUID(), name, enrollment, classId };
         setStudents(prev => [...prev, newStudent]);
     };
+
+    const handleDeleteStudent = (id: string) => {
+        setStudents(prev => prev.filter(s => s.id !== id));
+        // Also remove attendance records for this student
+        const newAttendance = { ...attendance };
+        Object.keys(newAttendance).forEach(date => {
+            if (newAttendance[date][id]) {
+                delete newAttendance[date][id];
+            }
+            if (Object.keys(newAttendance[date]).length === 0) {
+                delete newAttendance[date];
+            }
+        });
+        setAttendance(newAttendance);
+    };
     
     const handleAddStudentsBatch = (newStudents: { name: string; enrollment: string; classId: string }[]): string => {
         const existingEnrollments = new Set(students.filter(s => s.classId === newStudents[0]?.classId).map(s => s.enrollment));
@@ -735,85 +748,44 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
         
         const addedCount = studentsToAdd.length;
         const skippedCount = newStudents.length - addedCount;
-
-        let message = `Successfully imported ${addedCount} new students.`;
+        
+        let message = `${addedCount} new student(s) added successfully.`;
         if (skippedCount > 0) {
-            message += ` Skipped ${skippedCount} students with duplicate enrollment numbers.`;
+            message += ` ${skippedCount} student(s) with duplicate enrollment numbers were skipped.`;
         }
         return message;
     };
-
-    const handleDeleteStudent = (id: string) => {
-        setStudents(prev => prev.filter(s => s.id !== id));
-        // Also delete associated attendance
-        const newAttendance = { ...attendance };
-        Object.keys(newAttendance).forEach(date => {
-            delete newAttendance[date][id];
-             if (Object.keys(newAttendance[date]).length === 0) {
-                delete newAttendance[date];
-            }
-        });
-        setAttendance(newAttendance);
-    };
-
+    
     const handleSetAttendance = (date: string, studentId: string, status: 'Present' | 'Absent') => {
-        setAttendance(prev => {
-            const newAttendance = { ...prev };
-            if (!newAttendance[date]) {
-                newAttendance[date] = {};
+        setAttendance(prev => ({
+            ...prev,
+            [date]: {
+                ...prev[date],
+                [studentId]: status
             }
-            newAttendance[date][studentId] = status;
-            return newAttendance;
-        });
+        }));
     };
-
-
-    // Get Daily Briefing from Chatbot
-    const getDailyBriefing = () => {
-        const today = new Date().toISOString().split('T')[0];
-        const todaysTasks = tasks.filter(t => !t.completed);
-        const todaysEvents = events.filter(e => e.date === today);
-
-        let briefing = `📅 **Daily Briefing for ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}**\n\n`;
-
-        if (todaysTasks.length > 0) {
-            briefing += "📝 **Top Tasks:**\n" + todaysTasks.map(t => `- ${t.text}`).join('\n');
-        } else {
-            briefing += "👍 No pending tasks for today. Great job!";
-        }
-
-        if (todaysEvents.length > 0) {
-            briefing += "\n\n🗓️ **Today's Events:**\n" + todaysEvents.map(e => `- ${e.title} at ${e.time}`).join('\n');
-        } else {
-            briefing += "\n\n🎉 No events scheduled for today.";
-        }
-
-        return briefing;
-    };
-
+    
     const activePage = pages.find(page => page.id === activePageId);
 
-    // Journal view handlers
-    const handleUpdateJournalEntry = (date: string, content: string) => {
-        const existingEntryIndex = journalEntries.findIndex(e => e.date === date);
-        if (existingEntryIndex > -1) {
-            // Update existing entry
-            const updatedEntries = [...journalEntries];
-            updatedEntries[existingEntryIndex].content = content;
-            setJournalEntries(updatedEntries);
-        } else if (content.trim()) {
-            // Create new entry
-             const newEntry: JournalEntry = { id: crypto.randomUUID(), date: date, content, createdAt: new Date() };
-             setJournalEntries(prev => [newEntry, ...prev].sort((a,b) => b.date.localeCompare(a.date)));
+    const handleJournalUpdate = (date: string, content: string) => {
+        if (!content.trim()) {
+            setJournalEntries(prev => prev.filter(e => e.date !== date));
+        } else {
+            const existingEntry = journalEntries.find(e => e.date === date);
+            if (existingEntry) {
+                setJournalEntries(prev => prev.map(e => e.date === date ? { ...e, content } : e));
+            } else {
+                const newEntry: JournalEntry = { id: crypto.randomUUID(), date, content, createdAt: new Date() };
+                setJournalEntries(prev => [newEntry, ...prev]);
+            }
         }
     };
+    
+    const handleJournalDelete = (date: string) => setJournalEntries(prev => prev.filter(e => e.date !== date));
 
-    const handleDeleteJournalEntry = (date: string) => {
-        setJournalEntries(prev => prev.filter(e => e.date !== date));
-    };
-
-  return (
-    <div className="flex h-screen bg-background">
+    return (
+    <div className="h-screen w-screen flex bg-background text-foreground overflow-hidden">
       <Sidebar
         pages={pages}
         activePageId={activePageId}
@@ -825,116 +797,176 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
         setActiveTab={setActiveTab}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
-        onToggleSearch={() => setIsSearchOpen(!isSearchOpen)}
+        onToggleSearch={() => setIsSearchOpen(true)}
         onGoToLandingPage={onGoToLandingPage}
       />
       <div className="flex-1 flex flex-col min-w-0">
-          {view === 'notes' && (
-            activePage ? (
-              <Editor
-                key={activePage.id}
-                page={activePage}
-                onUpdatePage={handleUpdatePage}
-                onDeletePage={handleDeletePage}
-                onNewPage={handleNewPage}
-              />
-            ) : (
-              <WelcomePlaceholder onNewPage={handleNewPage}/>
-            )
-          )}
-          {view === 'dashboard' && <MamDesk
-              activeTab={activeTab}
-              pages={pages}
-              tasks={tasks} onAddTask={handleAddTask} onToggleTask={handleToggleTask} onDeleteTask={handleDeleteTask}
-              kanbanColumns={kanbanColumns} setKanbanColumns={setKanbanColumns} onAddKanbanCard={handleAddKanbanCard}
-              quickNotes={quickNotes} setQuickNotes={setQuickNotes}
-              events={events} onAddEvent={handleAddEvent}
-              habits={habits} setHabits={setHabits}
-              personalQuotes={personalQuotes} setPersonalQuotes={setPersonalQuotes}
-              moodEntries={moodEntries} setMoodEntries={setMoodEntries}
-              expenses={expenses} setExpenses={setExpenses}
-              goals={goals} setGoals={setGoals}
-              pomodoroTime={pomodoroTime} pomodoroActive={pomodoroActive} pomodoroSessions={pomodoroSessions}
-              onTogglePomodoro={() => setPomodoroActive(!pomodoroActive)}
-              onResetPomodoro={() => { setPomodoroActive(false); setPomodoroTime(25*60); }}
-              decisionOptions={decisionOptions} setDecisionOptions={setDecisionOptions}
-              decisionResult={decisionResult} setDecisionResult={setDecisionResult}
-              isDecisionSpinning={isDecisionSpinning} setIsDecisionSpinning={setIsDecisionSpinning}
-              currentDecisionSpin={currentDecisionSpin} setCurrentDecisionSpin={setCurrentDecisionSpin}
-              theme={theme} setTheme={setTheme}
-              classes={classes} students={students} attendance={attendance}
-              onAddClass={handleAddClass} onDeleteClass={handleDeleteClass}
-              onAddStudent={handleAddStudent} onDeleteStudent={handleDeleteStudent}
-              onSetAttendance={handleSetAttendance} onAddStudentsBatch={handleAddStudentsBatch}
-              onNewNote={handleNewPage}
+        {view === 'notes' ? (
+          activePage ? (
+            <Editor
+              key={activePage.id}
+              page={activePage}
+              onUpdatePage={handleUpdatePage}
+              onDeletePage={handleDeletePage}
+              onNewPage={handleNewPage}
             />
-          }
-           {view === 'journal' && <JournalView entries={journalEntries} onUpdate={handleUpdateJournalEntry} onDelete={handleDeleteJournalEntry} />}
-           {view === 'documind' && <InteractiveMindMap />}
-           {view === 'workspace' && <GoogleWorkspace authToken={authToken} setAuthToken={setAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />}
-           {view === 'portal' && <StudentTeacherPortal />}
-      </div>
-       <div className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isChatbotCollapsed ? 'w-16' : 'w-96'}`}>
-           <Chatbot
-                onAddTask={handleAddTask}
-                onAddEvent={handleAddEvent}
-                onNewPage={handleNewPage}
-                onGetDailyBriefing={getDailyBriefing}
-                onGenerateCreativeContent={handleGenerateCreativeContent}
-                onCompleteTaskByText={handleCompleteTaskByText}
-                onDeleteTaskByText={handleDeleteTaskByText}
-                onListTasks={handleListTasks}
-                onDeleteNoteByTitle={handleDeleteNoteByTitle}
-                onMoveKanbanCard={handleMoveKanbanCard}
-                onAddQuickNote={handleAddQuickNote}
-                onListQuickNotes={handleListQuickNotes}
-                onAddHabit={handleAddHabit}
-                onCompleteHabit={handleCompleteHabit}
-                onDeleteHabit={handleDeleteHabit}
-                onListHabits={handleListHabits}
-                onStartPomodoro={handleStartPomodoro}
-                onPausePomodoro={handlePausePomodoro}
-                onResetPomodoro={handleResetPomodoro}
-                onAddDecisionOption={handleAddDecisionOption}
-                onAddDecisionOptions={handleAddDecisionOptions}
-                onClearDecisionOptions={handleClearDecisionOptions}
-                onMakeDecision={handleMakeDecision}
-                onPlanAndCreateNote={handlePlanAndCreateNote}
-                onWireframeAndCreateNote={handleWireframeAndCreateNote}
-                onAddJournalEntry={handleAddJournalEntry}
-                onAddGoal={handleAddGoal}
-                onLogMood={handleLogMood}
-                onAddExpense={handleAddExpense}
-                onAddPersonalQuote={handleAddPersonalQuote}
-                isCollapsed={isChatbotCollapsed}
-// FIX: Corrected a typo. The state setter for the chatbot is `setIsChatbotCollapsed`.
-                setIsCollapsed={setIsChatbotCollapsed}
-            />
-       </div>
-       <SearchPalette
-            isOpen={isSearchOpen}
-            onClose={() => setIsSearchOpen(false)}
+          ) : (
+            <WelcomePlaceholder onNewPage={handleNewPage} />
+          )
+        ) : view === 'dashboard' ? (
+          <MamDesk
+            activeTab={activeTab}
+            tasks={tasks}
+            onAddTask={handleAddTask}
+            onToggleTask={handleToggleTask}
+            onDeleteTask={handleDeleteTask}
+            kanbanColumns={kanbanColumns}
+            setKanbanColumns={setKanbanColumns}
+            onAddKanbanCard={handleAddKanbanCard}
+            quickNotes={quickNotes}
+            setQuickNotes={setQuickNotes}
+            events={events}
+            onAddEvent={handleAddEvent}
+            habits={habits}
+            setHabits={setHabits}
+            pomodoroTime={pomodoroTime}
+            pomodoroActive={pomodoroActive}
+            pomodoroSessions={pomodoroSessions}
+            onTogglePomodoro={() => setPomodoroActive(!pomodoroActive)}
+            onResetPomodoro={() => {
+              setPomodoroActive(false);
+              setPomodoroTime(25*60);
+            }}
+            decisionOptions={decisionOptions}
+            setDecisionOptions={setDecisionOptions}
+            decisionResult={decisionResult}
+            setDecisionResult={setDecisionResult}
+            isDecisionSpinning={isDecisionSpinning}
+            setIsDecisionSpinning={setIsDecisionSpinning}
+            currentDecisionSpin={currentDecisionSpin}
+            setCurrentDecisionSpin={setCurrentDecisionSpin}
+            theme={theme}
+            setTheme={setTheme}
             pages={pages}
-            onSelectPage={handleSelectPage}
-       />
+            classes={classes}
+            students={students}
+            attendance={attendance}
+            onAddClass={handleAddClass}
+            onDeleteClass={handleDeleteClass}
+            onAddStudent={handleAddStudent}
+            onDeleteStudent={handleDeleteStudent}
+            onSetAttendance={handleSetAttendance}
+            onAddStudentsBatch={handleAddStudentsBatch}
+            onNewNote={handleNewPage}
+            personalQuotes={personalQuotes}
+            setPersonalQuotes={setPersonalQuotes}
+            moodEntries={moodEntries}
+            setMoodEntries={setMoodEntries}
+            expenses={expenses}
+            setExpenses={setExpenses}
+            goals={goals}
+            setGoals={setGoals}
+          />
+        ) : view === 'journal' ? (
+            <JournalView 
+                entries={journalEntries}
+                onUpdate={handleJournalUpdate}
+                onDelete={handleJournalDelete}
+            />
+        ) : view === 'documind' ? (
+            <InteractiveMindMap />
+        ) : view === 'workspace' ? (
+            <GoogleWorkspace
+                authToken={authToken}
+                setAuthToken={setAuthToken}
+                history={workspaceHistory}
+                onFileImport={handleFileImport}
+            />
+        ) : view === 'portal' ? (
+            <StudentTeacherPortal />
+        ) : null}
+      </div>
+      <div className={`transition-all duration-300 ease-in-out flex-shrink-0 ${isChatbotCollapsed ? 'w-16' : 'w-96'}`}>
+        <Chatbot
+            onAddTask={handleAddTask}
+            onAddEvent={handleAddEvent}
+            onNewPage={handleNewPage}
+            onGetDailyBriefing={() => {
+                const today = new Date().toISOString().split('T')[0];
+                const todayTasks = tasks.filter(t => !t.completed).map(t => `- ${t.text}`).join('\n');
+                const todayEvents = events.filter(e => e.date === today).map(e => `- ${e.title} at ${e.time}`).join('\n');
+                let briefing = "Here's your daily briefing:\n";
+                briefing += todayTasks ? `\n📝 Tasks:\n${todayTasks}` : "\n👍 No pending tasks today!";
+                briefing += todayEvents ? `\n\n🗓️ Events:\n${todayEvents}` : "\n\n🎉 No events scheduled for today!";
+                return briefing;
+            }}
+            onGenerateCreativeContent={handleGenerateCreativeContent}
+            onCompleteTaskByText={handleCompleteTaskByText}
+            onDeleteTaskByText={handleDeleteTaskByText}
+            onListTasks={handleListTasks}
+            onDeleteNoteByTitle={handleDeleteNoteByTitle}
+            onMoveKanbanCard={handleMoveKanbanCard}
+            onAddQuickNote={handleAddQuickNote}
+            onListQuickNotes={handleListQuickNotes}
+            onAddHabit={handleAddHabit}
+            onCompleteHabit={handleCompleteHabit}
+            onDeleteHabit={handleDeleteHabit}
+            onListHabits={handleListHabits}
+            onStartPomodoro={handleStartPomodoro}
+            onPausePomodoro={handlePausePomodoro}
+            onResetPomodoro={handleResetPomodoro}
+            onAddDecisionOption={handleAddDecisionOption}
+            onAddDecisionOptions={handleAddDecisionOptions}
+            onClearDecisionOptions={handleClearDecisionOptions}
+            onMakeDecision={handleMakeDecision}
+            onPlanAndCreateNote={handlePlanAndCreateNote}
+            onWireframeAndCreateNote={handleWireframeAndCreateNote}
+            onAddJournalEntry={handleAddJournalEntry}
+            onAddGoal={handleAddGoal}
+            onLogMood={handleLogMood}
+            onAddExpense={handleAddExpense}
+            onAddPersonalQuote={handleAddPersonalQuote}
+            isCollapsed={isChatbotCollapsed}
+            setIsCollapsed={setIsChatbotCollapsed}
+        />
+      </div>
+       <SearchPalette
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        pages={pages}
+        onSelectPage={handleSelectPage}
+      />
     </div>
   );
 };
 
-
 const App: React.FC = () => {
-    const [hasEnteredApp, setHasEnteredApp] = usePersistentState<boolean>('maven-has-entered', false);
+  const [appState, setAppState] = useState<'landing' | 'app'>('landing');
 
-    if (!hasEnteredApp) {
-        return <LandingPage onEnter={() => setHasEnteredApp(true)} />;
+  // Load the initial state from localStorage to prevent flicker on reload
+  useEffect(() => {
+    const hasLaunchedBefore = localStorage.getItem('maven-has-launched');
+    if (hasLaunchedBefore) {
+      setAppState('app');
     }
+  }, []);
 
-    return (
-        <ToastProvider>
-            <AppContent onGoToLandingPage={() => setHasEnteredApp(false)} />
-        </ToastProvider>
-    );
+  const handleEnterApp = () => {
+    localStorage.setItem('maven-has-launched', 'true');
+    setAppState('app');
+  };
+
+  const handleGoToLandingPage = () => {
+    localStorage.removeItem('maven-has-launched');
+    setAppState('landing');
+  }
+
+  return (
+    <ToastProvider>
+      {appState === 'landing' && <LandingPage onEnter={handleEnterApp} />}
+      {appState === 'app' && <AppContent onGoToLandingPage={handleGoToLandingPage} />}
+    </ToastProvider>
+  );
 };
 
 export default App;
-export { useToast };
