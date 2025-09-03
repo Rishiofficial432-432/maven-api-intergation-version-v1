@@ -749,60 +749,36 @@ const StudentDashboard: React.FC<{
     const todaysCurriculum = curriculum.find(c => c.date === today);
     const myAttendance = attendanceRecords.filter(rec => rec.enrollmentId === currentUser.enrollment_id);
     const [showScanner, setShowScanner] = useState(false);
-    const toast = useToast();
 
     useEffect(() => {
-        if (!showScanner) {
-            return;
-        }
+        if (!showScanner) return;
+    
+        const scanner = new Html5QrcodeScanner(
+            'qr-scanner', 
+            { fps: 10, qrbox: { width: 250, height: 250 } }, 
+            false
+        );
 
-        const SCANNER_ID = "student-qr-scanner";
-        let scanner: Html5QrcodeScanner | null = null;
-        
-        // Use a small delay to ensure the DOM element is available
-        const timeoutId = setTimeout(() => {
-            scanner = new Html5QrcodeScanner(
-                SCANNER_ID,
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                false // verbose
-            );
-
-            const onScanSuccess = (decodedText: string) => {
-                if (decodedText.includes('session_id=')) {
-                    toast.success("QR Code detected! Redirecting...");
-                    if (scanner) {
-                        scanner.clear().catch(err => console.error("Scanner clear failed on success:", err));
-                    }
-                    setShowScanner(false);
-                    // Use a short delay to let the user see the toast before redirecting
-                    setTimeout(() => {
-                        window.location.href = decodedText;
-                    }, 500);
-                } else {
-                    toast.error("Invalid QR code scanned.");
-                }
-            };
-
-            const onScanFailure = (error: any) => {
-                // This gets called frequently, so we ignore it to avoid console spam.
-            };
-
-            scanner.render(onScanSuccess, onScanFailure);
-        }, 100);
-
-        // Cleanup function for the useEffect hook
-        return () => {
-            clearTimeout(timeoutId);
-            if (scanner) {
-                // Check if scanner is still active before trying to clear
-                scanner.clear().catch(error => {
-                    // This can fail if the component unmounts too quickly or if the scanner was never rendered.
-                    // It's generally safe to ignore this error.
-                    console.warn("QR scanner cleanup failed, it might have been cleared already.", error);
-                });
-            }
+        const onScanSuccess = (decodedText: string, decodedResult: any) => {
+            console.log(`Scan result: ${decodedText}`, decodedResult);
+            // This would redirect to the standalone check-in page
+            window.location.href = decodedText;
+            scanner.clear();
+            setShowScanner(false);
         };
-    }, [showScanner, toast]);
+
+        const onScanFailure = (error: any) => {
+            // console.warn(`QR error: ${error}`);
+        };
+
+        scanner.render(onScanSuccess, onScanFailure);
+
+        return () => {
+            scanner.clear().catch(error => {
+                console.error("Failed to clear scanner on cleanup", error);
+            });
+        };
+    }, [showScanner]);
     
     return (
         <div className="flex flex-col h-full">
@@ -819,7 +795,7 @@ const StudentDashboard: React.FC<{
                     </button>
                     {showScanner && (
                         <div className="mt-4 p-4 bg-secondary rounded-lg">
-                            <div id="student-qr-scanner" className="w-full max-w-sm mx-auto aspect-square"></div>
+                            <div id="qr-scanner" className="w-full"></div>
                         </div>
                     )}
                 </div>
