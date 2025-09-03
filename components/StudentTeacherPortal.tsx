@@ -27,6 +27,11 @@ interface Session {
     is_active: boolean;
     session_code?: string;
     location_enforced: boolean; 
+    location?: {
+        latitude: number;
+        longitude: number;
+        radius: number; // in meters
+    };
 }
 
 interface Curriculum {
@@ -71,6 +76,27 @@ const MOCK_CURRICULUM: Curriculum[] = [
     { id: 'c1', teacherId: 101, date: new Date().toISOString().split('T')[0], topic: 'Introduction to React Hooks', activities: '1. useState deep dive\n2. useEffect for side effects\n3. Group project setup' }
 ];
 const MOCK_ATTENDANCE: AttendanceRecord[] = [];
+
+// =================================================================
+// HELPERS
+// =================================================================
+
+// Haversine distance formula
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371e3; // metres
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c; // in metres
+}
+
 
 // =================================================================
 // LOCALSTORAGE-BASED MOCK BACKEND
@@ -132,11 +158,9 @@ export const StandaloneCheckinPage: React.FC<{ sessionId: string }> = ({ session
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!session || !name.trim() || !enrollmentId.trim()) return;
+        if (!session || !name.trim() || !enrollmentId.trim() || isSubmitting) return;
 
-        setIsSubmitting(true);
-        // Simulate backend call
-        setTimeout(() => {
+        const performCheckin = () => {
             const allAttendance: AttendanceRecord[] = JSON.parse(localStorage.getItem('maven-portal-attendance') || '[]');
             const hasAlreadyCheckedIn = allAttendance.some(rec => rec.sessionId === session.id && rec.enrollmentId.toLowerCase() === enrollmentId.trim().toLowerCase());
 
@@ -159,7 +183,36 @@ export const StandaloneCheckinPage: React.FC<{ sessionId: string }> = ({ session
             toast.success("Attendance marked successfully!");
             setIsCheckedIn(true);
             setIsSubmitting(false);
-        }, 500);
+        };
+
+        if (session.location_enforced && session.location) {
+            setIsSubmitting(true);
+            toast.info("Verifying your location...");
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const distance = getDistance(
+                        position.coords.latitude,
+                        position.coords.longitude,
+                        session.location!.latitude,
+                        session.location!.longitude
+                    );
+                    if (distance <= session.location!.radius) {
+                        performCheckin();
+                    } else {
+                        toast.error(`You are too far from the session location. Required within ${session.location!.radius}m, you are ~${Math.round(distance)}m away.`);
+                        setIsSubmitting(false);
+                    }
+                },
+                (err) => {
+                    toast.error(err.code === err.PERMISSION_DENIED ? "Location access denied. Please enable it to check in." : "Could not determine your location.");
+                    setIsSubmitting(false);
+                },
+                { timeout: 10000, enableHighAccuracy: true }
+            );
+        } else {
+            setIsSubmitting(true);
+            setTimeout(performCheckin, 500); // Simulate network delay
+        }
     };
 
     if (isLoading) {
@@ -185,6 +238,11 @@ export const StandaloneCheckinPage: React.FC<{ sessionId: string }> = ({ session
                 ) : (
                     <>
                         <p className="text-muted-foreground text-sm mb-6">Enter your details to mark your attendance for this session.</p>
+                        {session?.location_enforced && (
+                           <p className="text-blue-400 bg-blue-500/10 text-xs mb-6 p-2 rounded-md flex items-center justify-center gap-2">
+                            <ShieldCheck size={14}/> This is a location-secured session.
+                           </p>
+                        )}
                         <form onSubmit={handleSubmit} className="space-y-4 text-left">
                             <div>
                                 <label className="text-sm font-medium" htmlFor="name">Full Name</label>
@@ -236,7 +294,6 @@ const Timer: React.FC<{ endTime: string, onEnd: () => void }> = ({ endTime, onEn
     return <span className="font-mono text-2xl">{minutes}:{seconds}</span>;
 };
 
-// ... (LoginView and SignUpView remain mostly the same, so they are omitted for brevity but should be kept from the original file)
 const LoginView: React.FC<{ onLogin: (email: string, pass: string) => Promise<void>, error: string | null, setError: (err: string | null) => void, setViewMode: (mode: ViewMode) => void, pendingSessionId: string | null }> = ({ onLogin, error, setError, setViewMode, pendingSessionId }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -431,6 +488,81 @@ const SignUpView: React.FC<{ onRegister: (details: NewUser) => Promise<void>, er
 // =================================================================
 // DASHBOARD COMPONENTS
 // =================================================================
+
+const LocationSetupModal: React.FC<{
+    onClose: () => void;
+    onSessionStart: (location: { latitude: number; longitude: number; radius: number }) => void;
+}> = ({ onClose, onSessionStart }) => {
+    const [status, setStatus] = useState<'fetching' | 'success' | 'error'>('fetching');
+    const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [radius, setRadius] = useState(100);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setCoords({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                });
+                setStatus('success');
+            },
+            (err) => {
+                setError(err.code === err.PERMISSION_DENIED ? "Location access denied. Please enable it in your browser settings." : "Could not determine your location.");
+                setStatus('error');
+            },
+            { timeout: 10000, enableHighAccuracy: true }
+        );
+    }, []);
+
+    const handleConfirm = () => {
+        if (coords) {
+            onSessionStart({ ...coords, radius });
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-fast">
+            <div className="bg-card p-6 rounded-lg relative max-w-sm w-full mx-4">
+                <button onClick={onClose} className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground"><X size={20}/></button>
+                <h3 className="text-lg font-bold text-center mb-4">Secure Session Setup</h3>
+                {status === 'fetching' && (
+                    <div className="text-center p-4">
+                        <Loader size={32} className="animate-spin text-primary mx-auto" />
+                        <p className="mt-4 text-muted-foreground">Pinpointing your location...</p>
+                    </div>
+                )}
+                {status === 'error' && (
+                    <div className="text-center p-4 bg-destructive/10 text-destructive rounded-md">
+                        <AlertTriangle size={32} className="mx-auto mb-2"/>
+                        <p className="font-semibold">Location Error</p>
+                        <p className="text-sm mt-1">{error}</p>
+                    </div>
+                )}
+                {status === 'success' && coords && (
+                    <div className="space-y-4">
+                        <div className="bg-secondary p-3 rounded-md text-center">
+                            <p className="text-sm font-medium flex items-center justify-center gap-2"><MapPin size={14}/> Location Pinned</p>
+                            <p className="text-xs text-muted-foreground">Lat: {coords.latitude.toFixed(4)}, Lon: {coords.longitude.toFixed(4)}</p>
+                        </div>
+                        <div>
+                            <label htmlFor="radius" className="text-sm font-medium">Attendance Radius</label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <input type="range" id="radius" min="50" max="500" step="50" value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full h-2 bg-input rounded-lg appearance-none cursor-pointer accent-primary" />
+                                <span className="font-mono text-sm bg-input px-2 py-1 rounded-md w-20 text-center">{radius}m</span>
+                            </div>
+                        </div>
+                        <button onClick={handleConfirm} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors">
+                            Start Session
+                        </button>
+                    </div>
+                )}
+            </div>
+             <style>{`.animate-fade-in-fast { animation: fadeIn 0.2s ease-out; }`}</style>
+        </div>
+    );
+};
+
 const TeacherDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLogout }) => {
     const [activeTab, setActiveTab] = useState('session');
     const [sessions, setSessions] = usePersistentMockState<Session[]>('maven-portal-sessions', MOCK_SESSIONS);
@@ -440,13 +572,11 @@ const TeacherDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user
     
     const [activeSession, setActiveSession] = useState<Session | null>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState('');
-    const [copySuccess, setCopySuccess] = useState('');
     const [liveAttendance, setLiveAttendance] = useState<AttendanceRecord[]>([]);
-    const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
     const toast = useToast();
 
-    // Real-time attendance polling
     useEffect(() => {
         if (activeSession) {
             const interval = setInterval(() => {
@@ -459,47 +589,28 @@ const TeacherDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user
     }, [activeSession]);
 
 
-    const handleStartSession = useCallback(async () => {
-        if (activeSession || isFetchingLocation) return;
+    const handleStartSession = async (location: { latitude: number; longitude: number; radius: number }) => {
+        setIsLocationModalOpen(false);
+        const now = new Date();
+        const expires = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
+        const newSession: Session = {
+            id: crypto.randomUUID(),
+            created_at: now.toISOString(),
+            expires_at: expires.toISOString(),
+            teacher_id: user.id,
+            is_active: true,
+            session_code: Math.random().toString(36).substring(2, 7).toUpperCase(),
+            location_enforced: true,
+            location,
+        };
+        setActiveSession(newSession);
+        setSessions(prev => [...prev, newSession]);
 
-        setIsFetchingLocation(true);
-        toast.info("Requesting location access to start a secure session...");
-
-        try {
-            await new Promise<GeolocationPosition>((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
-            });
-            
-            toast.success("Location access granted. Starting session.");
-
-            const now = new Date();
-            const expires = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
-            const newSession: Session = {
-                id: crypto.randomUUID(),
-                created_at: now.toISOString(),
-                expires_at: expires.toISOString(),
-                teacher_id: user.id,
-                is_active: true,
-                session_code: Math.random().toString(36).substring(2, 7).toUpperCase(),
-                location_enforced: true,
-            };
-            setActiveSession(newSession);
-            setSessions(prev => [...prev, newSession]);
-
-            const url = `${window.location.origin}${window.location.pathname}?session_id=${newSession.id}`;
-            const dataUrl = await QRCode.toDataURL(url, { errorCorrectionLevel: 'H', margin: 2, scale: 6 });
-            setQrCodeUrl(dataUrl);
-
-        } catch (error: any) {
-            if (error.code === error.PERMISSION_DENIED) {
-                toast.error("Location access is required to start a secure session.");
-            } else {
-                toast.error("Could not get location. Please check your device settings.");
-            }
-        } finally {
-            setIsFetchingLocation(false);
-        }
-    }, [activeSession, user.id, setSessions, isFetchingLocation, toast]);
+        const url = `${window.location.origin}${window.location.pathname}?session_id=${newSession.id}`;
+        const dataUrl = await QRCode.toDataURL(url, { errorCorrectionLevel: 'H', margin: 2, scale: 6 });
+        setQrCodeUrl(dataUrl);
+        toast.success("Secure session started!");
+    };
 
     const handleEndSession = useCallback(() => {
         setActiveSession(null);
@@ -524,6 +635,7 @@ const TeacherDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user
 
     return (
         <div className="flex-1 p-6 sm:p-8 bg-background text-foreground overflow-y-auto">
+            {isLocationModalOpen && <LocationSetupModal onClose={() => setIsLocationModalOpen(false)} onSessionStart={handleStartSession} />}
             <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div>
                     <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
@@ -561,8 +673,8 @@ const TeacherDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user
                              ) : (
                                 <div className="text-center">
                                     <p className="text-muted-foreground mb-4">Start a new 5-minute, location-secured session for attendance.</p>
-                                    <button onClick={handleStartSession} disabled={isFetchingLocation} className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 text-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
-                                      {isFetchingLocation ? <><Loader size={20} className="animate-spin" /> Checking Location...</> : 'Start New Session'}
+                                    <button onClick={() => setIsLocationModalOpen(true)} className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 text-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+                                      Start New Session
                                     </button>
                                 </div>
                              )}
