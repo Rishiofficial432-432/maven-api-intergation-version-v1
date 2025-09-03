@@ -3,7 +3,8 @@ import {
   Plus, X, Play, Pause, RotateCcw, Calendar, Clock, BookOpen, 
   Target, Calculator, Palette, Sun, Moon, Edit3, Save, Trash2,
   CheckSquare, Square, ArrowRight, Timer, TrendingUp, Heart,
-  Link, FileText, Zap, Settings, Home, List, BarChart3, User,
+  // FIX: Removed 'Settings' to avoid conflict with local component, added 'AlertTriangle' for use in a modal.
+  Link, FileText, Zap, Home, List, BarChart3, User, AlertTriangle,
   PlusCircle, MinusCircle, Copy, Check, RefreshCw, Star,
   ChevronLeft, ChevronRight, Download, Upload, Search, GripVertical, HelpCircleIcon,
   Notebook, DollarSign, Trophy, Smile, Quote as QuoteIcon, CircleDot, BrainCircuit as BrainCircuitIcon, Wand2, Loader, ArrowLeft, CheckCircle, ClipboardList, Eye, EyeOff
