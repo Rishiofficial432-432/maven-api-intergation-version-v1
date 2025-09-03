@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, QrCode, Copy, ToggleLeft, ToggleRight, RefreshCw, Video, VideoOff, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent } from 'lucide-react';
+import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabase-config';
-import QRCode from 'qrcode';
 import { useToast } from './Toast';
 import { geminiAI } from './gemini';
-import { Html5QrcodeScanner } from 'html5-qrcode';
 
 
 // --- TYPES ---
@@ -124,165 +122,6 @@ const usePersistentMockState = <T,>(key: string, defaultValue: T): [T, React.Dis
     return [state, setState];
 };
 
-
-// =================================================================
-// STANDALONE CHECK-IN PAGE
-// =================================================================
-
-export const StandaloneCheckinPage: React.FC<{ sessionId: string }> = ({ sessionId }) => {
-    const toast = useToast();
-    const [session, setSession] = useState<Session | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [name, setName] = useState('');
-    const [enrollmentId, setEnrollmentId] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isCheckedIn, setIsCheckedIn] = useState(false);
-
-    useEffect(() => {
-        // Mock fetching session data
-        const allSessions: Session[] = JSON.parse(localStorage.getItem('maven-portal-sessions') || '[]');
-        const activeSession = allSessions.find(s => s.id === sessionId);
-
-        if (activeSession) {
-            if (new Date(activeSession.expires_at) > new Date()) {
-                setSession(activeSession);
-            } else {
-                setError("This attendance session has expired.");
-            }
-        } else {
-            setError("Invalid attendance session link.");
-        }
-        setIsLoading(false);
-    }, [sessionId]);
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!session || !name.trim() || !enrollmentId.trim() || isSubmitting) return;
-
-        const performCheckin = () => {
-            const allAttendance: AttendanceRecord[] = JSON.parse(localStorage.getItem('maven-portal-attendance') || '[]');
-            const hasAlreadyCheckedIn = allAttendance.some(rec => rec.sessionId === session.id && rec.enrollmentId.toLowerCase() === enrollmentId.trim().toLowerCase());
-
-            if (hasAlreadyCheckedIn) {
-                toast.error("You have already checked in for this session.");
-                setIsSubmitting(false);
-                return;
-            }
-
-            const newRecord: AttendanceRecord = {
-                id: `att-${Date.now()}`,
-                sessionId: session.id,
-                studentName: name.trim(),
-                enrollmentId: enrollmentId.trim(),
-                timestamp: new Date().toISOString(),
-                teacherId: session.teacher_id!
-            };
-
-            localStorage.setItem('maven-portal-attendance', JSON.stringify([...allAttendance, newRecord]));
-            toast.success("Checked in successfully!");
-            setIsCheckedIn(true);
-            setIsSubmitting(false);
-        };
-
-        setIsSubmitting(true);
-        if (session.location_enforced && session.location) {
-            const { latitude: teacherLat, longitude: teacherLon, radius } = session.location;
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const { latitude: studentLat, longitude: studentLon } = position.coords;
-                    const distance = getDistance(teacherLat, teacherLon, studentLat, studentLon);
-                    
-                    if (distance <= radius) {
-                        performCheckin();
-                    } else {
-                        toast.error(`You are too far away (${Math.round(distance)}m) from the required location.`);
-                        setIsSubmitting(false);
-                    }
-                },
-                (geoError) => {
-                    toast.error("Could not get your location. Please enable location services.");
-                    setIsSubmitting(false);
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        } else {
-            performCheckin();
-        }
-    };
-
-    if (isLoading) {
-        return <div className="flex items-center justify-center h-screen bg-background"><Loader className="animate-spin" /></div>;
-    }
-
-    return (
-        <div className="flex items-center justify-center h-screen bg-background text-foreground p-4">
-            <div className="w-full max-w-md p-8 bg-card border border-border rounded-xl shadow-lg text-center">
-                <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-6">
-                    <UserCheck className="w-8 h-8 text-primary-foreground" />
-                </div>
-
-                {error ? (
-                    <>
-                        <h1 className="text-2xl font-bold text-destructive mb-2">Error</h1>
-                        <p className="text-muted-foreground">{error}</p>
-                    </>
-                ) : isCheckedIn ? (
-                     <>
-                        <h1 className="text-2xl font-bold text-green-400 mb-2">Attendance Marked!</h1>
-                        <p className="text-muted-foreground">You have been successfully checked in. You can now close this window.</p>
-                    </>
-                ) : (
-                    <>
-                        <h1 className="text-2xl font-bold mb-2">Mark Your Attendance</h1>
-                        <p className="text-muted-foreground mb-6">Enter your details to check in for this session.</p>
-                        {session?.location_enforced && (
-                            <p className="text-sm text-amber-400 bg-amber-500/10 p-3 rounded-md mb-4 flex items-center gap-2">
-                                <MapPin size={16}/> This is a location-aware session. Location access is required.
-                            </p>
-                        )}
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                             <div>
-                                <label htmlFor="name" className="sr-only">Full Name</label>
-                                <input
-                                    id="name"
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Full Name"
-                                    required
-                                    className="w-full bg-input border-border rounded-md px-4 py-3 focus:ring-ring focus:border-primary"
-                                />
-                            </div>
-                             <div>
-                                <label htmlFor="enrollmentId" className="sr-only">Enrollment ID</label>
-                                <input
-                                    id="enrollmentId"
-                                    type="text"
-                                    value={enrollmentId}
-                                    onChange={(e) => setEnrollmentId(e.target.value)}
-                                    placeholder="Enrollment ID"
-                                    required
-                                    className="w-full bg-input border-border rounded-md px-4 py-3 focus:ring-ring focus:border-primary"
-                                />
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={isSubmitting}
-                                className="w-full bg-primary text-primary-foreground py-3 rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center"
-                            >
-                                {isSubmitting && <Loader className="animate-spin mr-2" size={20} />}
-                                Check In
-                            </button>
-                        </form>
-                    </>
-                )}
-            </div>
-        </div>
-    );
-};
-
-
 // =================================================================
 // SUB-COMPONENTS for Teacher/Student Dashboards
 // =================================================================
@@ -302,7 +141,6 @@ const TeacherDashboard: React.FC<{
 }> = ({ currentUser, setCurrentUser, activeSession, setActiveSession, attendanceRecords, setAttendanceRecords, curriculum, setCurriculum, allStudents, setAllStudents, onLogout }) => {
 
     const [activeTab, setActiveTab] = useState<'session' | 'curriculum' | 'analytics'>('session');
-    const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
     const [timeLeft, setTimeLeft] = useState(0);
     const [locationEnforced, setLocationEnforced] = useState(false);
     const [showLocationModal, setShowLocationModal] = useState(false);
@@ -343,17 +181,6 @@ const TeacherDashboard: React.FC<{
             return () => clearInterval(interval);
         }
     }, [activeSession]);
-
-    // Generate QR code when a session starts
-    useEffect(() => {
-        if (activeSession) {
-            const url = `${window.location.origin}${window.location.pathname}?session_id=${activeSession.id}`;
-            QRCode.toDataURL(url, { width: 256 }, (err, url) => {
-                if (err) console.error(err);
-                setQrCodeDataUrl(url);
-            });
-        }
-    }, [activeSession]);
     
     const handleNameSave = () => {
         if (editedName.trim() && editedName !== currentUser.name) {
@@ -367,12 +194,15 @@ const TeacherDashboard: React.FC<{
     const startSession = (locationData: { latitude: number, longitude: number, radius: number } | null) => {
         const newSessionId = `sess-${Date.now()}`;
         const expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+        const sessionCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
         const newSession: Session = {
             id: newSessionId,
             created_at: new Date().toISOString(),
             expires_at,
             teacher_id: currentUser.id,
             is_active: true,
+            session_code: sessionCode,
             location_enforced: !!locationData,
             location: locationData || undefined
         };
@@ -414,7 +244,6 @@ const TeacherDashboard: React.FC<{
             const updatedSessions = allSessions.map(s => s.id === activeSession.id ? { ...s, is_active: false } : s);
             localStorage.setItem('maven-portal-sessions', JSON.stringify(updatedSessions));
             setActiveSession(null);
-            setQrCodeDataUrl('');
             toast.info("Attendance session has ended.");
         }
     };
@@ -598,21 +427,21 @@ const TeacherDashboard: React.FC<{
                             )}
                         </div>
                         <div className="lg:col-span-2 bg-card border border-border rounded-xl shadow-lg p-6 flex flex-col items-center justify-center">
-                            {activeSession ? (
+                            {activeSession && activeSession.session_code ? (
                                 <>
-                                    <h3 className="text-xl font-bold mb-2">Scan to Check In</h3>
-                                    <p className="text-muted-foreground mb-4">Students can scan this QR code with their phone camera.</p>
-                                    <div className="p-4 bg-white rounded-lg inline-block">
-                                        <img src={qrCodeDataUrl} alt="QR Code" />
+                                    <h3 className="text-xl font-bold mb-2">One-Time Password</h3>
+                                    <p className="text-muted-foreground mb-4">Students can enter this code to check in.</p>
+                                    <div className="p-4 bg-secondary rounded-lg flex items-center justify-center gap-4">
+                                        <span className="text-5xl font-mono tracking-widest text-primary">{activeSession.session_code}</span>
+                                        <button onClick={() => { navigator.clipboard.writeText(activeSession.session_code!); toast.success("Code copied!"); }} className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent">
+                                            <Copy size={24}/>
+                                        </button>
                                     </div>
-                                     <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?session_id=${activeSession.id}`); toast.success("Link copied!"); }} className="mt-4 flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
-                                        <Copy size={14}/> Copy Link
-                                    </button>
                                 </>
                             ) : (
                                 <div className="text-center text-muted-foreground">
-                                    <QrCode size={48} className="mx-auto mb-4"/>
-                                    <p>Start a new session to generate a QR code for attendance.</p>
+                                    <Users size={48} className="mx-auto mb-4"/>
+                                    <p>Start a new session to generate an OTP code for attendance.</p>
                                 </div>
                             )}
                         </div>
@@ -744,41 +573,87 @@ const StudentDashboard: React.FC<{
     curriculum: Curriculum[];
     attendanceRecords: AttendanceRecord[];
     onLogout: () => void;
-}> = ({ currentUser, curriculum, attendanceRecords, onLogout }) => {
+    onAddAttendanceRecord: (record: AttendanceRecord) => void;
+}> = ({ currentUser, curriculum, attendanceRecords, onLogout, onAddAttendanceRecord }) => {
     const today = new Date().toISOString().split('T')[0];
     const todaysCurriculum = curriculum.find(c => c.date === today);
     const myAttendance = attendanceRecords.filter(rec => rec.enrollmentId === currentUser.enrollment_id);
-    const [showScanner, setShowScanner] = useState(false);
-
-    useEffect(() => {
-        if (!showScanner) return;
+    const [otp, setOtp] = useState('');
+    const [isCheckingIn, setIsCheckingIn] = useState(false);
+    const toast = useToast();
     
-        const scanner = new Html5QrcodeScanner(
-            'qr-scanner', 
-            { fps: 10, qrbox: { width: 250, height: 250 } }, 
-            false
-        );
+    const handleCheckIn = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isCheckingIn || otp.length !== 6) return;
+        
+        setIsCheckingIn(true);
+        
+        const allSessions: Session[] = JSON.parse(localStorage.getItem('maven-portal-sessions') || '[]');
+        const session = allSessions.find(s => s.session_code === otp && s.is_active && new Date(s.expires_at) > new Date());
+        
+        if (!session) {
+            toast.error("Invalid or expired attendance code.");
+            setIsCheckingIn(false);
+            setOtp('');
+            return;
+        }
+        
+        const performCheckin = () => {
+             if (!currentUser.enrollment_id) {
+                toast.error("Your account is missing an enrollment ID.");
+                setIsCheckingIn(false);
+                return;
+            }
 
-        const onScanSuccess = (decodedText: string, decodedResult: any) => {
-            console.log(`Scan result: ${decodedText}`, decodedResult);
-            // This would redirect to the standalone check-in page
-            window.location.href = decodedText;
-            scanner.clear();
-            setShowScanner(false);
+            const allAttendance: AttendanceRecord[] = JSON.parse(localStorage.getItem('maven-portal-attendance') || '[]');
+            const hasAlreadyCheckedIn = allAttendance.some(rec => rec.sessionId === session.id && rec.enrollmentId === currentUser.enrollment_id);
+
+            if (hasAlreadyCheckedIn) {
+                toast.error("You have already checked in for this session.");
+                setIsCheckingIn(false);
+                return;
+            }
+            
+            const newRecord: AttendanceRecord = {
+                id: `att-${Date.now()}`,
+                sessionId: session.id,
+                studentName: currentUser.name,
+                enrollmentId: currentUser.enrollment_id,
+                timestamp: new Date().toISOString(),
+                teacherId: session.teacher_id!,
+            };
+            
+            onAddAttendanceRecord(newRecord);
+            toast.success("Checked in successfully!");
+            setIsCheckingIn(false);
+            setOtp('');
         };
-
-        const onScanFailure = (error: any) => {
-            // console.warn(`QR error: ${error}`);
-        };
-
-        scanner.render(onScanSuccess, onScanFailure);
-
-        return () => {
-            scanner.clear().catch(error => {
-                console.error("Failed to clear scanner on cleanup", error);
-            });
-        };
-    }, [showScanner]);
+        
+        if (session.location_enforced && session.location) {
+            toast.info("Location-aware session: getting coordinates...");
+            const { latitude: teacherLat, longitude: teacherLon, radius } = session.location;
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude: studentLat, longitude: studentLon } = position.coords;
+                    const distance = getDistance(teacherLat, teacherLon, studentLat, studentLon);
+                    if (distance <= radius) {
+                        toast.success(`Location verified (${Math.round(distance)}m away).`);
+                        performCheckin();
+                    } else {
+                        toast.error(`You are too far away (${Math.round(distance)}m) from the required location.`);
+                        setIsCheckingIn(false);
+                    }
+                },
+                (geoError) => {
+                    toast.error("Could not get your location. Please enable location services.");
+                    setIsCheckingIn(false);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            performCheckin();
+        }
+    };
     
     return (
         <div className="flex flex-col h-full">
@@ -789,16 +664,23 @@ const StudentDashboard: React.FC<{
                 </button>
             </header>
             <main className="flex-1 p-6 overflow-y-auto space-y-6">
-                <div className="bg-card border border-border rounded-xl shadow-lg p-6">
-                    <button onClick={() => setShowScanner(!showScanner)} className="w-full flex items-center justify-center gap-3 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
-                        {showScanner ? <><VideoOff size={20}/> Close Scanner</> : <><QrCode size={20}/> Scan QR to Check In</>}
-                    </button>
-                    {showScanner && (
-                        <div className="mt-4 p-4 bg-secondary rounded-lg">
-                            <div id="qr-scanner" className="w-full"></div>
-                        </div>
-                    )}
-                </div>
+                <form onSubmit={handleCheckIn} className="bg-card border border-border rounded-xl shadow-lg p-6">
+                    <h3 className="text-xl font-bold mb-4">Mark Attendance</h3>
+                     <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                            type="text"
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                            placeholder="Enter 6-digit code"
+                            maxLength={6}
+                            className="flex-1 bg-input border-border rounded-md px-4 py-3 text-2xl font-mono tracking-[0.5em] text-center"
+                            disabled={isCheckingIn}
+                        />
+                        <button type="submit" disabled={isCheckingIn || otp.length !== 6} className="flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50">
+                            {isCheckingIn ? <><Loader size={20} className="animate-spin" /> Verifying...</> : <>Check In</>}
+                        </button>
+                    </div>
+                </form>
 
                 <div className="bg-card border border-border rounded-xl shadow-lg p-6">
                     <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><BookOpen/> Today's Curriculum</h3>
@@ -921,6 +803,10 @@ export const StudentTeacherPortal: React.FC<{}> = () => {
         setCurrentUser(null);
         toast.info("You have been logged out.");
     }
+    
+    const handleAddAttendanceRecord = (record: AttendanceRecord) => {
+        setAttendanceRecords(prev => [...prev, record]);
+    };
 
     if (!isSupabaseConfigured) {
         // --- MOCK MODE ---
@@ -940,7 +826,13 @@ export const StudentTeacherPortal: React.FC<{}> = () => {
                     onLogout={handleLogout}
                 />;
             } else {
-                return <StudentDashboard currentUser={currentUser} curriculum={curriculum} attendanceRecords={attendanceRecords} onLogout={handleLogout} />;
+                return <StudentDashboard 
+                    currentUser={currentUser} 
+                    curriculum={curriculum} 
+                    attendanceRecords={attendanceRecords} 
+                    onLogout={handleLogout}
+                    onAddAttendanceRecord={handleAddAttendanceRecord}
+                />;
             }
         }
         

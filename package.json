@@ -14,7 +14,6 @@
     "react-dom": "^19.1.1",
     "lucide-react": "0.408.0",
     "qrcode": "1.5.3",
-    "html5-qrcode": "2.3.8",
     "@supabase/supabase-js": "2.44.2",
     "ogl": "1.0.3"
   },

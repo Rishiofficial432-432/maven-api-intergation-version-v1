@@ -9,7 +9,7 @@ import JournalView from './components/JournalView';
 import InteractiveMindMap from './components/InteractiveMindMap';
 import GoogleWorkspace from './components/GoogleWorkspace';
 import { geminiAI } from './components/gemini';
-import { StudentTeacherPortal, StandaloneCheckinPage } from './components/StudentTeacherPortal';
+import { StudentTeacherPortal } from './components/StudentTeacherPortal';
 import { ToastProvider, useToast } from './components/Toast';
 import SearchPalette from './components/SearchPalette';
 import LandingPage from './components/LandingPage';
@@ -969,18 +969,9 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
 };
 
 const App: React.FC = () => {
-  const [appState, setAppState] = useState<'landing' | 'app' | 'checkin'>('landing');
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [appState, setAppState] = useState<'landing' | 'app'>('landing');
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get('session_id');
-    if (id) {
-        setSessionId(id);
-        setAppState('checkin');
-        return;
-    }
-
     const hasLaunchedBefore = localStorage.getItem('maven-has-launched');
     if (hasLaunchedBefore) {
       setAppState('app');
@@ -1002,7 +993,6 @@ const App: React.FC = () => {
         <div className="h-screen w-screen flex flex-col">
             {appState === 'landing' && <LandingPage onEnter={handleEnterApp} />}
             {appState === 'app' && <AppContent onGoToLandingPage={handleGoToLandingPage} />}
-            {appState === 'checkin' && sessionId && <StandaloneCheckinPage sessionId={sessionId} />}
         </div>
     </ToastProvider>
   );
