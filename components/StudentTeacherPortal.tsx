@@ -298,7 +298,8 @@ const TeacherDashboard: React.FC<{
     setCurriculum: React.Dispatch<React.SetStateAction<Curriculum[]>>;
     allStudents: User[];
     setAllStudents: React.Dispatch<React.SetStateAction<User[]>>;
-}> = ({ currentUser, setCurrentUser, activeSession, setActiveSession, attendanceRecords, setAttendanceRecords, curriculum, setCurriculum, allStudents, setAllStudents }) => {
+    onLogout: () => void;
+}> = ({ currentUser, setCurrentUser, activeSession, setActiveSession, attendanceRecords, setAttendanceRecords, curriculum, setCurriculum, allStudents, setAllStudents, onLogout }) => {
 
     const [activeTab, setActiveTab] = useState<'session' | 'curriculum' | 'analytics'>('session');
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
@@ -565,7 +566,7 @@ const TeacherDashboard: React.FC<{
                         <button onClick={() => setActiveTab('curriculum')} className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'curriculum' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Curriculum</button>
                         <button onClick={() => setActiveTab('analytics')} className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'analytics' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Analytics</button>
                     </div>
-                    <button onClick={() => {}} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                    <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
                         <LogOut size={16} /> Logout
                     </button>
                 </div>
@@ -742,7 +743,8 @@ const StudentDashboard: React.FC<{
     currentUser: User;
     curriculum: Curriculum[];
     attendanceRecords: AttendanceRecord[];
-}> = ({ currentUser, curriculum, attendanceRecords }) => {
+    onLogout: () => void;
+}> = ({ currentUser, curriculum, attendanceRecords, onLogout }) => {
     const today = new Date().toISOString().split('T')[0];
     const todaysCurriculum = curriculum.find(c => c.date === today);
     const myAttendance = attendanceRecords.filter(rec => rec.enrollmentId === currentUser.enrollment_id);
@@ -782,7 +784,7 @@ const StudentDashboard: React.FC<{
         <div className="flex flex-col h-full">
             <header className="p-4 border-b border-border/50 flex items-center justify-between">
                 <h1 className="text-2xl font-bold">Welcome, {currentUser.name}</h1>
-                <button onClick={() => {}} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
                     <LogOut size={16} /> Logout
                 </button>
             </header>
@@ -845,7 +847,7 @@ const StudentDashboard: React.FC<{
 // MAIN PORTAL COMPONENT
 // =================================================================
 
-export const StudentTeacherPortal: React.FC<{ onUpdateUser: (user: User) => void }> = ({ onUpdateUser }) => {
+export const StudentTeacherPortal: React.FC<{}> = () => {
     const [view, setView] = useState<ViewMode>('login');
     
     // Using localStorage-based mock state
@@ -914,6 +916,11 @@ export const StudentTeacherPortal: React.FC<{ onUpdateUser: (user: User) => void
         setCurrentUser(newUser);
         toast.success("Account created successfully!");
     };
+    
+    const handleLogout = () => {
+        setCurrentUser(null);
+        toast.info("You have been logged out.");
+    }
 
     if (!isSupabaseConfigured) {
         // --- MOCK MODE ---
@@ -930,9 +937,10 @@ export const StudentTeacherPortal: React.FC<{ onUpdateUser: (user: User) => void
                     setCurriculum={setCurriculum}
                     allStudents={users}
                     setAllStudents={setUsers}
+                    onLogout={handleLogout}
                 />;
             } else {
-                return <StudentDashboard currentUser={currentUser} curriculum={curriculum} attendanceRecords={attendanceRecords}/>;
+                return <StudentDashboard currentUser={currentUser} curriculum={curriculum} attendanceRecords={attendanceRecords} onLogout={handleLogout} />;
             }
         }
         
@@ -951,13 +959,20 @@ export const StudentTeacherPortal: React.FC<{ onUpdateUser: (user: User) => void
                     </div>
 
                     {view === 'login' && (
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email (teacher@example.com)" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
-                            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (password123)" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
-                            {error && <p className="text-destructive text-sm">{error}</p>}
-                            <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md">Login</button>
-                            <p className="text-center text-sm">Don't have an account? <button onClick={() => setView('signup')} className="text-primary hover:underline">Sign Up</button></p>
-                        </form>
+                        <div>
+                            <form onSubmit={handleLogin} className="space-y-4">
+                                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
+                                <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
+                                {error && <p className="text-destructive text-sm">{error}</p>}
+                                <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md">Login</button>
+                                <p className="text-center text-sm">Don't have an account? <button onClick={() => setView('signup')} className="text-primary hover:underline">Sign Up</button></p>
+                            </form>
+                             <div className="mt-4 p-3 bg-secondary rounded-lg text-xs text-muted-foreground text-left space-y-1">
+                                <p className="font-bold text-foreground/80">Quick Login (Mock Credentials):</p>
+                                <p><strong>Teacher:</strong> teacher@example.com / password123</p>
+                                <p><strong>Student:</strong> alex@example.com / password123</p>
+                            </div>
+                        </div>
                     )}
                     
                      {view === 'signup' && (

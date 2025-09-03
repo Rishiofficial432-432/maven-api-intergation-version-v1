@@ -207,13 +207,31 @@ const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNew
 
   const handleImageInsert = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && editorRef.current) {
         const reader = new FileReader();
         reader.onload = (event) => {
+            if (!editorRef.current) return;
             const imageUrl = event.target?.result as string;
             const imgHtml = `<img src="${imageUrl}" alt="user image" />`;
-            editorRef.current?.focus();
-            document.execCommand('insertHTML', false, imgHtml);
+            const newParagraphHtml = `<p><br></p>`;
+
+            editorRef.current.focus();
+            document.execCommand('insertHTML', false, imgHtml + newParagraphHtml);
+
+            // After execCommand, the cursor is usually at the end. Let's ensure it's inside the new paragraph.
+            const selection = window.getSelection();
+            if (selection) {
+                const range = document.createRange();
+                const lastElement = editorRef.current.lastElementChild;
+                if (lastElement) {
+                    // Place cursor at the start of the new empty paragraph
+                    range.setStart(lastElement, 0);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+            }
+
             // Manually trigger input event to save
             const inputEvent = new Event('input', { bubbles: true, cancelable: true });
             editorRef.current.dispatchEvent(inputEvent);

@@ -700,9 +700,10 @@ const AttendanceManager: React.FC<{
                                     </button>
                                     .
                                 </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    Requires columns for name (e.g. 'Name') and enrollment (e.g. 'Enrollment', 'No').
-                                </p>
+                                <div className="mt-2 text-xs text-muted-foreground bg-input/50 p-2 rounded-md inline-block">
+                                    <p className="font-semibold">Required Format:</p>
+                                    <p>Your Excel file must contain columns with headers like 'Name' and 'Enrollment' (or 'No').</p>
+                                </div>
                             </div>
 
                             <form onSubmit={handleAddStudent} className="flex flex-wrap gap-2">
@@ -967,23 +968,21 @@ const CalendarView: React.FC<{ events: CalendarEvent[]; onAddEvent: (title: stri
                     })}
                 </div>
             </div>
-            <div className={`${cardClasses} p-6 flex flex-col`}>
-                <h3 className="text-lg font-bold mb-4">Events for {selectedDate.toLocaleDateString(undefined, {month: 'long', day: 'numeric'})}</h3>
-                <div className="flex-1 overflow-y-auto space-y-2 mb-4">
+             <div className={`${cardClasses} p-6 flex flex-col`}>
+                <h3 className="text-lg font-bold mb-4">Events on {selectedDate.toLocaleDateString(undefined, {month: 'long', day: 'numeric'})}</h3>
+                <div className="flex-1 space-y-3 overflow-y-auto">
                     {eventsOnSelectedDate.length > 0 ? eventsOnSelectedDate.map(event => (
-                        <div key={event.id} className="bg-secondary p-3 rounded-lg">
+                        <div key={event.id} className="p-3 bg-secondary rounded-lg">
                             <p className="font-semibold">{event.title}</p>
                             <p className="text-sm text-muted-foreground">{event.time}</p>
                         </div>
-                    )) : (
-                        <p className="text-muted-foreground text-center pt-8">No events scheduled.</p>
-                    )}
+                    )) : <p className="text-muted-foreground text-sm">No events scheduled.</p>}
                 </div>
-                <form onSubmit={handleAddEvent} className="mt-auto pt-4 border-t border-border">
+                 <form onSubmit={handleAddEvent} className="mt-4 pt-4 border-t border-border">
                     <h4 className="font-semibold mb-2">Add New Event</h4>
-                    <input value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Event Title" required className="w-full bg-input border-border rounded-md px-3 py-2 mb-2"/>
+                    <input type="text" value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} placeholder="Event title" required className="w-full bg-input border-border rounded-md px-3 py-2 mb-2"/>
                     <input type="time" value={newEventTime} onChange={e => setNewEventTime(e.target.value)} required className="w-full bg-input border-border rounded-md px-3 py-2 mb-2"/>
-                    <button type="submit" className="w-full bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90">Add Event</button>
+                    <button type="submit" className="w-full bg-primary text-primary-foreground py-2 rounded-md">Add Event</button>
                 </form>
             </div>
         </div>
@@ -991,494 +990,459 @@ const CalendarView: React.FC<{ events: CalendarEvent[]; onAddEvent: (title: stri
 };
 
 
-const MamDesk: React.FC<MamDeskProps> = (props) => {
-  const {
-      activeTab, pages,
-      tasks, onAddTask, onToggleTask, onDeleteTask,
-      kanbanColumns, setKanbanColumns, onAddKanbanCard,
-      quickNotes, setQuickNotes,
-      events, onAddEvent,
-      habits, setHabits,
-      personalQuotes, setPersonalQuotes,
-      moodEntries, setMoodEntries,
-      expenses, setExpenses,
-      goals, setGoals,
-      pomodoroTime,
-      pomodoroActive,
-      pomodoroSessions,
-      onTogglePomodoro,
-      onResetPomodoro,
-      theme,
-      setTheme,
-      classes, students, attendance,
-      onAddClass, onDeleteClass, onAddStudent, onDeleteStudent, onSetAttendance,
-      onAddStudentsBatch,
-      onNewNote
-  } = props;
-  
-  // Local UI State
-  const [newTask, setNewTask] = useState('');
-  const [newNote, setNewNote] = useState('');
-  const [draggedItem, setDraggedItem] = useState<{ item: KanbanItem; sourceColumnId: string } | null>(null);
-  const [dragOverColumnId, setDragOverColumnId] = useState<string | null>(null);
-  const [apiKeyInput, setApiKeyInput] = useState(localStorage.getItem('gemini-api-key') || '');
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [apiKeySaveState, setApiKeySaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
-  const toast = useToast();
-  
-  const handleAddTaskUI = () => {
-      onAddTask(newTask);
-      setNewTask('');
-  };
+const Settings: React.FC<{
+    theme: string;
+    setTheme: (theme: string) => void;
+    pages: Page[];
+}> = ({ theme, setTheme, pages }) => {
+    const toast = useToast();
+    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini-api-key') || '');
+    const [apiKeyVisible, setApiKeyVisible] = useState(false);
+    const [showConfirmation, setShowConfirmation] = useState(false);
 
-  const handleAddQuickNote = (text: string) => {
-    if (text.trim()) {
-        setQuickNotes(prev => [{ id: Date.now(), text, createdAt: new Date().toISOString() }, ...prev]);
-    }
-  };
-
-  const addNoteUI = () => {
-    if (newNote.trim()) {
-        setQuickNotes(prev => [{ id: Date.now(), text: newNote, createdAt: new Date().toISOString() }, ...prev]);
-        setNewNote('');
-    }
-  };
-  const deleteNote = (id: number) => setQuickNotes(quickNotes.filter(n => n.id !== id));
-  
-  const formatTime = (s: number) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
-  const formatDate = (d: string | Date) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-
-    const handleDragStart = (item: KanbanItem, sourceColumnId: string) => {
-        setDraggedItem({ item, sourceColumnId });
+    const handleApiKeySave = () => {
+        updateApiKey(apiKey);
+        toast.success("API Key updated successfully!");
     };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-    };
-
-    const handleDrop = (targetColumnId: string) => {
-        if (!draggedItem) return;
-        const { item, sourceColumnId } = draggedItem;
-        if (sourceColumnId === targetColumnId) return;
-
-        const newColumns = { ...kanbanColumns };
-        const sourceItems = newColumns[sourceColumnId].items.filter(i => i.id !== item.id);
-        const targetItems = [...newColumns[targetColumnId].items, item];
-        newColumns[sourceColumnId] = { ...newColumns[sourceColumnId], items: sourceItems };
-        newColumns[targetColumnId] = { ...newColumns[targetColumnId], items: targetItems };
-        
-        setKanbanColumns(newColumns);
-    };
-
-  // Export/Import
-  const exportData = () => {
-    const dataToExport = Object.keys(localStorage)
-      .filter(key => key.startsWith('maven-') || key.startsWith('ai-notes-') || key === 'gemini-api-key')
-      .reduce((obj, key) => {
-        obj[key] = localStorage.getItem(key);
-        return obj;
-      }, {} as {[key: string]: string | null});
     
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `maven-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Data exported successfully!");
-  };
-
-  const importData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
+    const handleExport = () => {
         try {
-            if (e.target && typeof e.target.result === 'string') {
-                const importedData = JSON.parse(e.target.result);
-                Object.keys(importedData).forEach(key => {
-                    if ((key.startsWith('maven-') || key.startsWith('ai-notes-') || key === 'gemini-api-key') && importedData[key]) {
-                        localStorage.setItem(key, importedData[key]);
-                    }
-                });
-                toast.success('Data imported! The page will now reload.');
-                setTimeout(() => window.location.reload(), 1500);
+            const dataToExport: { [key: string]: any } = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('maven-')) {
+                    dataToExport[key] = JSON.parse(localStorage.getItem(key)!);
+                }
             }
+            // Manually add pages since their key doesn't follow the pattern
+            dataToExport['ai-notes-pages'] = JSON.parse(localStorage.getItem('ai-notes-pages')!);
+            
+            const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `maven_backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success("Data exported successfully!");
         } catch (error) {
-            console.error('Failed to import data:', error);
-            toast.error('Error importing data. Please use a valid backup file.');
+            console.error("Export failed:", error);
+            toast.error("Failed to export data.");
         }
     };
-    reader.readAsText(file);
-  };
-  
-  const handleSaveApiKey = () => {
-    setApiKeySaveState('saving');
-    updateApiKey(apiKeyInput.trim());
-    setTimeout(() => {
-        setApiKeySaveState('saved');
-        setTimeout(() => setApiKeySaveState('idle'), 2000);
-    }, 500);
-  };
-  
-  const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
 
-  const renderContent = () => {
-    switch (activeTab) {
-        case 'dashboard':
-            return (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div className={`${cardClasses} p-6 lg:col-span-2`}>
-                         <h3 className="font-semibold mb-4 text-lg flex items-center gap-2"><ClipboardList /> Today's Focus</h3>
-                         <div className="flex gap-2 mb-4">
-                            <input type="text" value={newTask} onChange={e => setNewTask(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleAddTaskUI()} placeholder="Add a new task..." className="flex-1 bg-input border-border rounded-md px-3 py-2 focus:ring-ring focus:border-primary" />
-                            <button onClick={handleAddTaskUI} className="bg-primary px-4 py-2 rounded-md hover:bg-primary/90 active:scale-95 transition-transform">Add Task</button>
-                        </div>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {tasks.filter(t => !t.completed).map(t => (
-                                <div key={t.id} className="flex items-center justify-between bg-secondary p-3 rounded-md">
-                                    <div className="flex items-center gap-3">
-                                        <button onClick={() => onToggleTask(t.id)}><Square /></button>
-                                        <span>{t.text}</span>
-                                    </div>
-                                    <button onClick={() => onDeleteTask(t.id)} className="text-muted-foreground hover:text-destructive"><X size={16}/></button>
-                                </div>
-                            ))}
-                            {tasks.filter(t => !t.completed).length === 0 && <p className="text-muted-foreground text-center py-4">No pending tasks. Well done!</p>}
-                        </div>
-                    </div>
-                    <div className={`${cardClasses} p-6`}>
-                        <h3 className="font-semibold mb-4 text-lg flex items-center gap-2"><Notebook /> Quick Notes</h3>
-                        <textarea
-                            value={newNote}
-                            onChange={(e) => setNewNote(e.target.value)}
-                            placeholder="Jot down a quick thought..."
-                            className="w-full bg-input border-border rounded-md px-3 py-2 mb-2 focus:ring-ring focus:border-primary min-h-[60px]"
-                        />
-                        <button onClick={addNoteUI} className="bg-secondary text-secondary-foreground px-4 py-2 rounded-md hover:bg-secondary/80 w-full active:scale-95 transition-transform">Save Note</button>
-                         <div className="space-y-2 mt-4 max-h-48 overflow-y-auto">
-                             {quickNotes.map(note => (
-                                <div key={note.id} className="group flex justify-between items-start bg-secondary p-3 rounded-md">
-                                    <p className="text-sm text-foreground/90 whitespace-pre-wrap flex-1 mr-2">{note.text}</p>
-                                    <button onClick={() => deleteNote(note.id)} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
-                                </div>
-                             ))}
-                         </div>
-                    </div>
-                     <div className={`${cardClasses} p-6 flex flex-col items-center justify-center text-center`}>
-                        <h3 className="font-semibold mb-2 text-lg flex items-center gap-2"><Timer /> Pomodoro Timer</h3>
-                        <div className="text-7xl font-mono font-bold my-4 text-primary">{formatTime(pomodoroTime)}</div>
-                        <div className="flex justify-center gap-4">
-                            <button onClick={onTogglePomodoro} className={`px-5 py-2 rounded-lg text-white transition-all active:scale-95 ${pomodoroActive ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}>{pomodoroActive ? 'Pause' : 'Start'}</button>
-                            <button onClick={onResetPomodoro} className="px-5 py-2 rounded-lg bg-secondary text-secondary-foreground active:scale-95 transition-transform">Reset</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        case 'braindump':
-            return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={handleAddQuickNote} onNewNote={onNewNote} />;
-        case 'tasks':
-             return (
-                <div className={`${cardClasses} p-6`}>
-                    <h2 className="text-xl font-bold mb-4">Task Management</h2>
-                    <div className="flex gap-2 mb-4">
-                        <input type="text" value={newTask} onChange={e => setNewTask(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleAddTaskUI()} placeholder="Add new task" className="flex-1 bg-input border-border rounded-md px-3 py-2 focus:ring-ring focus:border-primary" />
-                        <button onClick={handleAddTaskUI} className="bg-primary px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
-                    </div>
-                    <div className="space-y-2">
-                        {tasks.map(t => (
-                            <div key={t.id} className="flex items-center justify-between bg-secondary p-3 rounded-md">
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => onToggleTask(t.id)}>{t.completed ? <CheckSquare className="text-green-500" /> : <Square />}</button>
-                                    <span className={t.completed ? 'line-through text-muted-foreground' : ''}>{t.text}</span>
-                                </div>
-                                <button onClick={() => onDeleteTask(t.id)} className="text-muted-foreground hover:text-destructive"><Trash2 size={16}/></button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        case 'kanban':
-            return (
-                <div className="p-1">
-                    <h2 className="text-xl font-bold mb-4 px-5">Kanban Board</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {Object.entries(kanbanColumns).map(([columnId, column]) => (
-                        <div
-                            key={columnId}
-                            className={`${cardClasses} p-4 flex flex-col transition-all duration-200 ${dragOverColumnId === columnId ? 'bg-accent scale-[1.02]' : ''}`}
-                            onDragOver={handleDragOver}
-                            onDragEnter={() => setDragOverColumnId(columnId)}
-                            onDragLeave={() => setDragOverColumnId(null)}
-                            onDrop={() => { handleDrop(columnId); setDragOverColumnId(null); }}
-                        >
-                            <h3 className="font-semibold mb-4 capitalize">{column.name} ({column.items.length})</h3>
-                            <div className="space-y-3 flex-1 min-h-[100px]">
-                                {column.items.map((item) => (
-                                    <div
-                                        key={item.id}
-                                        className={`bg-background/80 p-3 rounded-md text-sm cursor-grab active:cursor-grabbing transition-opacity ${draggedItem?.item.id === item.id ? 'opacity-30' : 'opacity-100'}`}
-                                        draggable
-                                        onDragStart={() => handleDragStart(item, columnId)}
-                                        onDragEnd={() => setDraggedItem(null)}
-                                    >
-                                        {item.text}
-                                    </div>
-                                ))}
-                            </div>
-                            <input
-                                type="text"
-                                placeholder="+ Add a card"
-                                onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                                        onAddKanbanCard(columnId, e.currentTarget.value);
-                                        e.currentTarget.value = '';
-                                    }
-                                }}
-                                className="mt-4 w-full bg-transparent text-sm placeholder-muted-foreground focus:outline-none"
-                            />
-                        </div>
-                    ))}
-                    </div>
-                </div>
-            );
-        case 'attendance':
-            return <AttendanceManager 
-                classes={classes}
-                students={students}
-                attendance={attendance}
-                onAddClass={onAddClass}
-                onDeleteClass={onDeleteClass}
-                onAddStudent={onAddStudent}
-                onDeleteStudent={onDeleteStudent}
-                onSetAttendance={onSetAttendance}
-                onAddStudentsBatch={onAddStudentsBatch}
-            />;
-        case 'timer':
-            return (
-                <div className={`max-w-md mx-auto text-center ${cardClasses} p-8`}>
-                    <h2 className="text-xl font-bold mb-4">Pomodoro Timer</h2>
-                    <div className="text-7xl font-mono font-bold my-8 text-primary">{formatTime(pomodoroTime)}</div>
-                    <div className="flex justify-center gap-4">
-                        <button onClick={onTogglePomodoro} className={`px-6 py-3 rounded-lg text-white ${pomodoroActive ? 'bg-destructive' : 'bg-green-600'}`}>{pomodoroActive ? 'Pause' : 'Start'}</button>
-                        <button onClick={onResetPomodoro} className="px-6 py-3 rounded-lg bg-secondary text-secondary-foreground">Reset</button>
-                    </div>
-                    <p className="mt-8">Sessions completed: {pomodoroSessions}</p>
-                </div>
-            );
-        case 'decision':
-            return <RandomDecisionMaker 
-                options={props.decisionOptions}
-                setOptions={props.setDecisionOptions}
-                result={props.decisionResult}
-                setResult={props.setDecisionResult}
-                isSpinning={props.isDecisionSpinning}
-                setIsSpinning={props.setIsDecisionSpinning}
-                currentSpin={props.currentDecisionSpin}
-                setCurrentSpin={props.setCurrentDecisionSpin}
-            />;
-        case 'notes':
-            return (
-                <div className={`${cardClasses} p-6`}>
-                    <h2 className="text-xl font-bold mb-4">Quick Notes</h2>
-                    <div className="mb-4">
-                        <textarea
-                            value={newNote}
-                            onChange={(e) => setNewNote(e.target.value)}
-                            onKeyPress={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    addNoteUI();
-                                }
-                            }}
-                            placeholder="Jot down a quick thought... (Shift+Enter for new line)"
-                            className="w-full bg-input border-border rounded-md px-3 py-2 focus:ring-ring focus:border-primary min-h-[80px] resize-y"
-                        />
-                        <button onClick={addNoteUI} className="mt-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 w-full sm:w-auto">
-                            Add Note
-                        </button>
-                    </div>
-                    <div className="space-y-3 max-h-[calc(100vh-400px)] overflow-y-auto pr-2">
-                        {quickNotes.slice().reverse().map(note => (
-                            <div key={note.id} className="group flex justify-between items-start bg-secondary p-3 rounded-md">
-                                <p className="text-foreground/90 whitespace-pre-wrap flex-1 mr-4">{note.text}</p>
-                                <div className="flex flex-col items-end flex-shrink-0">
-                                    <span className="text-xs text-muted-foreground mb-2">{formatDate(note.createdAt)}</span>
-                                    <button onClick={() => deleteNote(note.id)} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Trash2 size={16}/>
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                         {quickNotes.length === 0 && <p className="text-muted-foreground text-center py-8">No quick notes yet.</p>}
-                    </div>
-                </div>
-            );
-        case 'habits':
-            return <HabitTracker
-                habits={habits}
-                setHabits={setHabits}
-                cardClasses={cardClasses}
-            />;
-        case 'calendar':
-             return <CalendarView events={events} onAddEvent={onAddEvent} cardClasses={cardClasses} />;
-        case 'analytics':
-            const totalTasks = tasks.length;
-            const completedTasks = tasks.filter(t => t.completed).length;
-            const tasksLast7Days = Array(7).fill(0).map((_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - i);
-                const dateStr = d.toISOString().split('T')[0];
-                return tasks.filter(t => t.completed && t.createdAt.startsWith(dateStr)).length;
-            }).reverse();
-            const maxTasks = Math.max(...tasksLast7Days, 1);
-            
-            return (
-                 <div className="space-y-6">
-                    <h1 className="text-2xl font-bold">Your Analytics</h1>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className={`${cardClasses} p-6 flex items-center gap-4`}><Notebook size={24} className="text-primary"/><div><p className="text-2xl font-bold">{pages.length}</p><p className="text-sm text-muted-foreground">Notes Created</p></div></div>
-                        <div className={`${cardClasses} p-6 flex items-center gap-4`}><CheckSquare size={24} className="text-green-500"/><div><p className="text-2xl font-bold">{completedTasks}/{totalTasks}</p><p className="text-sm text-muted-foreground">Tasks Completed</p></div></div>
-                        <div className={`${cardClasses} p-6 flex items-center gap-4`}><Target size={24} className="text-yellow-500"/><div><p className="text-2xl font-bold">{habits.length}</p><p className="text-sm text-muted-foreground">Habits Tracked</p></div></div>
-                        <div className={`${cardClasses} p-6 flex items-center gap-4`}><Timer size={24} className="text-red-500"/><div><p className="text-2xl font-bold">{pomodoroSessions}</p><p className="text-sm text-muted-foreground">Pomodoros</p></div></div>
-                    </div>
-                     <div className={`${cardClasses} p-6`}>
-                        <h3 className="font-semibold mb-4">Tasks Completed (Last 7 Days)</h3>
-                        <div className="flex justify-around items-end h-48 gap-2">
-                          {tasksLast7Days.map((count, i) => {
-                            const d = new Date();
-                            d.setDate(d.getDate() - (6 - i));
-                            return <div key={i} className="flex flex-col items-center gap-2 flex-1"><div className="w-full bg-secondary rounded-t-md hover:bg-primary/80 transition-all" style={{height: `${(count/maxTasks)*100}%`}} title={`${count} tasks`}></div><p className="text-xs text-muted-foreground">{d.toLocaleDateString(undefined, {weekday: 'short'})}</p></div>
-                          })}
-                        </div>
-                     </div>
-                     <div className={`${cardClasses} p-6`}>
-                        <h3 className="font-semibold mb-4">Habit Consistency</h3>
-                        <div className="space-y-4">
-                        {habits.map(habit => (
-                            <div key={habit.id}>
-                                <p className="font-medium mb-2">{habit.name}</p>
-                                <div className="flex flex-wrap gap-1">
-                                {Array.from({length: 90}).map((_, i) => {
-                                    const d = new Date();
-                                    d.setDate(d.getDate() - i);
-                                    const dateStr = d.toDateString();
-                                    const completed = habit.history.some(h => h.date === dateStr);
-                                    return <div key={i} className={`w-3 h-3 rounded-sm ${completed ? 'bg-green-500' : 'bg-muted'}`} title={dateStr}></div>
-                                }).reverse()}
-                                </div>
-                            </div>
-                        ))}
-                        {habits.length === 0 && <p className="text-muted-foreground text-center py-4">No habits being tracked.</p>}
-                        </div>
-                     </div>
-                </div>
-            )
-        case 'personal':
-            return <PersonalSuite 
-                moodEntries={moodEntries}
-                setMoodEntries={setMoodEntries}
-                personalQuotes={personalQuotes}
-                setPersonalQuotes={setPersonalQuotes}
-                goals={goals}
-                setGoals={setGoals}
-                expenses={expenses}
-                setExpenses={setExpenses}
-                cardClasses={cardClasses}
-            />;
-        case 'settings':
-            const themes = [
-                { id: 'dark', name: 'Dark' },
-                { id: 'jetblack', name: 'Jetblack' },
-                { id: 'midnight', name: 'Midnight' },
-                { id: 'light', name: 'Light' },
-                { id: 'midlight', name: 'Midlight' },
-            ];
+    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
 
-            return (
-                <div className="space-y-8">
-                     <div className={`${cardClasses} p-6`}>
-                        <h2 className="text-xl font-bold mb-4">Theme</h2>
-                        <p className="text-muted-foreground mb-4">Select your preferred color theme for the application.</p>
-                        <div className="flex flex-wrap gap-2">
-                            {themes.map(t => (
-                                <button
-                                    key={t.id}
-                                    onClick={() => setTheme(t.id)}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                                        theme === t.id
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'bg-secondary hover:bg-secondary/80'
-                                    }`}
-                                >
-                                    {t.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <div className={`${cardClasses} p-6`}>
-                        <h2 className="text-xl font-bold mb-4">Gemini API Key</h2>
-                        <p className="text-muted-foreground mb-4">
-                            Your API key is stored securely in your browser's local storage and is never shared. 
-                            You can get your own free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary/80">Google AI Studio</a>.
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target?.result as string);
+                Object.keys(data).forEach(key => {
+                    localStorage.setItem(key, JSON.stringify(data[key]));
+                });
+                toast.success("Data imported successfully! The app will now reload.");
+                setTimeout(() => window.location.reload(), 2000);
+            } catch (error) {
+                 console.error("Import failed:", error);
+                toast.error("Failed to import data. The file may be invalid.");
+            }
+        };
+        reader.readAsText(file);
+    };
+    
+     const handleWipeData = () => {
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('maven-') || key.startsWith('ai-notes-')) {
+                localStorage.removeItem(key);
+            }
+        });
+        toast.success("All data has been wiped. The app will now reload.");
+        setTimeout(() => window.location.reload(), 2000);
+    };
+
+    const themes = [
+        { id: 'dark', name: 'Dark', bg: 'bg-gray-800' },
+        { id: 'light', name: 'Light', bg: 'bg-gray-100' },
+        { id: 'midlight', name: 'Midlight', bg: 'bg-cyan-900' },
+        { id: 'midnight', name: 'Midnight', bg: 'bg-blue-900' },
+    ];
+
+    return (
+        <div className="p-6 space-y-8 max-w-4xl mx-auto">
+             {showConfirmation && (
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-card border border-destructive rounded-xl shadow-lg w-full max-w-md p-6 text-center">
+                        <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4"/>
+                        <h2 className="text-xl font-bold mb-2">Are you absolutely sure?</h2>
+                        <p className="text-muted-foreground mb-6">
+                            This action is irreversible and will permanently delete all your notes, tasks, settings, and other data from this browser.
                         </p>
-                        <div className="flex items-center gap-2">
-                            <div className="relative flex-grow">
-                                <input 
-                                    type={showApiKey ? 'text' : 'password'}
-                                    value={apiKeyInput}
-                                    onChange={(e) => setApiKeyInput(e.target.value)}
-                                    placeholder="Enter your Google Gemini API Key"
-                                    className="w-full bg-input border-border rounded-md px-3 py-2 pr-10 focus:ring-ring focus:border-primary"
-                                />
-                                <button 
-                                    type="button"
-                                    onClick={() => setShowApiKey(!showApiKey)} 
-                                    className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                                    aria-label={showApiKey ? 'Hide API Key' : 'Show API Key'}
-                                >
-                                    {showApiKey ? <EyeOff size={16}/> : <Eye size={16}/>}
-                                </button>
-                            </div>
-                            <button 
-                                onClick={handleSaveApiKey} 
-                                className={`bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 flex-shrink-0 transition-all w-24 flex items-center justify-center ${apiKeySaveState === 'saved' ? '!bg-green-600' : ''}`}
-                                disabled={apiKeySaveState !== 'idle'}
-                            >
-                                {apiKeySaveState === 'idle' && 'Save'}
-                                {apiKeySaveState === 'saving' && <Loader className="w-4 h-4 animate-spin"/>}
-                                {apiKeySaveState === 'saved' && <Check size={16}/>}
-                            </button>
+                        <div className="flex gap-2 mt-6">
+                            <button onClick={() => setShowConfirmation(false)} className="flex-1 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">Cancel</button>
+                            <button onClick={handleWipeData} className="flex-1 px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90">Yes, Wipe All Data</button>
                         </div>
                     </div>
-                    <div className={`${cardClasses} p-6`}>
-                        <h2 className="text-xl font-bold mb-4">Export Data</h2>
-                        <p className="text-muted-foreground mb-4">Download all your MamDesk & Notes data as a single JSON file for backup.</p>
-                        <button onClick={exportData} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 active:scale-95 transition-transform">
-                            <Download size={16} />
-                            Export My Data
+                </div>
+            )}
+            <div className="bg-card border border-border rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-bold mb-4">Theme</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {themes.map(t => (
+                        <button key={t.id} onClick={() => setTheme(t.id)} className={`p-4 rounded-lg border-2 transition-colors ${theme === t.id ? 'border-primary' : 'border-transparent'}`}>
+                            <div className={`w-full h-16 rounded-md ${t.bg} mb-2`}></div>
+                            <p className="font-semibold">{t.name}</p>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl shadow-lg p-6">
+                 <h2 className="text-xl font-bold mb-4">API Configuration</h2>
+                 <p className="text-sm text-muted-foreground mb-4">
+                    Enter your Google Gemini API key to enable AI features like the Chatbot and AI Brain Dump. Your key is stored locally and never sent anywhere except to Google's API.
+                 </p>
+                 <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                        <input
+                            type={apiKeyVisible ? "text" : "password"}
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            placeholder="Enter your Gemini API Key"
+                            className="w-full bg-input border-border rounded-md px-4 py-2 pr-10"
+                        />
+                        <button onClick={() => setApiKeyVisible(!apiKeyVisible)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground hover:text-foreground">
+                            {apiKeyVisible ? <EyeOff size={16}/> : <Eye size={16}/>}
                         </button>
                     </div>
-                    <div className={`${cardClasses} p-6`}>
-                        <h2 className="text-xl font-bold mb-4">Import Data</h2>
-                        <p className="text-muted-foreground mb-4">Import data from a backup file. This will overwrite existing data and reload the application.</p>
-                        <input type="file" accept=".json" onChange={importData} className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/40"/>
+                    <button onClick={handleApiKeySave} className="px-4 py-2 bg-primary text-primary-foreground rounded-md">Save Key</button>
+                 </div>
+            </div>
+            
+            <div className="bg-card border border-border rounded-xl shadow-lg p-6">
+                 <h2 className="text-xl font-bold mb-4">Data Management</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-secondary rounded-lg">
+                        <h3 className="font-semibold mb-2">Export Data</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Download a JSON file containing all your notes, tasks, and settings.</p>
+                        <button onClick={handleExport} className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-md">Export All Data</button>
                     </div>
-                </div>
-            );
-        case 'help':
-            return <HelpPage />;
-        default:
-            return <div className={`${cardClasses} p-10 text-center`}><h2 className="text-xl font-bold mb-4">Under Construction</h2><p>This feature is coming soon!</p></div>;
-    }
-  }
-
-  return (
-    <main className="flex-1 p-8 overflow-y-auto bg-background text-foreground">
-        {renderContent()}
-    </main>
-  );
+                     <div className="p-4 bg-secondary rounded-lg">
+                        <h3 className="font-semibold mb-2">Import Data</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Import data from a previously exported JSON file. This will overwrite existing data.</p>
+                        <label className="w-full block cursor-pointer px-4 py-2 bg-primary text-primary-foreground rounded-md text-center">
+                            Import Data File
+                            <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                        </label>
+                    </div>
+                 </div>
+                 <div className="mt-6 pt-6 border-t border-destructive/20">
+                     <h3 className="font-semibold text-destructive mb-2">Danger Zone</h3>
+                     <p className="text-sm text-muted-foreground mb-4">This action will permanently delete all your data from this browser. This cannot be undone.</p>
+                     <button onClick={() => setShowConfirmation(true)} className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md">Wipe All Local Data</button>
+                 </div>
+            </div>
+        </div>
+    );
 };
 
-export default MamDesk;
+
+const Analytics: React.FC<{
+    tasks: Task[];
+    pages: Page[];
+    habits: Habit[];
+}> = ({ tasks, pages, habits }) => {
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.completed).length;
+    const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const totalPages = pages.length;
+
+    const totalHabitCompletions = habits.reduce((acc, h) => acc + h.history.filter(day => day.completed).length, 0);
+
+    return (
+        <div className="p-6 space-y-8 max-w-4xl mx-auto">
+             <div className="bg-card border border-border rounded-xl shadow-lg p-6">
+                <h2 className="text-xl font-bold mb-4">Productivity Overview</h2>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-secondary rounded-lg text-center">
+                        <p className="text-3xl font-bold">{totalTasks}</p>
+                        <p className="text-sm text-muted-foreground">Total Tasks Created</p>
+                    </div>
+                     <div className="p-4 bg-secondary rounded-lg text-center">
+                        <p className="text-3xl font-bold">{taskCompletionRate}%</p>
+                        <p className="text-sm text-muted-foreground">Task Completion Rate</p>
+                    </div>
+                     <div className="p-4 bg-secondary rounded-lg text-center">
+                        <p className="text-3xl font-bold">{totalPages}</p>
+                        <p className="text-sm text-muted-foreground">Total Notes</p>
+                    </div>
+                     <div className="p-4 bg-secondary rounded-lg text-center">
+                        <p className="text-3xl font-bold">{habits.length}</p>
+                        <p className="text-sm text-muted-foreground">Habits Tracked</p>
+                    </div>
+                     <div className="p-4 bg-secondary rounded-lg text-center">
+                        <p className="text-3xl font-bold">{totalHabitCompletions}</p>
+                        <p className="text-sm text-muted-foreground">Total Habit Completions</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const KanbanBoard: React.FC<{
+    columns: KanbanState;
+    setColumns: React.Dispatch<React.SetStateAction<KanbanState>>;
+    onAddCard: (columnId: string, text: string) => void;
+}> = ({ columns, setColumns, onAddCard }) => {
+    const [draggedItem, setDraggedItem] = useState<{ colId: string; item: KanbanItem } | null>(null);
+    const [newCardText, setNewCardText] = useState<{ [key: string]: string }>({});
+
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, item: KanbanItem, colId: string) => {
+        setDraggedItem({ colId, item });
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetColId: string) => {
+        e.preventDefault();
+        if (!draggedItem) return;
+
+        const { colId: sourceColId, item } = draggedItem;
+
+        if (sourceColId === targetColId) {
+            setDraggedItem(null);
+            return;
+        }
+
+        const newColumns = { ...columns };
+        // Remove from source
+        newColumns[sourceColId].items = newColumns[sourceColId].items.filter(i => i.id !== item.id);
+        // Add to target
+        newColumns[targetColId].items.push(item);
+        
+        setColumns(newColumns);
+        setDraggedItem(null);
+    };
+
+    const handleAddCard = (colId: string) => {
+        const text = newCardText[colId]?.trim();
+        if (text) {
+            onAddCard(colId, text);
+            setNewCardText(prev => ({ ...prev, [colId]: '' }));
+        }
+    };
+    
+    return (
+        <div className="p-6 flex gap-6 h-full overflow-x-auto">
+            {Object.entries(columns).map(([columnId, column]) => (
+                <div key={columnId} className="w-80 flex-shrink-0 bg-card border border-border rounded-xl shadow-lg flex flex-col">
+                    <h3 className="text-lg font-semibold p-4 border-b border-border">{column.name}</h3>
+                    <div 
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, columnId)}
+                        className="flex-1 p-4 space-y-3 overflow-y-auto"
+                    >
+                        {column.items.map(item => (
+                            <div
+                                key={item.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, item, columnId)}
+                                className="p-3 bg-secondary rounded-lg shadow cursor-grab active:cursor-grabbing"
+                            >
+                                <p className="text-sm">{item.text}</p>
+                            </div>
+                        ))}
+                    </div>
+                     <div className="p-4 border-t border-border">
+                        <div className="flex gap-2">
+                             <input
+                                type="text"
+                                value={newCardText[columnId] || ''}
+                                onChange={e => setNewCardText(prev => ({ ...prev, [columnId]: e.target.value }))}
+                                onKeyPress={e => e.key === 'Enter' && handleAddCard(columnId)}
+                                placeholder="Add new card..."
+                                className="flex-1 bg-input border-border rounded-md px-3 py-2"
+                            />
+                            <button onClick={() => handleAddCard(columnId)} className="px-4 py-2 bg-primary text-primary-foreground rounded-md"><Plus size={16}/></button>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+
+const TaskList: React.FC<{
+    tasks: Task[];
+    onAddTask: (text: string) => void;
+    onToggleTask: (id: number) => void;
+    onDeleteTask: (id: number) => void;
+}> = ({ tasks, onAddTask, onToggleTask, onDeleteTask }) => {
+    const [newTask, setNewTask] = useState('');
+    const handleAddTask = () => {
+        if (newTask.trim()) {
+            onAddTask(newTask);
+            setNewTask('');
+        }
+    };
+
+    return (
+        <div className="p-6 max-w-2xl mx-auto bg-card border border-border rounded-xl shadow-lg">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><CheckSquare /> My Tasks</h2>
+             <div className="flex gap-2 mb-6">
+                <input
+                    type="text"
+                    value={newTask}
+                    onChange={e => setNewTask(e.target.value)}
+                    onKeyPress={e => e.key === 'Enter' && handleAddTask()}
+                    placeholder="e.g., Finish Q3 report"
+                    className="flex-1 bg-input border-border rounded-md px-4 py-3 focus:ring-ring focus:border-primary"
+                />
+                <button onClick={handleAddTask} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">Add Task</button>
+            </div>
+            <div className="space-y-3">
+                {tasks.filter(t => !t.completed).map(task => (
+                    <div key={task.id} className="group flex items-center justify-between p-3 bg-secondary rounded-lg">
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => onToggleTask(task.id)} className="flex-shrink-0"><Square size={20} className="text-muted-foreground" /></button>
+                            <span className="text-foreground/90">{task.text}</span>
+                        </div>
+                        <button onClick={() => onDeleteTask(task.id)} className="text-destructive opacity-0 group-hover:opacity-100"><X size={16}/></button>
+                    </div>
+                ))}
+            </div>
+             {tasks.some(t => t.completed) && (
+                <div className="mt-6 pt-4 border-t border-border">
+                    <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Completed</h3>
+                    <div className="space-y-3">
+                        {tasks.filter(t => t.completed).map(task => (
+                            <div key={task.id} className="group flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => onToggleTask(task.id)} className="flex-shrink-0"><CheckSquare size={20} className="text-green-500" /></button>
+                                    <span className="text-muted-foreground line-through">{task.text}</span>
+                                </div>
+                                <button onClick={() => onDeleteTask(task.id)} className="text-destructive opacity-0 group-hover:opacity-100"><X size={16}/></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+             )}
+        </div>
+    );
+};
+
+const QuickNotes: React.FC<{
+    notes: QuickNote[];
+    setNotes: React.Dispatch<React.SetStateAction<QuickNote[]>>;
+}> = ({ notes, setNotes }) => {
+    const [newNote, setNewNote] = useState('');
+    
+    const addNote = () => {
+        if(newNote.trim()){
+            setNotes(prev => [{id: Date.now(), text: newNote, createdAt: new Date().toISOString()}, ...prev]);
+            setNewNote('');
+        }
+    }
+    
+    const deleteNote = (id: number) => {
+        setNotes(prev => prev.filter(n => n.id !== id));
+    }
+
+    return (
+         <div className="p-6 max-w-2xl mx-auto bg-card border border-border rounded-xl shadow-lg">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><FileText /> Quick Notes</h2>
+            <div className="flex gap-2 mb-6">
+                <input value={newNote} onChange={e => setNewNote(e.target.value)} onKeyPress={e => e.key === 'Enter' && addNote()} placeholder="Jot something down..." className="flex-1 bg-input border-border rounded-md px-4 py-3"/>
+                <button onClick={addNote} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg">Add Note</button>
+            </div>
+             <div className="space-y-3 max-h-96 overflow-y-auto">
+                {notes.map(note => (
+                    <div key={note.id} className="group flex items-start justify-between p-3 bg-secondary rounded-lg">
+                        <p className="flex-1 text-foreground/90">{note.text}</p>
+                        <button onClick={() => deleteNote(note.id)} className="ml-4 text-destructive opacity-0 group-hover:opacity-100 flex-shrink-0"><X size={16}/></button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
+const PomodoroTimer: React.FC<{
+    time: number;
+    active: boolean;
+    sessions: number;
+    onToggle: () => void;
+    onReset: () => void;
+}> = ({ time, active, sessions, onToggle, onReset }) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = time % 60;
+
+    return (
+        <div className="p-6 max-w-sm mx-auto bg-card border border-border rounded-xl shadow-lg text-center">
+            <h2 className="text-2xl font-bold mb-4 flex items-center justify-center gap-2"><Timer /> Pomodoro Timer</h2>
+            <p className="text-7xl font-mono font-bold text-primary mb-6">{minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}</p>
+            <div className="flex justify-center gap-4 mb-4">
+                <button onClick={onToggle} className="w-24 px-4 py-2 bg-primary text-primary-foreground rounded-lg flex items-center justify-center gap-2">
+                    {active ? <><Pause size={16}/> Pause</> : <><Play size={16}/> Start</>}
+                </button>
+                <button onClick={onReset} className="w-24 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg flex items-center justify-center gap-2">
+                    <RotateCcw size={16}/> Reset
+                </button>
+            </div>
+             <p className="text-sm text-muted-foreground">Completed sessions: {sessions}</p>
+        </div>
+    )
+};
+
+// FIX: Changed to a named export to resolve circular dependency.
+export const MamDesk: React.FC<MamDeskProps> = ({
+  activeTab, tasks, onAddTask, onToggleTask, onDeleteTask, kanbanColumns, setKanbanColumns, onAddKanbanCard,
+  quickNotes, setQuickNotes, events, onAddEvent, habits, setHabits, pomodoroTime, pomodoroActive, pomodoroSessions, onTogglePomodoro, onResetPomodoro,
+  decisionOptions, setDecisionOptions, decisionResult, setDecisionResult, isDecisionSpinning, setIsDecisionSpinning, currentDecisionSpin, setCurrentDecisionSpin, theme, setTheme, pages,
+  classes, students, attendance, onAddClass, onDeleteClass, onAddStudent, onDeleteStudent, onSetAttendance, onAddStudentsBatch, onNewNote,
+  personalQuotes, setPersonalQuotes, moodEntries, setMoodEntries, expenses, setExpenses, goals, setGoals
+}) => {
+    const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
+
+    return (
+      <div className="flex-1 flex flex-col bg-background overflow-y-auto">
+        {activeTab === 'dashboard' ? (
+           <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={(text) => setQuickNotes(prev => [{id: Date.now(), text, createdAt: new Date().toISOString()}, ...prev])} onNewNote={onNewNote} />
+        ) : activeTab === 'braindump' ? (
+           <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={(text) => setQuickNotes(prev => [{id: Date.now(), text, createdAt: new Date().toISOString()}, ...prev])} onNewNote={onNewNote} />
+        ) : activeTab === 'tasks' ? (
+           <TaskList tasks={tasks} onAddTask={onAddTask} onToggleTask={onToggleTask} onDeleteTask={onDeleteTask} />
+        ) : activeTab === 'kanban' ? (
+           <KanbanBoard columns={kanbanColumns} setColumns={setKanbanColumns} onAddCard={onAddKanbanCard} />
+        ) : activeTab === 'attendance' ? (
+           <div className="p-6 h-full"><AttendanceManager classes={classes} students={students} attendance={attendance} onAddClass={onAddClass} onDeleteClass={onDeleteClass} onAddStudent={onAddStudent} onDeleteStudent={onDeleteStudent} onSetAttendance={onSetAttendance} onAddStudentsBatch={onAddStudentsBatch}/></div>
+        ) : activeTab === 'calendar' ? (
+           <div className="p-6 h-full"><CalendarView events={events} onAddEvent={onAddEvent} cardClasses={cardClasses}/></div>
+        ) : activeTab === 'timer' ? (
+           <div className="p-6"><PomodoroTimer time={pomodoroTime} active={pomodoroActive} sessions={pomodoroSessions} onToggle={onTogglePomodoro} onReset={onResetPomodoro} /></div>
+        ) : activeTab === 'decision' ? (
+            <div className="p-6"><RandomDecisionMaker options={decisionOptions} setOptions={setDecisionOptions} result={decisionResult} setResult={setDecisionResult} isSpinning={isDecisionSpinning} setIsSpinning={setIsDecisionSpinning} currentSpin={currentDecisionSpin} setCurrentSpin={setCurrentDecisionSpin} /></div>
+        ) : activeTab === 'notes' ? (
+            <div className="p-6"><QuickNotes notes={quickNotes} setNotes={setQuickNotes}/></div>
+        ) : activeTab === 'habits' ? (
+            <div className="p-6 h-full"><HabitTracker habits={habits} setHabits={setHabits} cardClasses={cardClasses} /></div>
+        ) : activeTab === 'analytics' ? (
+            <Analytics tasks={tasks} pages={pages} habits={habits}/>
+        ) : activeTab === 'personal' ? (
+            <div className="p-6"><PersonalSuite moodEntries={moodEntries} setMoodEntries={setMoodEntries} personalQuotes={personalQuotes} setPersonalQuotes={setPersonalQuotes} goals={goals} setGoals={setGoals} expenses={expenses} setExpenses={setExpenses} cardClasses={cardClasses}/></div>
+        ) : activeTab === 'settings' ? (
+            <Settings theme={theme} setTheme={setTheme} pages={pages} />
+        ) : activeTab === 'help' ? (
+            <div className="p-6"><HelpPage /></div>
+        ) : null}
+      </div>
+    );
+};

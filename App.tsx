@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
-import MamDesk, { Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance } from './components/MamDesk';
+// FIX: Changed to named import for MamDesk to resolve circular dependency.
+import { MamDesk, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance } from './components/MamDesk';
 import { WelcomePlaceholder } from './components/WelcomePlaceholder';
 import Chatbot from './components/Chatbot';
 import JournalView from './components/JournalView';
@@ -161,6 +162,25 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
   return [state, setState];
 };
 
+const playCompletionSound = () => {
+    try {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (!audioContext) return;
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.05);
+        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.5);
+    } catch (e) {
+        console.error("Could not play sound:", e);
+    }
+};
 
 const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLandingPage }) => {
   // Initialize DB on mount
@@ -234,6 +254,7 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
       setPomodoroActive(false);
       setPomodoroSessions(prev => prev + 1);
       toast.success('Pomodoro session completed! 🍅');
+      playCompletionSound();
       setPomodoroTime(25 * 60);
     }
     return () => {
@@ -888,7 +909,7 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
                 onFileImport={handleFileImport}
             />
         ) : view === 'portal' ? (
-            <StudentTeacherPortal onUpdateUser={() => {}} />
+            <StudentTeacherPortal />
         ) : view === 'about' ? (
             <AboutPage />
         ) : null}
