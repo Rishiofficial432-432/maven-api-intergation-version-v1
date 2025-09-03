@@ -12,6 +12,7 @@ import { StudentTeacherPortal, StandaloneCheckinPage } from './components/Studen
 import { ToastProvider, useToast } from './components/Toast';
 import SearchPalette from './components/SearchPalette';
 import LandingPage from './components/LandingPage';
+import AboutPage from './components/AboutPage';
 import { MapPin, Loader } from 'lucide-react';
 
 // --- IndexedDB Utility for Banners ---
@@ -95,7 +96,7 @@ export const deleteBannerData = (key: string): Promise<void> => {
 };
 
 
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'portal';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'portal' | 'about';
 
 export interface Page {
   id: string;
@@ -887,7 +888,9 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
                 onFileImport={handleFileImport}
             />
         ) : view === 'portal' ? (
-            <StudentTeacherPortal />
+            <StudentTeacherPortal onUpdateUser={() => {}} />
+        ) : view === 'about' ? (
+            <AboutPage />
         ) : null}
       </div>
       <div className={`transition-all duration-300 ease-in-out flex-shrink-0 ${isChatbotCollapsed ? 'w-16' : 'w-96'}`}>

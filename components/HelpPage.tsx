@@ -89,7 +89,7 @@ export const HelpPage: React.FC = () => {
                     <li><strong>Task Management:</strong> A simple and effective to-do list to keep track of your responsibilities.</li>
                     <li><strong>Kanban Board:</strong> Visualize your workflow with 'To Do', 'In Progress', and 'Done' columns.</li>
                     <li>
-                        <strong>Attendance Manager:</strong> A comprehensive tool designed for educators.
+                        <strong>Attendance Manager:</strong> A complete attendance solution built for educators.
                         <ul className="list-['-_'] pl-6 mt-2 space-y-1 text-card-foreground/80">
                             <li><strong>Class Management:</strong> Easily create and manage multiple classes. Deleting a class will also remove all associated students and their attendance records.</li>
                             <li><strong>Student Management:</strong> Add students to a class individually or bulk-import from an Excel file. The file must contain columns for student names (e.g., 'Name') and enrollment numbers (e.g., 'Enrollment' or 'No').</li>
@@ -146,6 +146,10 @@ export const HelpPage: React.FC = () => {
             <Section title="Keyboard Shortcuts">
                 <p>Use these shortcuts to speed up your workflow.</p>
                 <CodeBlock 
+                    language="Keyboard Shortcut"
+                    code="Cmd + P (or Ctrl + P): Opens the global AI Search. Find anything across all your notes in an instant."
+                />
+                 <CodeBlock 
                     language="Keyboard Shortcut"
                     code="Cmd + K (or Ctrl + K): Opens the AI Command Palette within an active note. This allows you to quickly run AI actions like 'Summarize' or 'Improve Writing' on your note's content."
                 />

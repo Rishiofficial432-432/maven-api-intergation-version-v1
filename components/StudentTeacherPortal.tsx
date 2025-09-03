@@ -171,95 +171,108 @@ export const StandaloneCheckinPage: React.FC<{ sessionId: string }> = ({ session
             }
 
             const newRecord: AttendanceRecord = {
-                id: crypto.randomUUID(),
+                id: `att-${Date.now()}`,
                 sessionId: session.id,
                 studentName: name.trim(),
-                enrollmentId: enrollmentId.trim().toUpperCase(),
+                enrollmentId: enrollmentId.trim(),
                 timestamp: new Date().toISOString(),
-                teacherId: session.teacher_id!,
+                teacherId: session.teacher_id!
             };
-            
+
             localStorage.setItem('maven-portal-attendance', JSON.stringify([...allAttendance, newRecord]));
-            toast.success("Attendance marked successfully!");
+            toast.success("Checked in successfully!");
             setIsCheckedIn(true);
             setIsSubmitting(false);
         };
 
+        setIsSubmitting(true);
         if (session.location_enforced && session.location) {
-            setIsSubmitting(true);
-            toast.info("Verifying your location...");
+            const { latitude: teacherLat, longitude: teacherLon, radius } = session.location;
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    const distance = getDistance(
-                        position.coords.latitude,
-                        position.coords.longitude,
-                        session.location!.latitude,
-                        session.location!.longitude
-                    );
-                    if (distance <= session.location!.radius) {
+                    const { latitude: studentLat, longitude: studentLon } = position.coords;
+                    const distance = getDistance(teacherLat, teacherLon, studentLat, studentLon);
+                    
+                    if (distance <= radius) {
                         performCheckin();
                     } else {
-                        toast.error(`You are too far from the session location. Required within ${session.location!.radius}m, you are ~${Math.round(distance)}m away.`);
+                        toast.error(`You are too far away (${Math.round(distance)}m) from the required location.`);
                         setIsSubmitting(false);
                     }
                 },
-                (err) => {
-                    toast.error(err.code === err.PERMISSION_DENIED ? "Location access denied. Please enable it to check in." : "Could not determine your location.");
+                (geoError) => {
+                    toast.error("Could not get your location. Please enable location services.");
                     setIsSubmitting(false);
                 },
-                { timeout: 10000, enableHighAccuracy: true }
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         } else {
-            setIsSubmitting(true);
-            setTimeout(performCheckin, 500); // Simulate network delay
+            performCheckin();
         }
     };
 
     if (isLoading) {
-        return <div className="flex-1 flex items-center justify-center bg-background"><Loader className="animate-spin text-primary" size={48} /></div>;
+        return <div className="flex items-center justify-center h-screen bg-background"><Loader className="animate-spin" /></div>;
     }
 
     return (
-        <div className="flex-1 flex items-center justify-center bg-background p-4">
-            <div className="w-full max-w-sm bg-card p-8 rounded-xl shadow-lg border border-border text-center">
-                <QrCode size={48} className="mx-auto text-primary mb-4" />
-                <h1 className="text-2xl font-bold mb-2">Attendance Check-in</h1>
+        <div className="flex items-center justify-center h-screen bg-background text-foreground p-4">
+            <div className="w-full max-w-md p-8 bg-card border border-border rounded-xl shadow-lg text-center">
+                <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-6">
+                    <UserCheck className="w-8 h-8 text-primary-foreground" />
+                </div>
+
                 {error ? (
-                    <div className="bg-destructive/10 text-destructive p-4 rounded-md">
-                        <p className="font-semibold">Unable to Check In</p>
-                        <p className="text-sm mt-1">{error}</p>
-                    </div>
+                    <>
+                        <h1 className="text-2xl font-bold text-destructive mb-2">Error</h1>
+                        <p className="text-muted-foreground">{error}</p>
+                    </>
                 ) : isCheckedIn ? (
-                     <div className="bg-green-500/10 text-green-400 p-4 rounded-md">
-                        <CheckCircle size={32} className="mx-auto mb-2" />
-                        <p className="font-semibold">You're All Set!</p>
-                        <p className="text-sm mt-1">Your attendance has been recorded. You can now close this page.</p>
-                    </div>
+                     <>
+                        <h1 className="text-2xl font-bold text-green-400 mb-2">Attendance Marked!</h1>
+                        <p className="text-muted-foreground">You have been successfully checked in. You can now close this window.</p>
+                    </>
                 ) : (
                     <>
-                        <p className="text-muted-foreground text-sm mb-6">Enter your details to mark your attendance for this session.</p>
+                        <h1 className="text-2xl font-bold mb-2">Mark Your Attendance</h1>
+                        <p className="text-muted-foreground mb-6">Enter your details to check in for this session.</p>
                         {session?.location_enforced && (
-                           <p className="text-blue-400 bg-blue-500/10 text-xs mb-6 p-2 rounded-md flex items-center justify-center gap-2">
-                            <ShieldCheck size={14}/> This is a location-secured session.
-                           </p>
+                            <p className="text-sm text-amber-400 bg-amber-500/10 p-3 rounded-md mb-4 flex items-center gap-2">
+                                <MapPin size={16}/> This is a location-aware session. Location access is required.
+                            </p>
                         )}
-                        <form onSubmit={handleSubmit} className="space-y-4 text-left">
-                            <div>
-                                <label className="text-sm font-medium" htmlFor="name">Full Name</label>
-                                <div className="relative mt-1">
-                                    <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                    <input id="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Doe" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                                </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                             <div>
+                                <label htmlFor="name" className="sr-only">Full Name</label>
+                                <input
+                                    id="name"
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="Full Name"
+                                    required
+                                    className="w-full bg-input border-border rounded-md px-4 py-3 focus:ring-ring focus:border-primary"
+                                />
                             </div>
-                            <div>
-                                <label className="text-sm font-medium" htmlFor="enrollmentId">Enrollment ID</label>
-                                <div className="relative mt-1">
-                                    <UserCheck size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                    <input id="enrollmentId" type="text" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} placeholder="S12345" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                                </div>
+                             <div>
+                                <label htmlFor="enrollmentId" className="sr-only">Enrollment ID</label>
+                                <input
+                                    id="enrollmentId"
+                                    type="text"
+                                    value={enrollmentId}
+                                    onChange={(e) => setEnrollmentId(e.target.value)}
+                                    placeholder="Enrollment ID"
+                                    required
+                                    className="w-full bg-input border-border rounded-md px-4 py-3 focus:ring-ring focus:border-primary"
+                                />
                             </div>
-                            <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                                {isSubmitting ? <><Loader className="animate-spin"/> Submitting...</> : 'Mark Present'}
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="w-full bg-primary text-primary-foreground py-3 rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center"
+                            >
+                                {isSubmitting && <Loader className="animate-spin mr-2" size={20} />}
+                                Check In
                             </button>
                         </form>
                     </>
@@ -271,783 +284,714 @@ export const StandaloneCheckinPage: React.FC<{ sessionId: string }> = ({ session
 
 
 // =================================================================
-// PRESENTATIONAL SUB-COMPONENTS
+// SUB-COMPONENTS for Teacher/Student Dashboards
 // =================================================================
 
-const Timer: React.FC<{ endTime: string, onEnd: () => void }> = ({ endTime, onEnd }) => {
-    const [timeLeft, setTimeLeft] = useState(Math.max(0, new Date(endTime).getTime() - Date.now()));
+const TeacherDashboard: React.FC<{
+    currentUser: User;
+    setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
+    activeSession: Session | null;
+    setActiveSession: React.Dispatch<React.SetStateAction<Session | null>>;
+    attendanceRecords: AttendanceRecord[];
+    setAttendanceRecords: React.Dispatch<React.SetStateAction<AttendanceRecord[]>>;
+    curriculum: Curriculum[];
+    setCurriculum: React.Dispatch<React.SetStateAction<Curriculum[]>>;
+    allStudents: User[];
+    setAllStudents: React.Dispatch<React.SetStateAction<User[]>>;
+}> = ({ currentUser, setCurrentUser, activeSession, setActiveSession, attendanceRecords, setAttendanceRecords, curriculum, setCurriculum, allStudents, setAllStudents }) => {
 
-    useEffect(() => {
-        const interval = setInterval(() => {
-            const remaining = Math.max(0, new Date(endTime).getTime() - Date.now());
-            setTimeLeft(remaining);
-            if (remaining === 0) {
-                clearInterval(interval);
-                onEnd();
-            }
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [endTime, onEnd]);
-
-    const minutes = Math.floor(timeLeft / 60000).toString().padStart(2, '0');
-    const seconds = Math.floor((timeLeft % 60000) / 1000).toString().padStart(2, '0');
-    return <span className="font-mono text-2xl">{minutes}:{seconds}</span>;
-};
-
-const LoginView: React.FC<{ onLogin: (email: string, pass: string) => Promise<void>, error: string | null, setError: (err: string | null) => void, setViewMode: (mode: ViewMode) => void, pendingSessionId: string | null }> = ({ onLogin, error, setError, setViewMode, pendingSessionId }) => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [showMockInfo, setShowMockInfo] = useState(true);
-    
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError(null);
-        setIsSubmitting(true);
-        await onLogin(email, password.trim());
-        setIsSubmitting(false);
-    };
-
-    return (
-        <div className="w-full max-w-sm bg-card p-8 rounded-xl shadow-lg border border-border">
-            <div className="text-center mb-8">
-                <BookOpen size={48} className="mx-auto text-primary mb-2" />
-                <h1 className="text-2xl font-bold">Portal Login</h1>
-                <p className="text-muted-foreground text-sm">Sign in to access your dashboard.</p>
-            </div>
-            {showMockInfo && !isSupabaseConfigured && (
-                 <div className="bg-blue-900/50 border border-blue-500/50 text-blue-200 text-xs p-3 rounded-md mb-4 relative">
-                    <button onClick={() => setShowMockInfo(false)} className="absolute top-2 right-2 text-blue-300 hover:text-white"><X size={14}/></button>
-                    <h4 className="font-bold mb-1">Mock Mode Active</h4>
-                    <p>Use these credentials for testing:</p>
-                    <ul className="list-disc pl-4 mt-1">
-                        <li><b>Teacher:</b> teacher@example.com</li>
-                        <li><b>Student:</b> alex@example.com</li>
-                        <li><b>Password:</b> password123</li>
-                    </ul>
-                </div>
-            )}
-            {error && <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-6">{error}</div>}
-            <form onSubmit={handleLogin} className="space-y-6">
-                <div>
-                    <label className="text-sm font-medium" htmlFor="email">Email</label>
-                    <div className="relative mt-1">
-                        <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                    </div>
-                </div>
-                <div>
-                    <div className="flex justify-between items-center">
-                        <label className="text-sm font-medium" htmlFor="password">Password</label>
-                        <button type="button" onClick={() => setViewMode('forgot_password')} className="text-xs text-primary hover:underline">Forgot?</button>
-                    </div>
-                    <div className="relative mt-1">
-                        <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                    </div>
-                </div>
-                <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                    {isSubmitting ? <><Loader className="animate-spin"/> Signing In...</> : 'Sign In'}
-                </button>
-            </form>
-            <p className="text-center text-sm text-muted-foreground mt-6">
-                Don't have an account?{' '}
-                <button onClick={() => setViewMode('signup')} className="font-semibold text-primary hover:underline">
-                    Sign Up
-                </button>
-            </p>
-        </div>
-    );
-};
-const SignUpView: React.FC<{ onRegister: (details: NewUser) => Promise<void>, error: string | null, setError: (err: string | null) => void, setViewMode: (mode: ViewMode) => void }> = ({ onRegister, error, setError, setViewMode }) => {
-    // This component is large and unchanged, keeping it as is from original file
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [phone, setPhone] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [role, setRole] = useState<'student' | 'teacher'>('student');
-    const [enrollmentId, setEnrollmentId] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const handleRegister = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const trimmedPassword = password.trim();
-        if (trimmedPassword !== confirmPassword.trim()) {
-            setError("Passwords do not match.");
-            return;
-        }
-        if (role === 'student' && !enrollmentId.trim()) {
-            setError("Enrollment ID is required for students.");
-            return;
-        }
-        if (!isSupabaseConfigured && role === 'student') {
-            const allUsers: User[] = [MOCK_TEACHER, ...JSON.parse(localStorage.getItem('maven-portal-users') || JSON.stringify(MOCK_STUDENTS))];
-            const enrollmentExists = allUsers.some(u => u.enrollment_id && u.enrollment_id.trim().toLowerCase() === enrollmentId.trim().toLowerCase());
-            if (enrollmentExists) {
-                setError("An account with this enrollment ID already exists.");
-                return;
-            }
-        }
-        setError(null);
-        setIsSubmitting(true);
-        await onRegister({ name, email, password: trimmedPassword, role, enrollment_id: role === 'student' ? enrollmentId : null, phone: phone || null });
-        setIsSubmitting(false);
-    };
-    
-    const formatPhoneNumber = (value: string) => {
-        const input = value.replace(/\D/g, '').substring(0, 10);
-        const size = input.length;
-        if (size === 0) return '';
-        if (size < 4) return `(${input}`;
-        if (size < 7) return `(${input.substring(0, 3)}) ${input.substring(3)}`;
-        return `(${input.substring(0, 3)}) ${input.substring(3, 6)}-${input.substring(6, 10)}`;
-    };
-
-    return (
-        <div className="w-full max-w-sm bg-card p-8 rounded-xl shadow-lg border border-border">
-            <div className="text-center mb-6">
-                <UserIcon size={48} className="mx-auto text-primary mb-2" />
-                <h1 className="text-2xl font-bold">Create Account</h1>
-                <p className="text-muted-foreground text-sm">Join the portal to get started.</p>
-            </div>
-            {error && <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-4">{error}</div>}
-            <form onSubmit={handleRegister} className="space-y-4">
-                 <div>
-                    <label className="text-sm font-medium" htmlFor="name">Full Name</label>
-                    <div className="relative mt-1">
-                        <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="John Doe" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                    </div>
-                </div>
-                 <div>
-                    <label className="text-sm font-medium" htmlFor="signup-email">Email</label>
-                    <div className="relative mt-1">
-                        <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                    </div>
-                </div>
-                <div>
-                    <label className="text-sm font-medium" htmlFor="phone">Phone Number</label>
-                    <div className="relative mt-1">
-                        <Smartphone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="phone" type="tel" value={phone} onChange={e => setPhone(formatPhoneNumber(e.target.value))} placeholder="(555) 555-5555" className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                    </div>
-                </div>
-                 <div>
-                    <label className="text-sm font-medium" htmlFor="signup-password">Password</label>
-                    <div className="relative mt-1">
-                        <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                    </div>
-                </div>
-                 <div>
-                    <label className="text-sm font-medium" htmlFor="confirm-password">Confirm Password</label>
-                    <div className="relative mt-1">
-                        <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                    </div>
-                </div>
-                <div>
-                    <label className="text-sm font-medium">Role</label>
-                    <div className="flex gap-4 mt-1">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="role" value="student" checked={role === 'student'} onChange={() => setRole('student')} className="form-radio text-primary focus:ring-primary" />
-                            <span>Student</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="role" value="teacher" checked={role === 'teacher'} onChange={() => setRole('teacher')} className="form-radio text-primary focus:ring-primary" />
-                            <span>Teacher</span>
-                        </label>
-                    </div>
-                </div>
-                {role === 'student' && (
-                    <div>
-                        <label className="text-sm font-medium" htmlFor="enrollmentId">Enrollment ID</label>
-                        <div className="relative mt-1">
-                            <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                            <input id="enrollmentId" type="text" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} placeholder="S12345" required className="w-full bg-input border-border rounded-md pl-9 pr-3 py-2" />
-                        </div>
-                    </div>
-                )}
-                <button type="submit" disabled={isSubmitting} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                    {isSubmitting ? <><Loader className="animate-spin"/> Creating Account...</> : 'Create Account'}
-                </button>
-            </form>
-            <p className="text-center text-sm text-muted-foreground mt-6">
-                Already have an account?{' '}
-                <button onClick={() => setViewMode('login')} className="font-semibold text-primary hover:underline">
-                    Sign In
-                </button>
-            </p>
-        </div>
-    );
-};
-
-
-// =================================================================
-// DASHBOARD COMPONENTS
-// =================================================================
-
-const LocationSetupModal: React.FC<{
-    onClose: () => void;
-    onSessionStart: (location: { latitude: number; longitude: number; radius: number }) => void;
-}> = ({ onClose, onSessionStart }) => {
-    const [status, setStatus] = useState<'fetching' | 'success' | 'error'>('fetching');
-    const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
-    const [radius, setRadius] = useState(100);
-    const [error, setError] = useState('');
-
-    useEffect(() => {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                setCoords({
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                });
-                setStatus('success');
-            },
-            (err) => {
-                setError(err.code === err.PERMISSION_DENIED ? "Location access denied. Please enable it in your browser settings." : "Could not determine your location.");
-                setStatus('error');
-            },
-            { timeout: 10000, enableHighAccuracy: true }
-        );
-    }, []);
-
-    const handleConfirm = () => {
-        if (coords) {
-            onSessionStart({ ...coords, radius });
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-fast">
-            <div className="bg-card p-6 rounded-lg relative max-w-sm w-full mx-4">
-                <button onClick={onClose} className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground"><X size={20}/></button>
-                <h3 className="text-lg font-bold text-center mb-4">Secure Session Setup</h3>
-                {status === 'fetching' && (
-                    <div className="text-center p-4">
-                        <Loader size={32} className="animate-spin text-primary mx-auto" />
-                        <p className="mt-4 text-muted-foreground">Pinpointing your location...</p>
-                    </div>
-                )}
-                {status === 'error' && (
-                    <div className="text-center p-4 bg-destructive/10 text-destructive rounded-md">
-                        <AlertTriangle size={32} className="mx-auto mb-2"/>
-                        <p className="font-semibold">Location Error</p>
-                        <p className="text-sm mt-1">{error}</p>
-                    </div>
-                )}
-                {status === 'success' && coords && (
-                    <div className="space-y-4">
-                        <div className="bg-secondary p-3 rounded-md text-center">
-                            <p className="text-sm font-medium flex items-center justify-center gap-2"><MapPin size={14}/> Location Pinned</p>
-                            <p className="text-xs text-muted-foreground">Lat: {coords.latitude.toFixed(4)}, Lon: {coords.longitude.toFixed(4)}</p>
-                        </div>
-                        <div>
-                            <label htmlFor="radius" className="text-sm font-medium">Attendance Radius</label>
-                            <div className="flex items-center gap-2 mt-1">
-                                <input type="range" id="radius" min="50" max="500" step="50" value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full h-2 bg-input rounded-lg appearance-none cursor-pointer accent-primary" />
-                                <span className="font-mono text-sm bg-input px-2 py-1 rounded-md w-20 text-center">{radius}m</span>
-                            </div>
-                        </div>
-                        <button onClick={handleConfirm} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90 transition-colors">
-                            Start Session
-                        </button>
-                    </div>
-                )}
-            </div>
-             <style>{`.animate-fade-in-fast { animation: fadeIn 0.2s ease-out; }`}</style>
-        </div>
-    );
-};
-
-const TeacherDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLogout }) => {
-    const [activeTab, setActiveTab] = useState('session');
-    const [sessions, setSessions] = usePersistentMockState<Session[]>('maven-portal-sessions', MOCK_SESSIONS);
-    const [curriculum, setCurriculum] = usePersistentMockState<Curriculum[]>('maven-portal-curriculum', MOCK_CURRICULUM);
-    const [attendance, setAttendance] = usePersistentMockState<AttendanceRecord[]>('maven-portal-attendance', MOCK_ATTENDANCE);
-    const [students, setStudents] = usePersistentMockState<User[]>('maven-portal-users', MOCK_STUDENTS);
-    
-    const [activeSession, setActiveSession] = useState<Session | null>(null);
-    const [qrCodeUrl, setQrCodeUrl] = useState('');
-    const [liveAttendance, setLiveAttendance] = useState<AttendanceRecord[]>([]);
-    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'session' | 'curriculum' | 'analytics'>('session');
+    const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+    const [timeLeft, setTimeLeft] = useState(0);
+    const [locationEnforced, setLocationEnforced] = useState(false);
+    const [showLocationModal, setShowLocationModal] = useState(false);
+    const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [sessionLocation, setSessionLocation] = useState<{ latitude: number, longitude: number, radius: number } | null>(null);
 
     const toast = useToast();
 
+    // Curriculum state
+    const today = new Date().toISOString().split('T')[0];
+    const todaysCurriculum = curriculum.find(c => c.date === today && c.teacherId === currentUser.id);
+    const [topic, setTopic] = useState(todaysCurriculum?.topic || '');
+    const [activities, setActivities] = useState(todaysCurriculum?.activities || '');
+    const [isGeneratingActivities, setIsGeneratingActivities] = useState(false);
+    
+    // Analytics state
+    const [newStudentName, setNewStudentName] = useState('');
+    const [newStudentEnrollment, setNewStudentEnrollment] = useState('');
+
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [editedName, setEditedName] = useState(currentUser.name);
+
+
+    // Handle countdown timer for active session
     useEffect(() => {
         if (activeSession) {
-            const interval = setInterval(() => {
-                const allAttendance: AttendanceRecord[] = JSON.parse(localStorage.getItem('maven-portal-attendance') || '[]');
-                const sessionAttendance = allAttendance.filter(rec => rec.sessionId === activeSession.id);
-                setLiveAttendance(sessionAttendance);
-            }, 2000);
+            const updateTimer = () => {
+                const now = new Date();
+                const expiry = new Date(activeSession.expires_at);
+                const secondsLeft = Math.round((expiry.getTime() - now.getTime()) / 1000);
+                setTimeLeft(secondsLeft > 0 ? secondsLeft : 0);
+                if (secondsLeft <= 0) {
+                    endSession();
+                }
+            };
+            updateTimer();
+            const interval = setInterval(updateTimer, 1000);
             return () => clearInterval(interval);
         }
     }, [activeSession]);
 
-
-    const handleStartSession = async (location: { latitude: number; longitude: number; radius: number }) => {
-        setIsLocationModalOpen(false);
-        const now = new Date();
-        const expires = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
-        const newSession: Session = {
-            id: crypto.randomUUID(),
-            created_at: now.toISOString(),
-            expires_at: expires.toISOString(),
-            teacher_id: user.id,
-            is_active: true,
-            session_code: Math.random().toString(36).substring(2, 7).toUpperCase(),
-            location_enforced: true,
-            location,
-        };
-        setActiveSession(newSession);
-        setSessions(prev => [...prev, newSession]);
-
-        const url = `${window.location.origin}${window.location.pathname}?session_id=${newSession.id}`;
-        const dataUrl = await QRCode.toDataURL(url, { errorCorrectionLevel: 'H', margin: 2, scale: 6 });
-        setQrCodeUrl(dataUrl);
-        toast.success("Secure session started!");
-    };
-
-    const handleEndSession = useCallback(() => {
-        setActiveSession(null);
-        setQrCodeUrl('');
-        setLiveAttendance([]);
-    }, []);
-    
-    const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text).then(() => {
-            toast.success("Copied to clipboard!");
-        });
-    };
-
-    const TabButton: React.FC<{tabName: string, icon: React.ReactNode}> = ({tabName, icon}) => (
-        <button 
-            onClick={() => setActiveTab(tabName)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tabName ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}
-        >
-            {icon} {tabName.charAt(0).toUpperCase() + tabName.slice(1)}
-        </button>
-    );
-
-    return (
-        <div className="flex-1 p-6 sm:p-8 bg-background text-foreground overflow-y-auto">
-            {isLocationModalOpen && <LocationSetupModal onClose={() => setIsLocationModalOpen(false)} onSessionStart={handleStartSession} />}
-            <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div>
-                    <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
-                    <p className="text-muted-foreground">Welcome back, {user.name}!</p>
-                </div>
-                <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
-                    <LogOut size={16} /> Logout
-                </button>
-            </header>
-            
-            <nav className="flex items-center gap-2 mb-6 border-b border-border pb-4">
-                <TabButton tabName="session" icon={<Clock size={16}/>}/>
-                <TabButton tabName="curriculum" icon={<BookOpen size={16}/>}/>
-                <TabButton tabName="analytics" icon={<BarChart2 size={16}/>}/>
-            </nav>
-
-            <div className="transition-opacity duration-300">
-                {activeTab === 'session' && (
-                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-                             <h2 className="text-xl font-bold mb-4">Attendance Session</h2>
-                             {activeSession ? (
-                                <div className="space-y-4">
-                                    <div className="text-center p-3 bg-secondary rounded-lg">
-                                        <p className="text-xs text-muted-foreground">Session ends in:</p>
-                                        <Timer endTime={activeSession.expires_at} onEnd={handleEndSession} />
-                                    </div>
-                                     <div className="flex items-center justify-center gap-2">
-                                        <p className="font-mono text-3xl tracking-widest bg-input p-2 rounded-md">{activeSession.session_code}</p>
-                                        <button onClick={() => copyToClipboard(activeSession.session_code || '')} title="Copy Code" className="p-2 bg-secondary rounded-md hover:bg-accent"><Copy size={16}/></button>
-                                    </div>
-                                    <div className="flex justify-center">{qrCodeUrl && <img src={qrCodeUrl} alt="Session QR Code" className="w-48 h-48 rounded-lg border-4 border-primary p-1" />}</div>
-                                    <button onClick={handleEndSession} className="w-full bg-destructive text-destructive-foreground py-2 rounded-lg hover:bg-destructive/90">End Session</button>
-                                </div>
-                             ) : (
-                                <div className="text-center">
-                                    <p className="text-muted-foreground mb-4">Start a new 5-minute, location-secured session for attendance.</p>
-                                    <button onClick={() => setIsLocationModalOpen(true)} className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 text-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
-                                      Start New Session
-                                    </button>
-                                </div>
-                             )}
-                        </div>
-                        <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-                             <h2 className="text-xl font-bold mb-4">Live Attendance ({liveAttendance.length})</h2>
-                             <div className="space-y-2 max-h-96 overflow-y-auto">
-                                {liveAttendance.length > 0 ? liveAttendance.map(rec => (
-                                    <div key={rec.id} className="bg-secondary p-3 rounded-md flex justify-between items-center">
-                                        <div>
-                                            <p className="font-medium">{rec.studentName}</p>
-                                            <p className="text-xs text-muted-foreground">{rec.enrollmentId}</p>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground">{new Date(rec.timestamp).toLocaleTimeString()}</p>
-                                    </div>
-                                )) : <p className="text-muted-foreground text-center pt-8">Waiting for students to check in...</p>}
-                             </div>
-                        </div>
-                    </div>
-                )}
-                {activeTab === 'curriculum' && <TeacherCurriculum user={user} curriculum={curriculum} setCurriculum={setCurriculum} />}
-                {activeTab === 'analytics' && <TeacherAnalytics teacherId={user.id} allAttendance={attendance} allStudents={students} />}
-            </div>
-        </div>
-    );
-};
-
-const TeacherCurriculum: React.FC<{ user: User, curriculum: Curriculum[], setCurriculum: (c: Curriculum[]) => void }> = ({ user, curriculum, setCurriculum }) => {
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-    const [topic, setTopic] = useState('');
-    const [activities, setActivities] = useState('');
-    const [isAiLoading, setIsAiLoading] = useState(false);
-    const toast = useToast();
-
+    // Generate QR code when a session starts
     useEffect(() => {
-        const entry = curriculum.find(c => c.date === selectedDate && c.teacherId === user.id);
-        setTopic(entry?.topic || '');
-        setActivities(entry?.activities || '');
-    }, [selectedDate, curriculum, user.id]);
-
-    const handleSave = () => {
-        const existing = curriculum.find(c => c.date === selectedDate && c.teacherId === user.id);
-        if (existing) {
-            setCurriculum(curriculum.map(c => c.id === existing.id ? { ...c, topic, activities } : c));
-        } else {
-            setCurriculum([...curriculum, { id: crypto.randomUUID(), teacherId: user.id, date: selectedDate, topic, activities }]);
+        if (activeSession) {
+            const url = `${window.location.origin}${window.location.pathname}?session_id=${activeSession.id}`;
+            QRCode.toDataURL(url, { width: 256 }, (err, url) => {
+                if (err) console.error(err);
+                setQrCodeDataUrl(url);
+            });
         }
+    }, [activeSession]);
+    
+    const handleNameSave = () => {
+        if (editedName.trim() && editedName !== currentUser.name) {
+            // This updates the user object, which is then persisted by the usePersistentMockState hook
+            setCurrentUser(prevUser => prevUser ? { ...prevUser, name: editedName.trim() } : null);
+            toast.success("Name updated successfully!");
+        }
+        setIsEditingName(false);
+    };
+
+    const startSession = (locationData: { latitude: number, longitude: number, radius: number } | null) => {
+        const newSessionId = `sess-${Date.now()}`;
+        const expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+        const newSession: Session = {
+            id: newSessionId,
+            created_at: new Date().toISOString(),
+            expires_at,
+            teacher_id: currentUser.id,
+            is_active: true,
+            location_enforced: !!locationData,
+            location: locationData || undefined
+        };
+        const allSessions = JSON.parse(localStorage.getItem('maven-portal-sessions') || '[]');
+        localStorage.setItem('maven-portal-sessions', JSON.stringify([...allSessions, newSession]));
+        setActiveSession(newSession);
+        toast.success("Attendance session started!");
+        setShowLocationModal(false);
+    };
+    
+    const handleStartSessionClick = () => {
+        if (locationEnforced) {
+            setShowLocationModal(true);
+            setLocationStatus('loading');
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setSessionLocation({
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        radius: 100 // default 100 meters
+                    });
+                    setLocationStatus('success');
+                },
+                (error) => {
+                    console.error("Geolocation error:", error);
+                    toast.error("Could not get location. Please enable location services.");
+                    setLocationStatus('error');
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            startSession(null);
+        }
+    };
+
+    const endSession = () => {
+        if (activeSession) {
+            const allSessions: Session[] = JSON.parse(localStorage.getItem('maven-portal-sessions') || '[]');
+            const updatedSessions = allSessions.map(s => s.id === activeSession.id ? { ...s, is_active: false } : s);
+            localStorage.setItem('maven-portal-sessions', JSON.stringify(updatedSessions));
+            setActiveSession(null);
+            setQrCodeDataUrl('');
+            toast.info("Attendance session has ended.");
+        }
+    };
+    
+    const saveCurriculum = () => {
+        const otherCurriculum = curriculum.filter(c => !(c.date === today && c.teacherId === currentUser.id));
+        const newCurriculum: Curriculum = {
+            id: todaysCurriculum?.id || `curr-${Date.now()}`,
+            teacherId: currentUser.id,
+            date: today,
+            topic,
+            activities
+        };
+        setCurriculum([...otherCurriculum, newCurriculum]);
         toast.success("Curriculum saved!");
     };
-
-    const handleGetAiSuggestions = async () => {
-        if (!topic.trim()) {
-            toast.error("Please enter a topic first.");
+    
+    const generateActivities = async () => {
+        if (!topic.trim() || !geminiAI) {
+            toast.error("Please enter a topic first. AI features also require an API key.");
             return;
         }
-        if (!geminiAI) {
-            toast.error("AI features are not available. Please configure the API key.");
-            return;
-        }
-        setIsAiLoading(true);
+        setIsGeneratingActivities(true);
         try {
-            const prompt = `Based on the curriculum topic "${topic}", suggest 3-5 creative and engaging student activities. Format the output as a numbered list.`;
-            const response = await geminiAI.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+            const prompt = `Generate a short, bulleted list of 3-5 engaging classroom activities for the topic: "${topic}".`;
+            const response = await geminiAI.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: prompt
+            });
             setActivities(response.text);
-        } catch (e) {
-            console.error(e);
-            toast.error("Failed to get AI suggestions.");
+        } catch (error) {
+            console.error("AI activity generation error:", error);
+            toast.error("Failed to generate activities.");
+        } finally {
+            setIsGeneratingActivities(false);
         }
-        setIsAiLoading(false);
+    };
+    
+    const handleAddStudent = (e: React.FormEvent) => {
+        e.preventDefault();
+        const name = newStudentName.trim();
+        const enrollment = newStudentEnrollment.trim();
+        if (!name || !enrollment) {
+            toast.error("Name and Enrollment ID are required.");
+            return;
+        }
+
+        if (allStudents.some(s => s.enrollment_id?.toLowerCase() === enrollment.toLowerCase())) {
+            toast.error("A student with this Enrollment ID already exists.");
+            return;
+        }
+
+        const newStudent: User = {
+            id: Date.now(), // Mock ID
+            created_at: new Date().toISOString(),
+            name,
+            email: null,
+            role: 'student',
+            enrollment_id: enrollment,
+            phone: null
+        };
+        setAllStudents(prev => [...prev, newStudent]);
+        setNewStudentName('');
+        setNewStudentEnrollment('');
+        toast.success(`Student ${name} added.`);
     };
 
-    return (
-        <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-            <h2 className="text-xl font-bold mb-4">Curriculum Planner</h2>
-            <div className="mb-4">
-                <label htmlFor="curriculum-date" className="text-sm font-medium">Date</label>
-                <input id="curriculum-date" type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-full mt-1 bg-input border-border rounded-md px-3 py-2" />
-            </div>
-            <div className="mb-4">
-                <label htmlFor="topic" className="text-sm font-medium">Topic of the Day</label>
-                <input id="topic" value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g., Photosynthesis" className="w-full mt-1 bg-input border-border rounded-md px-3 py-2" />
-            </div>
-            <div>
-                 <label htmlFor="activities" className="text-sm font-medium">Activities & Plan</label>
-                 <div className="relative">
-                    <textarea id="activities" value={activities} onChange={e => setActivities(e.target.value)} placeholder="1. ..." className="w-full mt-1 bg-input border-border rounded-md px-3 py-2 min-h-[150px] resize-y" />
-                    <button onClick={handleGetAiSuggestions} disabled={isAiLoading} className="absolute top-2 right-2 flex items-center gap-1.5 px-2 py-1 text-xs bg-secondary rounded-md hover:bg-accent disabled:opacity-50">
-                        {isAiLoading ? <Loader size={12} className="animate-spin" /> : <Lightbulb size={12} />}
-                        AI Suggest
-                    </button>
-                 </div>
-            </div>
-            <button onClick={handleSave} className="w-full mt-4 bg-primary text-primary-foreground py-2.5 rounded-lg hover:bg-primary/90">Save Curriculum</button>
-        </div>
-    );
-};
+    const handleDeleteStudent = (studentId: number) => {
+        const studentToDelete = allStudents.find(s => s.id === studentId);
+        if (window.confirm(`Are you sure you want to remove ${studentToDelete?.name}? This will also delete their attendance records.`)) {
+            setAllStudents(prev => prev.filter(s => s.id !== studentId));
+            // In a real app, attendance records should also be cleaned up. Mock handles this implicitly.
+            toast.success(`${studentToDelete?.name} has been removed.`);
+        }
+    };
 
-const TeacherAnalytics: React.FC<{ teacherId: number; allAttendance: AttendanceRecord[]; allStudents: User[] }> = ({ teacherId, allAttendance, allStudents }) => {
-    const studentsOfTeacher = allStudents.filter(s => s.role === 'student'); // simplified for mock
-    const attendanceOfTeacher = allAttendance.filter(a => a.teacherId === teacherId);
-
-    // Calculate total unique sessions for this teacher
-    const totalSessions = new Set(attendanceOfTeacher.map(a => a.sessionId)).size;
+    const sessionAttendance = attendanceRecords.filter(rec => rec.sessionId === activeSession?.id);
+    const uniqueStudents = allStudents.filter(s => s.role === 'student');
+    const totalSessions = [...new Set(attendanceRecords.map(r => r.sessionId))].length;
     
-    // Calculate overall attendance rate
-    const overallRate = (studentsOfTeacher.length * totalSessions) > 0 
-        ? (attendanceOfTeacher.length / (studentsOfTeacher.length * totalSessions)) * 100
-        : 0;
-
-    const studentRates = studentsOfTeacher.map(student => {
-        const attendedCount = new Set(attendanceOfTeacher.filter(a => a.enrollmentId === student.enrollment_id).map(a => a.sessionId)).size;
-        const rate = totalSessions > 0 ? (attendedCount / totalSessions) * 100 : 0;
-        return { name: student.name, enrollmentId: student.enrollment_id, rate: rate };
-    });
-
     return (
-        <div className="bg-card border border-border p-6 rounded-xl shadow-lg space-y-8">
-            <div>
-                 <h2 className="text-xl font-bold mb-4">Overall Analytics</h2>
-                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div className="bg-secondary p-4 rounded-lg">
-                        <p className="text-3xl font-bold text-primary">{studentsOfTeacher.length}</p>
-                        <p className="text-sm text-muted-foreground">Total Students</p>
-                    </div>
-                    <div className="bg-secondary p-4 rounded-lg">
-                        <p className="text-3xl font-bold text-primary">{totalSessions}</p>
-                        <p className="text-sm text-muted-foreground">Total Sessions</p>
-                    </div>
-                     <div className="bg-secondary p-4 rounded-lg">
-                        <p className="text-3xl font-bold text-primary">{overallRate.toFixed(1)}%</p>
-                        <p className="text-sm text-muted-foreground">Avg. Attendance Rate</p>
-                    </div>
-                 </div>
-            </div>
-            <div>
-                <h2 className="text-xl font-bold mb-4">Student Attendance Breakdown</h2>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {studentRates.length > 0 ? studentRates.map(s => (
-                        <div key={s.enrollmentId} className="bg-secondary p-3 rounded-md">
-                            <div className="flex justify-between items-center">
+        <div className="flex flex-col h-full">
+            {showLocationModal && (
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-card border border-border rounded-xl shadow-lg w-full max-w-md p-6 text-center">
+                        <MapPin className="w-12 h-12 text-primary mx-auto mb-4"/>
+                        <h2 className="text-xl font-bold mb-2">Secure Session Setup</h2>
+                        <p className="text-muted-foreground mb-6">
+                            For location-aware attendance, we need to pinpoint your current location. Students must be within the specified radius to check in.
+                        </p>
+                        {locationStatus === 'loading' && <div className="flex items-center justify-center gap-2 text-muted-foreground"><Loader className="animate-spin" size={20}/> Getting your coordinates...</div>}
+                        {locationStatus === 'error' && <div className="text-destructive">Failed to get location. Please enable it in your browser settings and try again.</div>}
+                        {locationStatus === 'success' && sessionLocation && (
+                            <div className="text-left space-y-4">
                                 <div>
-                                    <p className="font-medium">{s.name}</p>
-                                    <p className="text-xs text-muted-foreground">{s.enrollmentId}</p>
+                                    <label className="text-sm font-medium text-muted-foreground">Coordinates</label>
+                                    <p className="font-mono text-sm p-2 bg-input rounded-md">{sessionLocation.latitude.toFixed(5)}, {sessionLocation.longitude.toFixed(5)}</p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-24 bg-input rounded-full h-2.5"><div className="bg-primary h-2.5 rounded-full" style={{width: `${s.rate}%`}}></div></div>
-                                    <p className="text-sm font-semibold w-12 text-right">{s.rate.toFixed(0)}%</p>
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Attendance Radius: {sessionLocation.radius} meters</label>
+                                    <input
+                                        type="range"
+                                        min="10"
+                                        max="500"
+                                        step="10"
+                                        value={sessionLocation.radius}
+                                        onChange={e => setSessionLocation(l => l ? { ...l, radius: parseInt(e.target.value) } : null)}
+                                        className="w-full h-2 bg-input rounded-lg appearance-none cursor-pointer accent-primary"
+                                    />
                                 </div>
                             </div>
+                        )}
+                        <div className="flex gap-2 mt-6">
+                            <button onClick={() => setShowLocationModal(false)} className="flex-1 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">Cancel</button>
+                            <button onClick={() => startSession(sessionLocation)} disabled={locationStatus !== 'success'} className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50">Confirm & Start</button>
                         </div>
-                    )) : (
-                        <p className="text-muted-foreground text-center py-8">No student data to analyze.</p>
+                    </div>
+                </div>
+            )}
+            <header className="p-4 border-b border-border/50 flex items-center justify-between">
+                <div className="flex items-center gap-3 group">
+                    {isEditingName ? (
+                         <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={editedName}
+                                onChange={(e) => setEditedName(e.target.value)}
+                                onBlur={handleNameSave}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleNameSave(); if (e.key === 'Escape') setIsEditingName(false); }}
+                                className="bg-input border-border rounded-md px-2 py-1 text-2xl font-bold"
+                                autoFocus
+                            />
+                            <button onClick={handleNameSave} className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent transition-colors">
+                                <Save size={18} />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 group">
+                            <h1 className="text-2xl font-bold">Welcome, {currentUser.name}</h1>
+                            <button onClick={() => setIsEditingName(true)} className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
+                                <Edit size={18} />
+                            </button>
+                        </div>
                     )}
                 </div>
-            </div>
-        </div>
-    );
-};
-
-const QrScannerModal: React.FC<{ user: User; onClose: () => void; onScanSuccess: (sessionId: string) => void }> = ({ user, onClose, onScanSuccess }) => {
-    const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-
-    useEffect(() => {
-        const scanner = new Html5QrcodeScanner(
-            'qr-reader',
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            /* verbose= */ false
-        );
-        scannerRef.current = scanner;
-
-        const handleSuccess = (decodedText: string, decodedResult: any) => {
-            try {
-                const url = new URL(decodedText);
-                const sessionId = url.searchParams.get('session_id');
-                if (sessionId) {
-                    onScanSuccess(sessionId);
-                    if (scannerRef.current) {
-                        scannerRef.current.clear();
-                    }
-                }
-            } catch (error) {
-                // Ignore errors from scanning non-URL QR codes
-            }
-        };
-
-        const handleError = (error: string) => {
-            // This callback can be noisy, so we'll just log it to the console for debugging
-            // console.warn(`QR error = ${error}`);
-        };
-
-        scanner.render(handleSuccess, handleError);
-
-        return () => {
-            if (scannerRef.current) {
-                scannerRef.current.clear().catch(error => {
-                    console.error("Failed to clear html5-qrcode scanner.", error);
-                });
-            }
-        };
-    }, [onScanSuccess]);
-
-    return (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center animate-fade-in-fast">
-            <div className="bg-card p-6 rounded-lg relative max-w-sm w-full mx-4">
-                <button onClick={onClose} className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground"><X size={20}/></button>
-                <h3 className="text-lg font-bold text-center mb-4">Scan Attendance QR Code</h3>
-                <div id="qr-reader" className="w-full border border-border rounded-lg overflow-hidden"></div>
-                 <style>{`
-                    @keyframes fade-in-fast {
-                        from { opacity: 0; }
-                        to { opacity: 1; }
-                    }
-                    .animate-fade-in-fast { animation: fade-in-fast 0.2s ease-out; }
-                    #qr-reader__dashboard_section_swaplink { display: none; }
-                `}</style>
-            </div>
-        </div>
-    );
-};
-
-
-const StudentDashboard: React.FC<{ user: User, onLogout: () => void }> = ({ user, onLogout }) => {
-    const [curriculum, setCurriculum] = usePersistentMockState<Curriculum[]>('maven-portal-curriculum', MOCK_CURRICULUM);
-    const [attendance, setAttendance] = usePersistentMockState<AttendanceRecord[]>('maven-portal-attendance', MOCK_ATTENDANCE);
-    const [isScanning, setIsScanning] = useState(false);
-    const toast = useToast();
-
-    const todayEntry = curriculum.find(c => c.date === new Date().toISOString().split('T')[0]);
-    const myAttendance = attendance.filter(a => a.enrollmentId === user.enrollment_id);
-
-    const handleScanSuccess = (sessionId: string) => {
-        setIsScanning(false);
-        const allAttendance: AttendanceRecord[] = JSON.parse(localStorage.getItem('maven-portal-attendance') || '[]');
-        const hasAlreadyCheckedIn = allAttendance.some(rec => rec.sessionId === sessionId && rec.enrollmentId === user.enrollment_id);
-
-        if (hasAlreadyCheckedIn) {
-            toast.error("You have already checked in for this session.");
-            return;
-        }
-
-        const allSessions: Session[] = JSON.parse(localStorage.getItem('maven-portal-sessions') || '[]');
-        const session = allSessions.find(s => s.id === sessionId);
-        if (!session || new Date(session.expires_at) < new Date()) {
-            toast.error("Invalid or expired session code.");
-            return;
-        }
-
-        const newRecord: AttendanceRecord = {
-            id: crypto.randomUUID(),
-            sessionId: sessionId,
-            studentName: user.name,
-            enrollmentId: user.enrollment_id!,
-            timestamp: new Date().toISOString(),
-            teacherId: session.teacher_id!,
-        };
-        
-        setAttendance(prev => [...prev, newRecord]);
-        toast.success("Attendance marked successfully!");
-    };
-
-
-    return (
-         <div className="flex-1 p-6 sm:p-8 bg-background text-foreground overflow-y-auto">
-            {isScanning && <QrScannerModal user={user} onClose={() => setIsScanning(false)} onScanSuccess={handleScanSuccess} />}
-            <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold">Student Dashboard</h1>
-                    <p className="text-muted-foreground">Welcome, {user.name} ({user.enrollment_id})</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setIsScanning(true)} className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/80">
-                        <QrCode size={16} /> Scan Attendance
-                    </button>
-                    <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                <div className="flex items-center gap-4">
+                    <div className="p-2 bg-card border border-border rounded-lg flex items-center gap-2 text-sm">
+                        <button onClick={() => setActiveTab('session')} className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'session' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Session</button>
+                        <button onClick={() => setActiveTab('curriculum')} className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'curriculum' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Curriculum</button>
+                        <button onClick={() => setActiveTab('analytics')} className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'analytics' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Analytics</button>
+                    </div>
+                    <button onClick={() => {}} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
                         <LogOut size={16} /> Logout
                     </button>
                 </div>
             </header>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="md:col-span-2 bg-card border border-border p-6 rounded-xl shadow-lg">
-                    <h2 className="text-xl font-bold mb-4">Today's Curriculum</h2>
-                    {todayEntry ? (
-                        <div className="space-y-4">
-                            <div>
-                                <h3 className="font-semibold text-primary">{todayEntry.topic}</h3>
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground mb-2">Activities:</p>
-                                <div className="prose prose-invert prose-sm whitespace-pre-wrap bg-secondary p-4 rounded-md">
-                                    {todayEntry.activities}
+            <main className="flex-1 p-6 overflow-y-auto">
+                {activeTab === 'session' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-1 bg-card border border-border rounded-xl shadow-lg p-6">
+                            <h3 className="text-xl font-bold mb-4">New Attendance Session</h3>
+                            {activeSession ? (
+                                <div className="text-center">
+                                    <p className="text-muted-foreground mb-2">Session is active. Ends in:</p>
+                                    <p className="text-4xl font-mono font-bold text-primary mb-4">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
+                                    <button onClick={endSession} className="w-full px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90">End Session</button>
                                 </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                                        <div className="flex items-center gap-2">
+                                            <MapPin size={16} className="text-primary"/>
+                                            <span className="font-medium text-sm">Location-Aware</span>
+                                        </div>
+                                        <button onClick={() => setLocationEnforced(!locationEnforced)}>{locationEnforced ? <ToggleRight size={24} className="text-primary"/> : <ToggleLeft size={24} className="text-muted-foreground"/>}</button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{locationEnforced ? "Requires students to be physically present at your location. Uses GPS." : "Students can check in from anywhere."}</p>
+                                    <button onClick={handleStartSessionClick} className="w-full px-4 py-3 bg-primary text-primary-foreground rounded-md hover:bg-primary/90">Start New Session</button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="lg:col-span-2 bg-card border border-border rounded-xl shadow-lg p-6 flex flex-col items-center justify-center">
+                            {activeSession ? (
+                                <>
+                                    <h3 className="text-xl font-bold mb-2">Scan to Check In</h3>
+                                    <p className="text-muted-foreground mb-4">Students can scan this QR code with their phone camera.</p>
+                                    <div className="p-4 bg-white rounded-lg inline-block">
+                                        <img src={qrCodeDataUrl} alt="QR Code" />
+                                    </div>
+                                     <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?session_id=${activeSession.id}`); toast.success("Link copied!"); }} className="mt-4 flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                                        <Copy size={14}/> Copy Link
+                                    </button>
+                                </>
+                            ) : (
+                                <div className="text-center text-muted-foreground">
+                                    <QrCode size={48} className="mx-auto mb-4"/>
+                                    <p>Start a new session to generate a QR code for attendance.</p>
+                                </div>
+                            )}
+                        </div>
+                         <div className="lg:col-span-3 bg-card border border-border rounded-xl shadow-lg p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold">Live Attendance ({sessionAttendance.length})</h3>
+                                <button onClick={() => {
+                                    const allRecs = JSON.parse(localStorage.getItem('maven-portal-attendance') || '[]');
+                                    setAttendanceRecords(allRecs);
+                                    toast.info("Attendance refreshed.");
+                                }} className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent"><RefreshCw size={16}/></button>
+                            </div>
+                            <div className="max-h-64 overflow-y-auto">
+                                <table className="w-full text-left">
+                                    <thead><tr className="border-b border-border"><th className="p-2">Name</th><th className="p-2">Enrollment ID</th><th className="p-2">Time</th></tr></thead>
+                                    <tbody>
+                                        {sessionAttendance.map(rec => (
+                                            <tr key={rec.id} className="border-b border-border/50"><td className="p-2">{rec.studentName}</td><td className="p-2">{rec.enrollmentId}</td><td className="p-2 text-sm text-muted-foreground">{new Date(rec.timestamp).toLocaleTimeString()}</td></tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {sessionAttendance.length === 0 && <p className="text-muted-foreground text-center py-8">No students have checked in yet.</p>}
                             </div>
                         </div>
-                    ) : (
-                         <div className="text-center py-12 text-muted-foreground">
-                            <BookOpen size={32} className="mx-auto mb-4"/>
-                            <p>No curriculum posted for today.</p>
-                        </div>
-                    )}
-                </div>
-
-                <div className="bg-card border border-border p-6 rounded-xl shadow-lg">
-                    <h2 className="text-xl font-bold mb-4">My Attendance History</h2>
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                       {myAttendance.length > 0 ? myAttendance.map(rec => (
-                           <div key={rec.id} className="bg-secondary p-3 rounded-md flex items-center gap-3">
-                                <CheckCircle size={16} className="text-green-500" />
-                                <div>
-                                    <p className="font-medium text-sm">Checked In</p>
-                                    <p className="text-xs text-muted-foreground">{new Date(rec.timestamp).toLocaleString()}</p>
-                                </div>
-                           </div>
-                       )) : <p className="text-muted-foreground text-sm text-center pt-8">No attendance records found.</p>}
                     </div>
-                </div>
-            </div>
+                )}
+                
+                {activeTab === 'curriculum' && (
+                     <div className="max-w-4xl mx-auto bg-card border border-border rounded-xl shadow-lg p-8">
+                        <h3 className="text-2xl font-bold mb-2">Daily Curriculum Plan</h3>
+                        <p className="text-muted-foreground mb-6">Set the topic and plan activities for today's session: <span className="font-semibold text-foreground">{new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></p>
+                        <div className="space-y-6">
+                            <div>
+                                <label className="font-semibold">Today's Topic</label>
+                                <input type="text" value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g., Advanced JavaScript Concepts" className="mt-2 w-full bg-input border-border rounded-md px-4 py-3" />
+                            </div>
+                            <div>
+                                 <div className="flex items-center justify-between">
+                                    <label className="font-semibold">Planned Activities</label>
+                                    <button onClick={generateActivities} disabled={isGeneratingActivities || !geminiAI} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 disabled:opacity-50">
+                                        {isGeneratingActivities ? <Loader className="animate-spin" size={16}/> : <Lightbulb size={16}/>}
+                                        AI Suggest
+                                    </button>
+                                </div>
+                                <textarea value={activities} onChange={e => setActivities(e.target.value)} placeholder="List the activities for today's session, one per line." rows={6} className="mt-2 w-full bg-input border-border rounded-md px-4 py-3"></textarea>
+                            </div>
+                            <button onClick={saveCurriculum} className="w-full bg-primary text-primary-foreground py-3 rounded-md hover:bg-primary/90">Save Today's Plan</button>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'analytics' && (
+                     <div className="space-y-6">
+                        <h3 className="text-2xl font-bold">Analytics & Insights</h3>
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="bg-card border border-border rounded-xl shadow-lg p-6 flex items-center gap-4">
+                                <Users size={24} className="text-primary"/>
+                                <div>
+                                    <p className="text-3xl font-bold">{uniqueStudents.length}</p>
+                                    <p className="text-sm text-muted-foreground">Total Students</p>
+                                </div>
+                            </div>
+                             <div className="bg-card border border-border rounded-xl shadow-lg p-6 flex items-center gap-4">
+                                <Calendar size={24} className="text-primary"/>
+                                <div>
+                                    <p className="text-3xl font-bold">{totalSessions}</p>
+                                    <p className="text-sm text-muted-foreground">Total Sessions</p>
+                                </div>
+                            </div>
+                             <div className="bg-card border border-border rounded-xl shadow-lg p-6 flex items-center gap-4">
+                                <Percent size={24} className="text-primary"/>
+                                <div>
+                                    <p className="text-3xl font-bold">
+                                        {totalSessions > 0 && uniqueStudents.length > 0 ? `${Math.round((attendanceRecords.length / (totalSessions * uniqueStudents.length)) * 100)}%` : 'N/A'}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">Overall Attendance</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-card border border-border rounded-xl shadow-lg p-6">
+                            <h4 className="text-xl font-bold mb-4">Student Attendance Breakdown</h4>
+                            <div className="max-h-96 overflow-y-auto">
+                                <table className="w-full text-left">
+                                    <thead><tr className="border-b border-border"><th className="p-2">Name</th><th className="p-2">Enrollment ID</th><th className="p-2">Attendance %</th><th className="p-2"></th></tr></thead>
+                                    <tbody>
+                                        {uniqueStudents.map(student => {
+                                            const studentAttendanceCount = attendanceRecords.filter(rec => rec.enrollmentId === student.enrollment_id).length;
+                                            const attendancePercent = totalSessions > 0 ? Math.round((studentAttendanceCount / totalSessions) * 100) : 0;
+                                            return (
+                                                <tr key={student.id} className="border-b border-border/50">
+                                                    <td className="p-2 font-medium">{student.name}</td>
+                                                    <td className="p-2 text-muted-foreground">{student.enrollment_id}</td>
+                                                    <td className="p-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-full bg-secondary rounded-full h-2.5">
+                                                                <div className="bg-primary h-2.5 rounded-full" style={{ width: `${attendancePercent}%` }}></div>
+                                                            </div>
+                                                            <span className="font-semibold">{attendancePercent}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-2 text-right">
+                                                        <button onClick={() => handleDeleteStudent(student.id)} className="text-muted-foreground hover:text-destructive"><Trash2 size={16}/></button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                             <div className="mt-6 pt-6 border-t border-border">
+                                <h5 className="font-semibold mb-2">Add New Student</h5>
+                                <form onSubmit={handleAddStudent} className="flex gap-2">
+                                    <input value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Student Name" className="flex-1 bg-input border-border rounded-md px-3 py-2" />
+                                    <input value={newStudentEnrollment} onChange={e => setNewStudentEnrollment(e.target.value)} placeholder="Enrollment ID" className="flex-1 bg-input border-border rounded-md px-3 py-2" />
+                                    <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </main>
         </div>
     );
 };
 
 
+const StudentDashboard: React.FC<{
+    currentUser: User;
+    curriculum: Curriculum[];
+    attendanceRecords: AttendanceRecord[];
+}> = ({ currentUser, curriculum, attendanceRecords }) => {
+    const today = new Date().toISOString().split('T')[0];
+    const todaysCurriculum = curriculum.find(c => c.date === today);
+    const myAttendance = attendanceRecords.filter(rec => rec.enrollmentId === currentUser.enrollment_id);
+    const [showScanner, setShowScanner] = useState(false);
+
+    useEffect(() => {
+        if (!showScanner) return;
+    
+        const scanner = new Html5QrcodeScanner(
+            'qr-scanner', 
+            { fps: 10, qrbox: { width: 250, height: 250 } }, 
+            false
+        );
+
+        const onScanSuccess = (decodedText: string, decodedResult: any) => {
+            console.log(`Scan result: ${decodedText}`, decodedResult);
+            // This would redirect to the standalone check-in page
+            window.location.href = decodedText;
+            scanner.clear();
+            setShowScanner(false);
+        };
+
+        const onScanFailure = (error: any) => {
+            // console.warn(`QR error: ${error}`);
+        };
+
+        scanner.render(onScanSuccess, onScanFailure);
+
+        return () => {
+            scanner.clear().catch(error => {
+                console.error("Failed to clear scanner on cleanup", error);
+            });
+        };
+    }, [showScanner]);
+    
+    return (
+        <div className="flex flex-col h-full">
+            <header className="p-4 border-b border-border/50 flex items-center justify-between">
+                <h1 className="text-2xl font-bold">Welcome, {currentUser.name}</h1>
+                <button onClick={() => {}} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                    <LogOut size={16} /> Logout
+                </button>
+            </header>
+            <main className="flex-1 p-6 overflow-y-auto space-y-6">
+                <div className="bg-card border border-border rounded-xl shadow-lg p-6">
+                    <button onClick={() => setShowScanner(!showScanner)} className="w-full flex items-center justify-center gap-3 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+                        {showScanner ? <><VideoOff size={20}/> Close Scanner</> : <><QrCode size={20}/> Scan QR to Check In</>}
+                    </button>
+                    {showScanner && (
+                        <div className="mt-4 p-4 bg-secondary rounded-lg">
+                            <div id="qr-scanner" className="w-full"></div>
+                        </div>
+                    )}
+                </div>
+
+                <div className="bg-card border border-border rounded-xl shadow-lg p-6">
+                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><BookOpen/> Today's Curriculum</h3>
+                    {todaysCurriculum ? (
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="font-semibold text-primary">Topic</h4>
+                                <p>{todaysCurriculum.topic}</p>
+                            </div>
+                             <div>
+                                <h4 className="font-semibold text-primary">Activities</h4>
+                                <p className="whitespace-pre-wrap text-muted-foreground">{todaysCurriculum.activities}</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground">The curriculum for today has not been posted yet.</p>
+                    )}
+                </div>
+
+                 <div className="bg-card border border-border rounded-xl shadow-lg p-6">
+                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Calendar/> My Attendance History</h3>
+                     <div className="max-h-64 overflow-y-auto">
+                        <table className="w-full text-left">
+                           <thead><tr className="border-b border-border"><th className="p-2">Date</th><th className="p-2">Time</th></tr></thead>
+                            <tbody>
+                                {myAttendance.map(rec => {
+                                    const d = new Date(rec.timestamp);
+                                    return (
+                                        <tr key={rec.id} className="border-b border-border/50">
+                                            <td className="p-2">{d.toLocaleDateString()}</td>
+                                            <td className="p-2 text-sm text-muted-foreground">{d.toLocaleTimeString()}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                        {myAttendance.length === 0 && <p className="text-muted-foreground text-center py-8">No attendance records found.</p>}
+                    </div>
+                </div>
+            </main>
+        </div>
+    );
+};
+
 // =================================================================
 // MAIN PORTAL COMPONENT
 // =================================================================
 
-export const StudentTeacherPortal: React.FC = () => {
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [viewMode, setViewMode] = useState<ViewMode>('login');
-    const [error, setError] = useState<string | null>(null);
+export const StudentTeacherPortal: React.FC<{ onUpdateUser: (user: User) => void }> = ({ onUpdateUser }) => {
+    const [view, setView] = useState<ViewMode>('login');
+    
+    // Using localStorage-based mock state
+    const [users, setUsers] = usePersistentMockState<User[]>('maven-portal-users', [MOCK_TEACHER, ...MOCK_STUDENTS]);
+    const [currentUser, setCurrentUser] = usePersistentMockState<User | null>('maven-portal-currentUser', null);
+    const [sessions, setSessions] = usePersistentMockState<Session[]>('maven-portal-sessions', MOCK_SESSIONS);
+    const [curriculum, setCurriculum] = usePersistentMockState<Curriculum[]>('maven-portal-curriculum', MOCK_CURRICULUM);
+    const [attendanceRecords, setAttendanceRecords] = usePersistentMockState<AttendanceRecord[]>('maven-portal-attendance', MOCK_ATTENDANCE);
+    
+    // Login/Signup form state
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [role, setRole] = useState<'teacher' | 'student'>('student');
+    const [enrollmentId, setEnrollmentId] = useState('');
+    const [error, setError] = useState('');
+    const toast = useToast();
 
-    const handleLogin = async (email: string, pass: string): Promise<void> => {
-        setError(null);
-        if (!isSupabaseConfigured) {
-            await new Promise(res => setTimeout(res, 500));
-            const user = [MOCK_TEACHER, ...MOCK_STUDENTS].find(u => u.email === email && u.password === pass);
-            if (user) setCurrentUser(user);
-            else setError("Invalid email or password.");
-            return;
+    // Mock check for active session on load
+    useEffect(() => {
+        if(currentUser?.role === 'teacher') {
+            const active = sessions.find(s => s.teacher_id === currentUser.id && new Date(s.expires_at) > new Date());
+            if (active) {
+                setActiveSession(active);
+            }
         }
-        setError("Supabase login not implemented.");
-    };
+    }, [currentUser, sessions]);
+    
+    const [activeSession, setActiveSession] = useState<Session | null>(null);
 
-    const handleRegister = async (details: NewUser): Promise<void> => {
-         setError(null);
-        if (!isSupabaseConfigured) {
-            await new Promise(res => setTimeout(res, 500));
-            const userExists = [MOCK_TEACHER, ...MOCK_STUDENTS].find(u => u.email === details.email);
-            if (userExists) { setError("An account with this email already exists."); return; }
-            const newUser: User = { id: Date.now(), created_at: new Date().toISOString(), ...details };
-            setCurrentUser(newUser);
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        const user = users.find(u => u.email === email && u.password === password);
+        if (user) {
+            setCurrentUser(user);
+            toast.success(`Welcome back, ${user.name}!`);
+        } else {
+            setError('Invalid email or password.');
         }
-        setError("Supabase registration not implemented.");
     };
     
-    const handleLogout = () => {
-        setCurrentUser(null);
-        setViewMode('login');
+    const handleSignup = (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (users.some(u => u.email === email)) {
+            setError("An account with this email already exists.");
+            return;
+        }
+        if (role === 'student' && users.some(u => u.enrollment_id === enrollmentId)) {
+            setError("An account with this enrollment ID already exists.");
+            return;
+        }
+
+        const newUser: User = {
+            id: Date.now(),
+            created_at: new Date().toISOString(),
+            name,
+            email,
+            password,
+            role,
+            enrollment_id: role === 'student' ? enrollmentId : null,
+            phone: null,
+        };
+        setUsers(prev => [...prev, newUser]);
+        setCurrentUser(newUser);
+        toast.success("Account created successfully!");
     };
 
-    if (!currentUser) {
+    if (!isSupabaseConfigured) {
+        // --- MOCK MODE ---
+        if (currentUser) {
+            if (currentUser.role === 'teacher') {
+                return <TeacherDashboard 
+                    currentUser={currentUser}
+                    setCurrentUser={setCurrentUser}
+                    activeSession={activeSession}
+                    setActiveSession={setActiveSession}
+                    attendanceRecords={attendanceRecords}
+                    setAttendanceRecords={setAttendanceRecords}
+                    curriculum={curriculum}
+                    setCurriculum={setCurriculum}
+                    allStudents={users}
+                    setAllStudents={setUsers}
+                />;
+            } else {
+                return <StudentDashboard currentUser={currentUser} curriculum={curriculum} attendanceRecords={attendanceRecords}/>;
+            }
+        }
+        
         return (
-            <div className="flex-1 flex items-center justify-center bg-background p-4">
-                {viewMode === 'signup' ? 
-                    <SignUpView onRegister={handleRegister} error={error} setError={setError} setViewMode={setViewMode} /> :
-                    <LoginView onLogin={handleLogin} error={error} setError={setError} setViewMode={setViewMode} pendingSessionId={null} />
-                }
+            <div className="flex items-center justify-center h-full bg-background text-foreground p-4">
+                <div className="w-full max-w-sm">
+                    <div className="text-center mb-8">
+                        <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Users className="w-8 h-8 text-primary-foreground" />
+                        </div>
+                        <h1 className="text-3xl font-bold">Student/Teacher Portal</h1>
+                        <p className="text-muted-foreground mt-2">Access your dedicated dashboard.</p>
+                        <p className="text-xs text-amber-400 bg-amber-500/10 p-2 rounded-md mt-2">
+                            <Info size={12} className="inline mr-1"/> This portal is in local-only mock mode.
+                        </p>
+                    </div>
+
+                    {view === 'login' && (
+                        <form onSubmit={handleLogin} className="space-y-4">
+                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email (teacher@example.com)" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
+                            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (password123)" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
+                            {error && <p className="text-destructive text-sm">{error}</p>}
+                            <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md">Login</button>
+                            <p className="text-center text-sm">Don't have an account? <button onClick={() => setView('signup')} className="text-primary hover:underline">Sign Up</button></p>
+                        </form>
+                    )}
+                    
+                     {view === 'signup' && (
+                        <form onSubmit={handleSignup} className="space-y-4">
+                            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
+                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
+                            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
+                            <select value={role} onChange={e => setRole(e.target.value as any)} className="w-full bg-input border-border rounded-md px-4 py-3">
+                                <option value="student">Student</option>
+                                <option value="teacher">Teacher</option>
+                            </select>
+                            {role === 'student' && <input type="text" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} placeholder="Enrollment ID" required className="w-full bg-input border-border rounded-md px-4 py-3"/>}
+                            {error && <p className="text-destructive text-sm">{error}</p>}
+                            <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md">Sign Up</button>
+                            <p className="text-center text-sm">Already have an account? <button onClick={() => setView('login')} className="text-primary hover:underline">Log In</button></p>
+                        </form>
+                    )}
+
+                </div>
             </div>
         );
     }
 
-    if (currentUser.role === 'teacher') return <TeacherDashboard user={currentUser} onLogout={handleLogout} />;
-    if (currentUser.role === 'student') return <StudentDashboard user={currentUser} onLogout={handleLogout} />;
-    
-    return null;
+    // --- REAL SUPABASE MODE ---
+    return (
+        <div className="flex items-center justify-center h-full bg-background text-foreground p-4">
+            <div className="text-center p-8 border border-border rounded-lg bg-card/50">
+                <ShieldCheck className="w-12 h-12 text-primary mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Supabase Mode Enabled</h2>
+                <p className="text-muted-foreground max-w-sm">
+                    The Student/Teacher Portal is ready to connect to your Supabase backend.
+                    The UI for this mode is currently under development.
+                </p>
+            </div>
+        </div>
+    );
 };
