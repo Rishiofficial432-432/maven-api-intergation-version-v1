@@ -887,6 +887,8 @@ const StudentTeacherPortal: React.FC<{}> = () => {
         setAttendanceRecords(prev => [...prev, record]);
     };
 
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
     if (!isSupabaseConfigured) {
         // --- MOCK MODE ---
         if (currentUser) {
@@ -924,9 +926,11 @@ const StudentTeacherPortal: React.FC<{}> = () => {
                         </div>
                         <h1 className="text-3xl font-bold">Student/Teacher Portal</h1>
                         <p className="text-muted-foreground mt-2">Access your dedicated dashboard.</p>
-                        <p className="text-xs text-amber-400 bg-amber-500/10 p-2 rounded-md mt-2">
-                            <Info size={12} className="inline mr-1"/> This portal is in local-only mock mode.
-                        </p>
+                        {isLocalhost && (
+                            <p className="text-xs text-amber-400 bg-amber-500/10 p-2 rounded-md mt-2">
+                                <Info size={12} className="inline mr-1"/> This portal is in local-only mock mode.
+                            </p>
+                        )}
                     </div>
 
                     {view === 'login' && (
