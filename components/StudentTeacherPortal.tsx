@@ -95,6 +95,19 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     return R * c; // in metres
 }
 
+const getGeolocationErrorMessage = (error: GeolocationPositionError): string => {
+  switch (error.code) {
+    case error.PERMISSION_DENIED:
+      return "Location permission denied. Please check your browser settings.";
+    case error.POSITION_UNAVAILABLE:
+      return "Unable to retrieve your location at this time.";
+    case error.TIMEOUT:
+      return "Getting your location took too long. Please try again.";
+    default:
+      return "An unknown error occurred while getting your location.";
+  }
+};
+
 
 // =================================================================
 // LOCALSTORAGE-BASED MOCK BACKEND
@@ -146,6 +159,8 @@ const TeacherDashboard: React.FC<{
     const [showLocationModal, setShowLocationModal] = useState(false);
     const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [sessionLocation, setSessionLocation] = useState<{ latitude: number, longitude: number, radius: number } | null>(null);
+    const [locationName, setLocationName] = useState<string | null>(null);
+    const [isFetchingLocationName, setIsFetchingLocationName] = useState(false);
 
     const toast = useToast();
 
@@ -213,10 +228,33 @@ const TeacherDashboard: React.FC<{
         setShowLocationModal(false);
     };
     
+    const fetchLocationName = async (latitude: number, longitude: number) => {
+        if (!geminiAI) {
+            setLocationName("Location name requires AI key.");
+            return;
+        }
+        setIsFetchingLocationName(true);
+        setLocationName(null);
+        try {
+            const prompt = `Based on the coordinates latitude: ${latitude} and longitude: ${longitude}, what is the name of the building, institution, park, or general area? Provide a concise, single-line name for this location. For example, "Springfield University Library" or "Central Park".`;
+            const response = await geminiAI.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt
+            });
+            setLocationName(response.text.trim());
+        } catch (error) {
+            console.error("Failed to fetch location name:", error);
+            setLocationName("Could not retrieve location name.");
+        } finally {
+            setIsFetchingLocationName(false);
+        }
+    };
+    
     const handleStartSessionClick = () => {
         if (locationEnforced) {
             setShowLocationModal(true);
             setLocationStatus('loading');
+            setLocationName(null);
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     setSessionLocation({
@@ -225,10 +263,11 @@ const TeacherDashboard: React.FC<{
                         radius: 100 // default 100 meters
                     });
                     setLocationStatus('success');
+                    fetchLocationName(position.coords.latitude, position.coords.longitude);
                 },
                 (error) => {
                     console.error("Geolocation error:", error);
-                    toast.error("Could not get location. Please enable location services.");
+                    toast.error(getGeolocationErrorMessage(error));
                     setLocationStatus('error');
                 },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -338,6 +377,17 @@ const TeacherDashboard: React.FC<{
                         {locationStatus === 'error' && <div className="text-destructive">Failed to get location. Please enable it in your browser settings and try again.</div>}
                         {locationStatus === 'success' && sessionLocation && (
                             <div className="text-left space-y-4">
+                                <div>
+                                    <label className="text-sm font-medium text-muted-foreground">Location</label>
+                                    {isFetchingLocationName ? (
+                                        <div className="flex items-center gap-2 p-2 bg-input rounded-md text-muted-foreground text-sm">
+                                            <Loader size={14} className="animate-spin" />
+                                            <span>Resolving location name...</span>
+                                        </div>
+                                    ) : (
+                                        <p className="font-semibold text-base p-2 bg-input rounded-md">{locationName || 'Unknown Location'}</p>
+                                    )}
+                                </div>
                                 <div>
                                     <label className="text-sm font-medium text-muted-foreground">Coordinates</label>
                                     <p className="font-mono text-sm p-2 bg-input rounded-md">{sessionLocation.latitude.toFixed(5)}, {sessionLocation.longitude.toFixed(5)}</p>
@@ -645,7 +695,7 @@ const StudentDashboard: React.FC<{
                     }
                 },
                 (geoError) => {
-                    toast.error("Could not get your location. Please enable location services.");
+                    toast.error(getGeolocationErrorMessage(geoError));
                     setIsCheckingIn(false);
                 },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -763,7 +813,8 @@ export const StudentTeacherPortal: React.FC<{}> = () => {
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const user = users.find(u => u.email === email && u.password === password);
+        const trimmedEmail = email.trim().toLowerCase();
+        const user = users.find(u => u.email?.trim().toLowerCase() === trimmedEmail && u.password === password);
         if (user) {
             setCurrentUser(user);
             toast.success(`Welcome back, ${user.name}!`);
@@ -775,11 +826,16 @@ export const StudentTeacherPortal: React.FC<{}> = () => {
     const handleSignup = (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        if (users.some(u => u.email === email)) {
+
+        const trimmedEmail = email.trim().toLowerCase();
+        const trimmedEnrollmentId = enrollmentId.trim().toLowerCase();
+        const trimmedName = name.trim();
+
+        if (users.some(u => u.email && u.email.trim().toLowerCase() === trimmedEmail)) {
             setError("An account with this email already exists.");
             return;
         }
-        if (role === 'student' && users.some(u => u.enrollment_id === enrollmentId)) {
+        if (role === 'student' && trimmedEnrollmentId && users.some(u => u.enrollment_id && u.enrollment_id.trim().toLowerCase() === trimmedEnrollmentId)) {
             setError("An account with this enrollment ID already exists.");
             return;
         }
@@ -787,11 +843,11 @@ export const StudentTeacherPortal: React.FC<{}> = () => {
         const newUser: User = {
             id: Date.now(),
             created_at: new Date().toISOString(),
-            name,
-            email,
+            name: trimmedName,
+            email: email.trim(),
             password,
             role,
-            enrollment_id: role === 'student' ? enrollmentId : null,
+            enrollment_id: role === 'student' ? enrollmentId.trim() : null,
             phone: null,
         };
         setUsers(prev => [...prev, newUser]);
@@ -857,7 +913,7 @@ export const StudentTeacherPortal: React.FC<{}> = () => {
                                 <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="w-full bg-input border-border rounded-md px-4 py-3"/>
                                 {error && <p className="text-destructive text-sm">{error}</p>}
                                 <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md">Login</button>
-                                <p className="text-center text-sm">Don't have an account? <button onClick={() => setView('signup')} className="text-primary hover:underline">Sign Up</button></p>
+                                <p className="text-center text-sm">Don't have an account? <button type="button" onClick={() => setView('signup')} className="text-primary hover:underline bg-transparent border-none p-0">Sign Up</button></p>
                             </form>
                              <div className="mt-4 p-3 bg-secondary rounded-lg text-xs text-muted-foreground text-left space-y-1">
                                 <p className="font-bold text-foreground/80">Quick Login (Mock Credentials):</p>
@@ -879,7 +935,7 @@ export const StudentTeacherPortal: React.FC<{}> = () => {
                             {role === 'student' && <input type="text" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} placeholder="Enrollment ID" required className="w-full bg-input border-border rounded-md px-4 py-3"/>}
                             {error && <p className="text-destructive text-sm">{error}</p>}
                             <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-md">Sign Up</button>
-                            <p className="text-center text-sm">Already have an account? <button onClick={() => setView('login')} className="text-primary hover:underline">Log In</button></p>
+                            <p className="text-center text-sm">Already have an account? <button type="button" onClick={() => setView('login')} className="text-primary hover:underline bg-transparent border-none p-0">Log In</button></p>
                         </form>
                     )}
 
