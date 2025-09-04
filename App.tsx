@@ -9,7 +9,7 @@ import JournalView from './components/JournalView';
 import InteractiveMindMap from './components/InteractiveMindMap';
 import GoogleWorkspace from './components/GoogleWorkspace';
 import { geminiAI } from './components/gemini';
-import { StudentTeacherPortal } from './components/StudentTeacherPortal';
+import StudentTeacherPortal from './components/StudentTeacherPortal';
 import { ToastProvider, useToast } from './components/Toast';
 import SearchPalette from './components/SearchPalette';
 import LandingPage from './components/LandingPage';

@@ -60,9 +60,9 @@ This is for turning chaotic thoughts into organized actions.
 This is a complete system for managing classroom attendance.
 
 *   **Step 1: Setup:** A teacher, "Dr. Reed," navigates to the Attendance widget. She creates a new class called "History 101". She can then either add students one-by-one (e.g., Name: "Alex Johnson", Enrollment ID: "S201") or use the "Import" button to upload an Excel file containing her entire class roster.
-*   **Step 2: Starting a Session:** It's the start of class, and Dr. Reed needs to take attendance. She selects "History 101" and clicks **"Start New Session"**. The system instantly generates a unique, 6-digit **One-Time Password (OTP)**, like "123456", and displays it on her screen.
+*   **Step 2: Starting a Session:** It's the start of class. Dr. Reed selects "History 101". She sees a toggle for "Location-Aware" attendance. She enables it. This is a security feature to ensure students are physically present. When she clicks **"Start New Session"**, the app captures her current GPS location and generates a unique 6-digit **One-Time Password (OTP)**.
 *   **Step 3: Student Check-in:** A student, "Alex," logs into his Student Portal on his own device. He sees a simple input field. Dr. Reed announces the code, "123456". Alex types it in and clicks "Check In".
-*   **Step 4: Automatic Verification:** The system verifies the code is correct and the session is active. Since Alex is already logged in, the system knows his name and enrollment ID and automatically marks him as "Present" for that session.
+*   **Step 4: Automatic Verification:** The system verifies the OTP. Because this is a location-aware session, the app then **mandatorily requests Alex's location** via his device's GPS. The system checks if he is within the radius set by Dr. Reed (e.g., 100 meters). If he is, he is marked "Present". If he denies location access or is too far away, the check-in will fail, even with the correct OTP.
 *   **Step 5: Live View and Reporting:** On Dr. Reed's screen, Alex's name immediately appears in the "Live Attendance" list. After the session, this record is saved permanently. At any time, Dr. Reed can view past attendance records or click "Export" to download a complete attendance sheet for "History 101" as an Excel file.
 
 #### **Other Dashboard Widgets**

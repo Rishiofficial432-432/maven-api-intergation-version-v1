@@ -30,6 +30,7 @@ interface Session {
         longitude: number;
         radius: number; // in meters
     };
+    location_name?: string;
 }
 
 interface Curriculum {
@@ -206,7 +207,7 @@ const TeacherDashboard: React.FC<{
         setIsEditingName(false);
     };
 
-    const startSession = (locationData: { latitude: number, longitude: number, radius: number } | null) => {
+    const startSession = (locationData: { latitude: number, longitude: number, radius: number } | null, locName: string | null) => {
         const newSessionId = `sess-${Date.now()}`;
         const expires_at = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
         const sessionCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -219,7 +220,8 @@ const TeacherDashboard: React.FC<{
             is_active: true,
             session_code: sessionCode,
             location_enforced: !!locationData,
-            location: locationData || undefined
+            location: locationData || undefined,
+            location_name: locName || undefined,
         };
         const allSessions = JSON.parse(localStorage.getItem('maven-portal-sessions') || '[]');
         localStorage.setItem('maven-portal-sessions', JSON.stringify([...allSessions, newSession]));
@@ -273,7 +275,7 @@ const TeacherDashboard: React.FC<{
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
         } else {
-            startSession(null);
+            startSession(null, null);
         }
     };
 
@@ -408,12 +410,12 @@ const TeacherDashboard: React.FC<{
                         )}
                         <div className="flex gap-2 mt-6">
                             <button onClick={() => setShowLocationModal(false)} className="flex-1 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">Cancel</button>
-                            <button onClick={() => startSession(sessionLocation)} disabled={locationStatus !== 'success'} className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50">Confirm & Start</button>
+                            <button onClick={() => startSession(sessionLocation, locationName)} disabled={locationStatus !== 'success'} className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50">Confirm & Start</button>
                         </div>
                     </div>
                 </div>
             )}
-            <header className="p-4 border-b border-border/50 flex items-center justify-between">
+            <header className="p-4 border-b border-border/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex items-center gap-3 group">
                     {isEditingName ? (
                          <div className="flex items-center gap-2">
@@ -439,19 +441,19 @@ const TeacherDashboard: React.FC<{
                         </div>
                     )}
                 </div>
-                <div className="flex items-center gap-4">
-                    <div className="p-2 bg-card border border-border rounded-lg flex items-center gap-2 text-sm">
-                        <button onClick={() => setActiveTab('session')} className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'session' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Session</button>
-                        <button onClick={() => setActiveTab('curriculum')} className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'curriculum' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Curriculum</button>
-                        <button onClick={() => setActiveTab('analytics')} className={`px-3 py-1.5 rounded-md transition-colors ${activeTab === 'analytics' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Analytics</button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
+                    <div className="p-2 bg-card border border-border rounded-lg flex items-center justify-center gap-2 text-sm">
+                        <button onClick={() => setActiveTab('session')} className={`px-3 py-1.5 rounded-md transition-colors flex-1 ${activeTab === 'session' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Session</button>
+                        <button onClick={() => setActiveTab('curriculum')} className={`px-3 py-1.5 rounded-md transition-colors flex-1 ${activeTab === 'curriculum' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Curriculum</button>
+                        <button onClick={() => setActiveTab('analytics')} className={`px-3 py-1.5 rounded-md transition-colors flex-1 ${activeTab === 'analytics' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>Analytics</button>
                     </div>
-                    <button onClick={onLogout} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                    <button onClick={onLogout} className="flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
                         <LogOut size={16} /> Logout
                     </button>
                 </div>
             </header>
             
-            <main className="flex-1 p-6 overflow-y-auto">
+            <main className="flex-1 p-3 sm:p-6 overflow-y-auto">
                 {activeTab === 'session' && (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-1 bg-card border border-border rounded-xl shadow-lg p-6">
@@ -459,7 +461,13 @@ const TeacherDashboard: React.FC<{
                             {activeSession ? (
                                 <div className="text-center">
                                     <p className="text-muted-foreground mb-2">Session is active. Ends in:</p>
-                                    <p className="text-4xl font-mono font-bold text-primary mb-4">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
+                                    <p className="text-4xl font-mono font-bold text-primary mb-2">{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</p>
+                                    {activeSession.location_enforced && (
+                                        <div className="mb-4 text-xs text-center text-muted-foreground flex items-center justify-center gap-2">
+                                            <MapPin size={12} />
+                                            <span>Location-Aware: {activeSession.location_name || 'Enabled'}</span>
+                                        </div>
+                                    )}
                                     <button onClick={endSession} className="w-full px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90">End Session</button>
                                 </div>
                             ) : (
@@ -545,8 +553,8 @@ const TeacherDashboard: React.FC<{
 
                 {activeTab === 'analytics' && (
                      <div className="space-y-6">
-                        <h3 className="text-2xl font-bold">Analytics & Insights</h3>
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <h3 className="text-2xl font-bold">Analytics & Student Management</h3>
+                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                             <div className="bg-card border border-border rounded-xl shadow-lg p-6 flex items-center gap-4">
                                 <Users size={24} className="text-primary"/>
                                 <div>
@@ -572,38 +580,53 @@ const TeacherDashboard: React.FC<{
                             </div>
                         </div>
                         <div className="bg-card border border-border rounded-xl shadow-lg p-6">
-                            <h4 className="text-xl font-bold mb-4">Student Attendance Breakdown</h4>
+                            <h4 className="text-xl font-bold mb-4">Student Roster</h4>
                             <div className="max-h-96 overflow-y-auto">
-                                <table className="w-full text-left">
-                                    <thead><tr className="border-b border-border"><th className="p-2">Name</th><th className="p-2">Enrollment ID</th><th className="p-2">Attendance %</th><th className="p-2"></th></tr></thead>
-                                    <tbody>
-                                        {uniqueStudents.map(student => {
-                                            const studentAttendanceCount = attendanceRecords.filter(rec => rec.enrollmentId === student.enrollment_id).length;
-                                            const attendancePercent = totalSessions > 0 ? Math.round((studentAttendanceCount / totalSessions) * 100) : 0;
-                                            return (
-                                                <tr key={student.id} className="border-b border-border/50">
-                                                    <td className="p-2 font-medium">{student.name}</td>
-                                                    <td className="p-2 text-muted-foreground">{student.enrollment_id}</td>
-                                                    <td className="p-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-full bg-secondary rounded-full h-2.5">
-                                                                <div className="bg-primary h-2.5 rounded-full" style={{ width: `${attendancePercent}%` }}></div>
-                                                            </div>
-                                                            <span className="font-semibold">{attendancePercent}%</span>
+                                 <div className="space-y-2">
+                                    {/* Header for larger screens */}
+                                    <div className="hidden md:grid md:grid-cols-[2fr_1.5fr_2fr_auto] gap-4 px-3 text-sm font-medium text-muted-foreground border-b border-border pb-2">
+                                        <span>Name</span>
+                                        <span>Enrollment ID</span>
+                                        <span>Attendance %</span>
+                                        <span className="text-right">Actions</span>
+                                    </div>
+                                    {uniqueStudents.map(student => {
+                                        const studentAttendanceCount = attendanceRecords.filter(rec => rec.enrollmentId === student.enrollment_id).length;
+                                        const attendancePercent = totalSessions > 0 ? Math.round((studentAttendanceCount / totalSessions) * 100) : 0;
+                                        return (
+                                            <div key={student.id} className="bg-secondary/50 rounded-lg p-3 md:bg-transparent md:p-0 md:rounded-none md:grid md:grid-cols-[2fr_1.5fr_2fr_auto] gap-4 items-center md:px-3 md:py-2.5 border-b border-border/50 last:border-b-0">
+                                                {/* Name */}
+                                                <div className="flex justify-between items-center md:block">
+                                                    <span className="font-bold md:hidden text-xs text-muted-foreground">NAME</span>
+                                                    <p className="font-medium">{student.name}</p>
+                                                </div>
+                                                {/* Enrollment */}
+                                                <div className="flex justify-between items-center md:block mt-2 md:mt-0">
+                                                    <span className="font-bold md:hidden text-xs text-muted-foreground">ENROLLMENT ID</span>
+                                                    <p className="text-muted-foreground">{student.enrollment_id}</p>
+                                                </div>
+                                                {/* Attendance */}
+                                                <div className="mt-2 md:mt-0">
+                                                    <span className="font-bold md:hidden text-xs text-muted-foreground mb-1 block">ATTENDANCE</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-full bg-muted rounded-full h-2.5">
+                                                            <div className="bg-primary h-2.5 rounded-full" style={{ width: `${attendancePercent}%` }}></div>
                                                         </div>
-                                                    </td>
-                                                    <td className="p-2 text-right">
-                                                        <button onClick={() => handleDeleteStudent(student.id)} className="text-muted-foreground hover:text-destructive"><Trash2 size={16}/></button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                        <span className="font-semibold text-sm w-12 text-right">{attendancePercent}%</span>
+                                                    </div>
+                                                </div>
+                                                {/* Actions */}
+                                                <div className="text-right mt-2 md:mt-0">
+                                                     <button onClick={() => handleDeleteStudent(student.id)} className="p-2 text-muted-foreground hover:text-destructive rounded-full hover:bg-destructive/10"><Trash2 size={16}/></button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                              <div className="mt-6 pt-6 border-t border-border">
                                 <h5 className="font-semibold mb-2">Add New Student</h5>
-                                <form onSubmit={handleAddStudent} className="flex gap-2">
+                                <form onSubmit={handleAddStudent} className="flex flex-col sm:flex-row gap-2">
                                     <input value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Student Name" className="flex-1 bg-input border-border rounded-md px-3 py-2" />
                                     <input value={newStudentEnrollment} onChange={e => setNewStudentEnrollment(e.target.value)} placeholder="Enrollment ID" className="flex-1 bg-input border-border rounded-md px-3 py-2" />
                                     <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
@@ -690,7 +713,7 @@ const StudentDashboard: React.FC<{
                         toast.success(`Location verified (${Math.round(distance)}m away).`);
                         performCheckin();
                     } else {
-                        toast.error(`You are too far away (${Math.round(distance)}m) from the required location.`);
+                        toast.error(`You are too far away (${Math.round(distance)}m). You must be within ${radius}m.`);
                         setIsCheckingIn(false);
                     }
                 },
@@ -713,7 +736,7 @@ const StudentDashboard: React.FC<{
                     <LogOut size={16} /> Logout
                 </button>
             </header>
-            <main className="flex-1 p-6 overflow-y-auto space-y-6">
+            <main className="flex-1 p-3 sm:p-6 overflow-y-auto space-y-6">
                 <form onSubmit={handleCheckIn} className="bg-card border border-border rounded-xl shadow-lg p-6">
                     <h3 className="text-xl font-bold mb-4">Mark Attendance</h3>
                      <div className="flex flex-col sm:flex-row gap-2">
@@ -779,7 +802,7 @@ const StudentDashboard: React.FC<{
 // MAIN PORTAL COMPONENT
 // =================================================================
 
-export const StudentTeacherPortal: React.FC<{}> = () => {
+const StudentTeacherPortal: React.FC<{}> = () => {
     const [view, setView] = useState<ViewMode>('login');
     
     // Using localStorage-based mock state
@@ -958,3 +981,5 @@ export const StudentTeacherPortal: React.FC<{}> = () => {
         </div>
     );
 };
+
+export default StudentTeacherPortal;
