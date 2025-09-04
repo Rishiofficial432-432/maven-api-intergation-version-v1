@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent } from 'lucide-react';
+import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, FlaskConical, PencilRuler, Users as UsersIcon } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabase-config';
 import { useToast } from './Toast';
 import { geminiAI } from './gemini';
@@ -137,6 +137,187 @@ const usePersistentMockState = <T,>(key: string, defaultValue: T): [T, React.Dis
 };
 
 // =================================================================
+// CURRICULUM COPILOT MODAL
+// =================================================================
+interface CurriculumCopilotModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    topic: string;
+    onGeneratePlan: (plan: string) => void;
+}
+
+const CurriculumCopilotModal: React.FC<CurriculumCopilotModalProps> = ({ isOpen, onClose, topic, onGeneratePlan }) => {
+    const [learningObjectives, setLearningObjectives] = useState('');
+    const [duration, setDuration] = useState('50');
+    const [teachingStyles, setTeachingStyles] = useState<Set<string>>(new Set());
+    const [generatedPlan, setGeneratedPlan] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const toast = useToast();
+
+    const availableStyles = [
+        { name: 'Interactive', icon: <UsersIcon size={16}/> },
+        { name: 'Lecture', icon: <UserIcon size={16}/> },
+        { name: 'Hands-on', icon: <FlaskConical size={16}/> },
+        { name: 'Project-based', icon: <PencilRuler size={16}/> },
+    ];
+
+    const toggleStyle = (style: string) => {
+        const newStyles = new Set(teachingStyles);
+        if (newStyles.has(style)) {
+            newStyles.delete(style);
+        } else {
+            newStyles.add(style);
+        }
+        setTeachingStyles(newStyles);
+    };
+
+    const handleGenerate = async () => {
+        if (!topic.trim() || !learningObjectives.trim()) {
+            toast.error("Please provide a topic and at least one learning objective.");
+            return;
+        }
+        if (!geminiAI) {
+            toast.error("AI features require a valid API key.");
+            return;
+        }
+        setIsLoading(true);
+        setGeneratedPlan('');
+        
+        const prompt = `
+You are an expert curriculum designer for educators. Your task is to generate a detailed, structured lesson plan based on the following parameters. The plan should be practical, engaging, and logically sequenced.
+
+**Topic:** ${topic}
+**Learning Objectives:**
+${learningObjectives}
+
+**Total Class Duration:** ${duration} minutes
+**Desired Teaching Styles:** ${teachingStyles.size > 0 ? [...teachingStyles].join(', ') : 'Flexible'}
+
+Please generate a lesson plan with the following structure, including estimated timings for each section that add up to the total class duration:
+
+### Lesson Plan: [A Creative and Relevant Title]
+
+**🎯 Learning Objectives:**
+(Reiterate the provided objectives here in a clear list)
+
+**📋 Materials Needed:**
+- [Material 1]
+- [Material 2]
+...
+
+---
+
+**⏰ Lesson Timeline**
+
+**1. Introduction & Hook (approx. X minutes):**
+*   [An engaging activity, question, or story to capture student interest and activate prior knowledge.]
+
+**2. Instructional Phase (approx. Y minutes):**
+*   [Core teaching points, concepts, or direct instruction. This is the main content delivery section.]
+
+**3. Guided Practice / Activity (approx. Z minutes):**
+*   [A hands-on, interactive, or group activity that aligns with the teaching styles requested and allows students to apply what they've learned.]
+
+**4. Wrap-up & Assessment (approx. W minutes):**
+*   [A summary of key takeaways and a quick, effective method to check for understanding, such as an "exit ticket" question, a quick poll, or a brief pair-and-share.]
+
+---
+
+Ensure the content is clear, concise, and ready for a teacher to use directly. The total time (X+Y+Z+W) should be approximately equal to the specified class duration. Format the response using markdown.
+`;
+        
+        try {
+            const response = await geminiAI.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt
+            });
+            setGeneratedPlan(response.text);
+        } catch (error) {
+            console.error("Curriculum generation error:", error);
+            toast.error("Failed to generate the lesson plan. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+            <style>{`.animate-fade-in { animation: fadeIn 0.3s ease-out; } @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
+            <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col">
+                <header className="p-4 border-b border-border flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <Wand2 className="w-6 h-6 text-primary"/>
+                        <h2 className="text-xl font-bold">Curriculum Co-pilot</h2>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent transition-colors"><X/></button>
+                </header>
+                <div className="flex-1 flex flex-col md:flex-row min-h-0">
+                    <aside className="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-border p-6 space-y-6 overflow-y-auto">
+                        <div>
+                            <label className="font-semibold text-muted-foreground">Topic</label>
+                            <p className="font-bold text-lg text-primary">{topic || "Not set"}</p>
+                        </div>
+                         <div>
+                            <label htmlFor="objectives" className="font-semibold text-muted-foreground">Learning Objectives</label>
+                            <textarea id="objectives" value={learningObjectives} onChange={e => setLearningObjectives(e.target.value)} placeholder="e.g., Students will be able to identify three causes of..." rows={4} className="mt-2 w-full bg-input border-border rounded-md px-3 py-2 text-sm"/>
+                        </div>
+                        <div>
+                            <label htmlFor="duration" className="font-semibold text-muted-foreground">Class Duration</label>
+                            <select id="duration" value={duration} onChange={e => setDuration(e.target.value)} className="mt-2 w-full bg-input border-border rounded-md px-3 py-2 text-sm">
+                                <option value="50">50 minutes</option>
+                                <option value="75">75 minutes</option>
+                                <option value="90">90 minutes</option>
+                            </select>
+                        </div>
+                         <div>
+                            <label className="font-semibold text-muted-foreground">Teaching Style</label>
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                                {availableStyles.map(style => (
+                                    <button key={style.name} onClick={() => toggleStyle(style.name)} className={`flex items-center gap-2 px-3 py-2 text-sm rounded-md border-2 transition-colors ${teachingStyles.has(style.name) ? 'border-primary bg-primary/10' : 'border-transparent bg-secondary hover:bg-secondary/80'}`}>
+                                        {style.icon} {style.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                         <button onClick={handleGenerate} disabled={isLoading} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                            {isLoading ? <><Loader className="animate-spin" size={20}/> Generating...</> : <><Wand2 size={20}/> Generate Smart Plan</>}
+                        </button>
+                    </aside>
+                     <main className="flex-1 p-6 flex flex-col overflow-y-auto">
+                        {isLoading && !generatedPlan && (
+                            <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+                                <Loader className="animate-spin w-8 h-8 text-primary mb-4"/>
+                                <p>Building your lesson plan...</p>
+                            </div>
+                        )}
+                        {generatedPlan ? (
+                            <div className="flex-1 flex flex-col">
+                                <textarea
+                                    value={generatedPlan}
+                                    onChange={e => setGeneratedPlan(e.target.value)}
+                                    className="w-full flex-1 bg-input border-border rounded-md p-4 resize-none text-sm leading-6"
+                                />
+                                <button onClick={() => onGeneratePlan(generatedPlan)} className="mt-4 w-full bg-green-600 text-white py-3 rounded-md hover:bg-green-700 font-semibold">
+                                    Insert into Activities
+                                </button>
+                            </div>
+                        ) : !isLoading && (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground">
+                                <ClipboardList size={48} className="mb-4"/>
+                                <h3 className="font-semibold text-lg">Your generated lesson plan will appear here.</h3>
+                                <p className="text-sm">Fill in the details on the left and let the AI build your session.</p>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// =================================================================
 // SUB-COMPONENTS for Teacher/Student Dashboards
 // =================================================================
 
@@ -162,6 +343,7 @@ const TeacherDashboard: React.FC<{
     const [sessionLocation, setSessionLocation] = useState<{ latitude: number, longitude: number, radius: number } | null>(null);
     const [locationName, setLocationName] = useState<string | null>(null);
     const [isFetchingLocationName, setIsFetchingLocationName] = useState(false);
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
     const toast = useToast();
 
@@ -170,7 +352,6 @@ const TeacherDashboard: React.FC<{
     const todaysCurriculum = curriculum.find(c => c.date === today && c.teacherId === currentUser.id);
     const [topic, setTopic] = useState(todaysCurriculum?.topic || '');
     const [activities, setActivities] = useState(todaysCurriculum?.activities || '');
-    const [isGeneratingActivities, setIsGeneratingActivities] = useState(false);
     
     // Analytics state
     const [newStudentName, setNewStudentName] = useState('');
@@ -302,27 +483,6 @@ const TeacherDashboard: React.FC<{
         toast.success("Curriculum saved!");
     };
     
-    const generateActivities = async () => {
-        if (!topic.trim() || !geminiAI) {
-            toast.error("Please enter a topic first. AI features also require an API key.");
-            return;
-        }
-        setIsGeneratingActivities(true);
-        try {
-            const prompt = `Generate a short, bulleted list of 3-5 engaging classroom activities for the topic: "${topic}".`;
-            const response = await geminiAI.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: prompt
-            });
-            setActivities(response.text);
-        } catch (error) {
-            console.error("AI activity generation error:", error);
-            toast.error("Failed to generate activities.");
-        } finally {
-            setIsGeneratingActivities(false);
-        }
-    };
-    
     const handleAddStudent = (e: React.FormEvent) => {
         e.preventDefault();
         const name = newStudentName.trim();
@@ -367,6 +527,16 @@ const TeacherDashboard: React.FC<{
     
     return (
         <div className="flex flex-col h-full">
+            <CurriculumCopilotModal
+                isOpen={isCopilotOpen}
+                onClose={() => setIsCopilotOpen(false)}
+                topic={topic}
+                onGeneratePlan={(plan) => {
+                    setActivities(plan);
+                    setIsCopilotOpen(false);
+                    toast.success("Lesson plan inserted successfully!");
+                }}
+            />
             {showLocationModal && (
                 <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-card border border-border rounded-xl shadow-lg w-full max-w-md p-6 text-center">
@@ -539,12 +709,12 @@ const TeacherDashboard: React.FC<{
                             <div>
                                  <div className="flex items-center justify-between">
                                     <label className="font-semibold">Planned Activities</label>
-                                    <button onClick={generateActivities} disabled={isGeneratingActivities || !geminiAI} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 disabled:opacity-50">
-                                        {isGeneratingActivities ? <Loader className="animate-spin" size={16}/> : <Lightbulb size={16}/>}
-                                        AI Suggest
+                                    <button onClick={() => setIsCopilotOpen(true)} disabled={!geminiAI} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 disabled:opacity-50">
+                                        <Wand2 size={16}/>
+                                        Launch Curriculum Co-pilot
                                     </button>
                                 </div>
-                                <textarea value={activities} onChange={e => setActivities(e.target.value)} placeholder="List the activities for today's session, one per line." rows={6} className="mt-2 w-full bg-input border-border rounded-md px-4 py-3"></textarea>
+                                <textarea value={activities} onChange={e => setActivities(e.target.value)} placeholder="List the activities for today's session, one per line. Use the Co-pilot to generate a structured plan!" rows={6} className="mt-2 w-full bg-input border-border rounded-md px-4 py-3"></textarea>
                             </div>
                             <button onClick={saveCurriculum} className="w-full bg-primary text-primary-foreground py-3 rounded-md hover:bg-primary/90">Save Today's Plan</button>
                         </div>

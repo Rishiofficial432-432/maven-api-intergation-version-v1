@@ -9,7 +9,7 @@ import {
   PlusCircle, MinusCircle, Copy, Check, RefreshCw, Star,
   ChevronLeft, ChevronRight, Download, Upload, Search, GripVertical, HelpCircleIcon,
   Notebook, DollarSign, Trophy, Smile, Quote as QuoteIcon, CircleDot, BrainCircuit as BrainCircuitIcon, Wand2, Loader, ArrowLeft, CheckCircle, ClipboardList, Eye, EyeOff,
-  AlertTriangle
+  AlertTriangle, Lightbulb, Users as UsersIcon, FlaskConical, PencilRuler
 } from 'lucide-react';
 import { HelpPage } from './HelpPage';
 import RandomDecisionMaker from './RandomDecisionMaker';
