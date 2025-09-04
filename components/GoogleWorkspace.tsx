@@ -11,7 +11,7 @@ interface GoogleWorkspaceProps {
     onFileImport: (data: { file: DriveFile; htmlContent: string }) => void;
 }
 
-const CLIENT_ID = '93015436329-3736s0ce29ab34d6652re8u8v8h79v3r.apps.googleusercontent.com'; // Replace with your actual client ID if you have one, this is a placeholder
+const CLIENT_ID = '424363868996-4kk2seduj0iel55jiilkh7nbhu9u0bq1.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
 
 const GoogleWorkspace: React.FC<GoogleWorkspaceProps> = ({ authToken, setAuthToken, history, onFileImport }) => {
@@ -41,7 +41,8 @@ const GoogleWorkspace: React.FC<GoogleWorkspaceProps> = ({ authToken, setAuthTok
                         body: new URLSearchParams({
                             code: response.code,
                             client_id: CLIENT_ID,
-                            redirect_uri: 'postmessage', // Required for popup flow token exchange
+                            // As per Google's documentation for the GSI library's popup flow,
+                            // the redirect_uri must be omitted from the token exchange request.
                             grant_type: 'authorization_code'
                         })
                     });
@@ -97,7 +98,7 @@ const GoogleWorkspace: React.FC<GoogleWorkspaceProps> = ({ authToken, setAuthTok
         } finally {
             setIsLoading(false);
         }
-    }, [authToken, searchQuery]);
+    }, [authToken, searchQuery, handleSignOut]);
 
     useEffect(() => {
         if (authToken) {
