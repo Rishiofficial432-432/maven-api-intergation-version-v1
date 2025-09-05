@@ -360,6 +360,42 @@ const TeacherDashboard: React.FC<{
     const [isEditingName, setIsEditingName] = useState(false);
     const [editedName, setEditedName] = useState(currentUser.name);
 
+    // State for highlighting new attendance records
+    const [newlyAddedIds, setNewlyAddedIds] = useState(new Set<string>());
+    const sessionAttendance = attendanceRecords.filter(rec => rec.sessionId === activeSession?.id);
+    const prevSessionAttendanceRef = useRef<AttendanceRecord[]>();
+
+    // FIX: Wrapped endSession in useCallback and moved it before the useEffect hooks to fix stale closures.
+    const endSession = useCallback(() => {
+        if (activeSession) {
+            const allSessions: Session[] = JSON.parse(localStorage.getItem('maven-portal-sessions') || '[]');
+            const updatedSessions = allSessions.map(s => s.id === activeSession.id ? { ...s, is_active: false } : s);
+            localStorage.setItem('maven-portal-sessions', JSON.stringify(updatedSessions));
+            setActiveSession(null);
+            toast.info("Attendance session has ended.");
+        }
+    }, [activeSession, setActiveSession, toast]);
+
+    useEffect(() => {
+        const prevAttendance = prevSessionAttendanceRef.current;
+        if (prevAttendance && prevAttendance.length < sessionAttendance.length) {
+            const newRecords = sessionAttendance.filter(currentRec => 
+                !prevAttendance.some(prevRec => prevRec.id === currentRec.id)
+            );
+            const newIds = new Set(newRecords.map(rec => rec.id));
+            setNewlyAddedIds(newIds);
+
+            const timer = setTimeout(() => {
+                setNewlyAddedIds(new Set());
+            }, 2000); // Match animation duration
+
+            return () => clearTimeout(timer);
+        }
+    }, [sessionAttendance]);
+
+    useEffect(() => {
+        prevSessionAttendanceRef.current = sessionAttendance;
+    });
 
     // Handle countdown timer for active session
     useEffect(() => {
@@ -377,7 +413,8 @@ const TeacherDashboard: React.FC<{
             const interval = setInterval(updateTimer, 1000);
             return () => clearInterval(interval);
         }
-    }, [activeSession]);
+    // FIX: Added endSession to the dependency array.
+    }, [activeSession, endSession]);
     
     const handleNameSave = () => {
         if (editedName.trim() && editedName !== currentUser.name) {
@@ -459,16 +496,6 @@ const TeacherDashboard: React.FC<{
             startSession(null, null);
         }
     };
-
-    const endSession = () => {
-        if (activeSession) {
-            const allSessions: Session[] = JSON.parse(localStorage.getItem('maven-portal-sessions') || '[]');
-            const updatedSessions = allSessions.map(s => s.id === activeSession.id ? { ...s, is_active: false } : s);
-            localStorage.setItem('maven-portal-sessions', JSON.stringify(updatedSessions));
-            setActiveSession(null);
-            toast.info("Attendance session has ended.");
-        }
-    };
     
     const saveCurriculum = () => {
         const otherCurriculum = curriculum.filter(c => !(c.date === today && c.teacherId === currentUser.id));
@@ -521,12 +548,21 @@ const TeacherDashboard: React.FC<{
         }
     };
 
-    const sessionAttendance = attendanceRecords.filter(rec => rec.sessionId === activeSession?.id);
     const uniqueStudents = allStudents.filter(s => s.role === 'student');
     const totalSessions = [...new Set(attendanceRecords.map(r => r.sessionId))].length;
     
     return (
         <div className="flex flex-col h-full">
+            <style>{`
+                @keyframes highlight-and-fade-in {
+                    0% { background-color: hsla(var(--primary) / 0.3); opacity: 0; transform: scale(0.98); }
+                    50% { background-color: hsla(var(--primary) / 0.1); opacity: 1; transform: scale(1.02); }
+                    100% { background-color: transparent; opacity: 1; transform: scale(1); }
+                }
+                .animate-highlight {
+                    animation: highlight-and-fade-in 2s ease-out forwards;
+                }
+            `}</style>
             <CurriculumCopilotModal
                 isOpen={isCopilotOpen}
                 onClose={() => setIsCopilotOpen(false)}
@@ -687,7 +723,11 @@ const TeacherDashboard: React.FC<{
                                     <thead><tr className="border-b border-border"><th className="p-2">Name</th><th className="p-2">Enrollment ID</th><th className="p-2">Time</th></tr></thead>
                                     <tbody>
                                         {sessionAttendance.map(rec => (
-                                            <tr key={rec.id} className="border-b border-border/50"><td className="p-2">{rec.studentName}</td><td className="p-2">{rec.enrollmentId}</td><td className="p-2 text-sm text-muted-foreground">{new Date(rec.timestamp).toLocaleTimeString()}</td></tr>
+                                            <tr key={rec.id} className={`border-b border-border/50 ${newlyAddedIds.has(rec.id) ? 'animate-highlight' : ''}`}>
+                                                <td className="p-2">{rec.studentName}</td>
+                                                <td className="p-2">{rec.enrollmentId}</td>
+                                                <td className="p-2 text-sm text-muted-foreground">{new Date(rec.timestamp).toLocaleTimeString()}</td>
+                                            </tr>
                                         ))}
                                     </tbody>
                                 </table>
