@@ -438,17 +438,17 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
   // MamDesk Handlers
   const handleAddTask = (text: string) => {
     if (text.trim()) {
-      setTasks(prev => [...prev, { id: Date.now(), text: text, completed: false, createdAt: new Date().toISOString() }]);
+      setTasks(prev => [...prev, { id: crypto.randomUUID(), text: text, completed: false, createdAt: new Date().toISOString() }]);
       return `✅ Task added: "${text}"`;
     }
     return `⚠️ Could not add an empty task.`;
   };
   
-  const handleToggleTask = (id: number) => setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  const handleDeleteTask = (id: number) => setTasks(tasks.filter(t => t.id !== id));
+  const handleToggleTask = (id: string) => setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const handleDeleteTask = (id: string) => setTasks(tasks.filter(t => t.id !== id));
   
   const handleCompleteTaskByText = (text: string) => {
-      let taskId: number | null = null;
+      let taskId: string | null = null;
       const lowerCaseText = text.toLowerCase();
       const updatedTasks = tasks.map(task => {
           if (!task.completed && task.text.toLowerCase().includes(lowerCaseText)) {
@@ -498,12 +498,12 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
   };
 
   const handleAddEvent = (title: string, date: string, time: string) => {
-      setEvents(prev => [...prev, { id: Date.now(), title, date, time }]);
+      setEvents(prev => [...prev, { id: crypto.randomUUID(), title, date, time }]);
       return `🗓️ Event added: "${title}" on ${date} at ${time}.`;
   };
 
   const handleAddKanbanCard = (columnId: string, text: string) => {
-    const newItem = { id: `item-${Date.now()}`, text };
+    const newItem: KanbanItem = { id: crypto.randomUUID(), text };
     setKanbanColumns(prev => ({
         ...prev,
         [columnId]: {
@@ -548,7 +548,7 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
   };
   
     const handleAddQuickNote = (text: string) => {
-        setQuickNotes(prev => [...prev, { id: Date.now(), text, createdAt: new Date().toISOString() }]);
+        setQuickNotes(prev => [{ id: crypto.randomUUID(), text, createdAt: new Date().toISOString() }, ...prev]);
         return `🗒️ Quick note added.`;
     };
     
@@ -561,7 +561,7 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
         if (habits.some(h => h.name.toLowerCase() === name.toLowerCase())) {
             return `⚠️ A habit named "${name}" already exists.`;
         }
-        setHabits(prev => [...prev, { id: Date.now(), name: name.trim(), streak: 0, lastCompleted: null, history: [] }]);
+        setHabits(prev => [...prev, { id: crypto.randomUUID(), name: name.trim(), streak: 0, lastCompleted: null, history: [] }]);
         return `💪 New habit added: "${name}". Let's get started!`;
     };
 
@@ -690,25 +690,25 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
     
     // Personal Suite Handlers
     const handleAddGoal = (text: string) => {
-        setGoals(prev => [...prev, { id: Date.now(), text, completed: false }]);
+        setGoals(prev => [...prev, { id: crypto.randomUUID(), text, completed: false }]);
         return `🏆 New goal set: "${text}"`;
     };
     
     const handleLogMood = (mood: string) => {
         const todayStr = new Date().toISOString().split('T')[0];
-        const newEntry: MoodEntry = { id: Date.now(), mood, date: todayStr };
+        const newEntry: MoodEntry = { id: crypto.randomUUID(), mood, date: todayStr };
         setMoodEntries(prev => [...prev.filter(e => e.date !== todayStr), newEntry]);
         return `😊 Mood logged for today: ${mood}.`;
     };
     
     const handleAddExpense = (description: string, amount: number, category: string = 'General') => {
-        const newExpense: Expense = { id: Date.now(), description, amount, category, date: new Date().toISOString() };
+        const newExpense: Expense = { id: crypto.randomUUID(), description, amount, category, date: new Date().toISOString() };
         setExpenses(prev => [newExpense, ...prev]);
         return `💸 Expense logged: $${amount} for "${description}".`;
     };
     
     const handleAddPersonalQuote = (text: string) => {
-        setPersonalQuotes(prev => [...prev, { id: Date.now(), text }]);
+        setPersonalQuotes(prev => [...prev, { id: crypto.randomUUID(), text }]);
         return `✨ Quote added to your collection.`;
     };
 

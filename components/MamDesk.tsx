@@ -25,7 +25,7 @@ declare const XLSX: any;
 
 // Type Definitions
 export interface Task {
-  id: number;
+  id: string;
   text: string;
   completed: boolean;
   createdAt: string;
@@ -46,20 +46,20 @@ export interface KanbanState {
 }
 
 export interface QuickNote {
-    id: number;
+    id: string;
     text: string;
     createdAt: string;
 }
 
 export interface CalendarEvent {
-    id: number;
+    id: string;
     title: string;
     date: string;
     time: string;
 }
 
 export interface Habit {
-    id: number;
+    id: string;
     name: string;
     streak: number;
     lastCompleted: string | null;
@@ -67,24 +67,24 @@ export interface Habit {
 }
 
 export interface Quote {
-    id: number;
+    id: string;
     text: string;
 }
 
 export interface MoodEntry {
-    id: number;
+    id: string;
     mood: string;
     date: string;
 }
 export interface Expense {
-    id: number;
+    id: string;
     description: string;
     amount: number;
     category: string;
     date: string;
 }
 export interface Goal {
-    id: number;
+    id: string;
     text: string;
     completed: boolean;
     targetDate?: string;
@@ -300,8 +300,8 @@ interface MamDeskProps {
     activeTab: string;
     tasks: Task[];
     onAddTask: (text: string) => void;
-    onToggleTask: (id: number) => void;
-    onDeleteTask: (id: number) => void;
+    onToggleTask: (id: string) => void;
+    onDeleteTask: (id: string) => void;
     kanbanColumns: KanbanState;
     setKanbanColumns: React.Dispatch<React.SetStateAction<KanbanState>>;
     onAddKanbanCard: (columnId: string, text: string) => void;
@@ -756,7 +756,7 @@ const PersonalSuite: React.FC<{
                     <p className="text-sm text-muted-foreground mb-4">How are you feeling today?</p>
                     <div className="flex justify-around bg-secondary p-2 rounded-lg">
                         {moodOptions.map(mood => (
-                            <button key={mood} onClick={() => setMoodEntries(prev => [...prev.filter(e => e.date !== todayStr), {id: Date.now(), mood, date: todayStr}])} className={`text-3xl p-2 rounded-md transition-transform hover:scale-125 ${todayMood?.mood === mood ? 'bg-primary/30' : ''}`}>{mood}</button>
+                            <button key={mood} onClick={() => setMoodEntries(prev => [...prev.filter(e => e.date !== todayStr), {id: crypto.randomUUID(), mood, date: todayStr}])} className={`text-3xl p-2 rounded-md transition-transform hover:scale-125 ${todayMood?.mood === mood ? 'bg-primary/30' : ''}`}>{mood}</button>
                         ))}
                     </div>
                 </div>
@@ -764,7 +764,7 @@ const PersonalSuite: React.FC<{
                     <h3 className="font-semibold mb-4 flex items-center gap-2"><QuoteIcon /> My Quotes</h3>
                      <div className="flex gap-2 mb-2">
                         <input type="text" value={newQuote} onChange={e => setNewQuote(e.target.value)} placeholder="Add a new quote" className="flex-1 bg-input border-border rounded-md px-3 py-2"/>
-                        <button onClick={() => { if(newQuote.trim()) { setPersonalQuotes(p => [...p, {id: Date.now(), text: newQuote}]); setNewQuote(''); } }} className="bg-primary px-4 py-2 rounded-md">+</button>
+                        <button onClick={() => { if(newQuote.trim()) { setPersonalQuotes(p => [...p, {id: crypto.randomUUID(), text: newQuote}]); setNewQuote(''); } }} className="bg-primary px-4 py-2 rounded-md">+</button>
                     </div>
                     <div className="space-y-2 max-h-24 overflow-y-auto">
                        {personalQuotes.map(q => <div key={q.id} className="group flex justify-between items-center text-sm bg-secondary p-2 rounded-md"><i>"{q.text}"</i><button onClick={() => setPersonalQuotes(p => p.filter(pq => pq.id !== q.id))} className="text-destructive opacity-0 group-hover:opacity-100"><X size={14}/></button></div>)}
@@ -774,7 +774,7 @@ const PersonalSuite: React.FC<{
                     <h3 className="font-semibold mb-4 flex items-center gap-2"><Trophy /> Goal Setter</h3>
                      <div className="flex gap-2 mb-2">
                         <input type="text" value={newGoal} onChange={e => setNewGoal(e.target.value)} placeholder="Define a new goal" className="flex-1 bg-input border-border rounded-md px-3 py-2"/>
-                        <button onClick={() => { if(newGoal.trim()) { setGoals(g => [...g, {id: Date.now(), text: newGoal, completed: false}]); setNewGoal(''); } }} className="bg-primary px-4 py-2 rounded-md">+</button>
+                        <button onClick={() => { if(newGoal.trim()) { setGoals(g => [...g, {id: crypto.randomUUID(), text: newGoal, completed: false}]); setNewGoal(''); } }} className="bg-primary px-4 py-2 rounded-md">+</button>
                     </div>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                        {goals.map(g => <div key={g.id} className="group flex justify-between items-center bg-secondary p-2 rounded-md"><div className="flex items-center gap-2"><button onClick={() => setGoals(gs => gs.map(goal => goal.id === g.id ? {...goal, completed: !goal.completed} : goal))}>{g.completed ? <CheckSquare className="text-green-500"/> : <Square/>}</button><span className={g.completed ? 'line-through text-muted-foreground' : ''}>{g.text}</span></div><button onClick={() => setGoals(gs => gs.filter(goal => goal.id !== g.id))} className="text-destructive opacity-0 group-hover:opacity-100"><X size={14}/></button></div>)}
@@ -782,7 +782,7 @@ const PersonalSuite: React.FC<{
                 </div>
                 <div className={`${cardClasses} p-6`}>
                     <h3 className="font-semibold mb-4 flex items-center gap-2"><DollarSign /> Expense Tracker</h3>
-                     <form onSubmit={(e) => { e.preventDefault(); if (expenseAmount) { setExpenses(ex => [{id: Date.now(), description: expenseDesc, amount: parseFloat(expenseAmount), category: 'General', date: new Date().toISOString()}, ...ex]); setExpenseDesc(''); setExpenseAmount('');} }} className="grid grid-cols-3 gap-2 mb-2">
+                     <form onSubmit={(e) => { e.preventDefault(); if (expenseAmount) { setExpenses(ex => [{id: crypto.randomUUID(), description: expenseDesc, amount: parseFloat(expenseAmount), category: 'General', date: new Date().toISOString()}, ...ex]); setExpenseDesc(''); setExpenseAmount('');} }} className="grid grid-cols-3 gap-2 mb-2">
                         <input required value={expenseDesc} onChange={e => setExpenseDesc(e.target.value)} placeholder="Description" className="col-span-2 bg-input border-border rounded-md px-3 py-2"/>
                         <input required value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} type="number" placeholder="Amount" className="bg-input border-border rounded-md px-3 py-2"/>
                         <button type="submit" className="col-span-3 bg-primary py-2 rounded-md">Add Expense</button>
@@ -811,11 +811,11 @@ const HabitTracker: React.FC<{
     const [newHabit, setNewHabit] = useState('');
     const handleAddHabit = () => {
       if (newHabit.trim()) {
-          setHabits(prev => [...prev, { id: Date.now(), name: newHabit.trim(), streak: 0, lastCompleted: null, history: [] }]);
+          setHabits(prev => [...prev, { id: crypto.randomUUID(), name: newHabit.trim(), streak: 0, lastCompleted: null, history: [] }]);
           setNewHabit('');
       }
     };
-    const completeHabit = (id: number) => {
+    const completeHabit = (id: string) => {
         const todayStr = new Date().toDateString();
         setHabits(habits.map(h => {
             if (h.id === id && h.lastCompleted !== todayStr) {
@@ -827,7 +827,7 @@ const HabitTracker: React.FC<{
             return h;
         }));
     };
-    const deleteHabit = (id: number) => setHabits(habits.filter(h => h.id !== id));
+    const deleteHabit = (id: string) => setHabits(habits.filter(h => h.id !== id));
 
     return (
         <div className={`${cardClasses} p-6`}>
@@ -1286,8 +1286,8 @@ const KanbanBoard: React.FC<{
 const TaskList: React.FC<{
     tasks: Task[];
     onAddTask: (text: string) => void;
-    onToggleTask: (id: number) => void;
-    onDeleteTask: (id: number) => void;
+    onToggleTask: (id: string) => void;
+    onDeleteTask: (id: string) => void;
 }> = ({ tasks, onAddTask, onToggleTask, onDeleteTask }) => {
     const [newTask, setNewTask] = useState('');
     const handleAddTask = () => {
@@ -1350,12 +1350,12 @@ const QuickNotes: React.FC<{
     
     const addNote = () => {
         if(newNote.trim()){
-            setNotes(prev => [{id: Date.now(), text: newNote, createdAt: new Date().toISOString()}, ...prev]);
+            setNotes(prev => [{id: crypto.randomUUID(), text: newNote, createdAt: new Date().toISOString()}, ...prev]);
             setNewNote('');
         }
     }
     
-    const deleteNote = (id: number) => {
+    const deleteNote = (id: string) => {
         setNotes(prev => prev.filter(n => n.id !== id));
     }
 
@@ -1418,9 +1418,9 @@ export const MamDesk: React.FC<MamDeskProps> = ({
     return (
       <div className="flex-1 flex flex-col bg-background overflow-y-auto">
         {activeTab === 'dashboard' ? (
-           <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={(text) => setQuickNotes(prev => [{id: Date.now(), text, createdAt: new Date().toISOString()}, ...prev])} onNewNote={onNewNote} />
+           <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={(text) => setQuickNotes(prev => [{id: crypto.randomUUID(), text, createdAt: new Date().toISOString()}, ...prev])} onNewNote={onNewNote} />
         ) : activeTab === 'braindump' ? (
-           <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={(text) => setQuickNotes(prev => [{id: Date.now(), text, createdAt: new Date().toISOString()}, ...prev])} onNewNote={onNewNote} />
+           <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={(text) => setQuickNotes(prev => [{id: crypto.randomUUID(), text, createdAt: new Date().toISOString()}, ...prev])} onNewNote={onNewNote} />
         ) : activeTab === 'tasks' ? (
            <TaskList tasks={tasks} onAddTask={onAddTask} onToggleTask={onToggleTask} onDeleteTask={onDeleteTask} />
         ) : activeTab === 'kanban' ? (
