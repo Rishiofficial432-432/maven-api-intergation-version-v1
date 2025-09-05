@@ -1,81 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, FlaskConical, PencilRuler, Users as UsersIcon } from 'lucide-react';
-import { supabase, isSupabaseConfigured } from './supabase-config';
+import { supabase, isSupabaseConfigured, Database } from './supabase-config';
 import { useToast } from './Toast';
 import { geminiAI } from './gemini';
 import QRCode from 'qrcode';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 
 // --- TYPES ---
-interface User {
-    id: number;
-    created_at: string;
-    name: string;
-    email: string | null;
-    role: 'teacher' | 'student';
-    enrollment_id: string | null;
-    phone: string | null;
-    password?: string;
-}
+type Profile = Database['public']['Tables']['portal_users']['Row'];
+type Session = Database['public']['Tables']['portal_sessions']['Row'];
+type Curriculum = Database['public']['Tables']['portal_curriculum']['Row'];
+type AttendanceRecord = Database['public']['Tables']['portal_attendance']['Row'];
 
-interface Session {
-    id: string; // UUID
-    created_at: string;
-    expires_at: string;
-    teacher_id: number | null;
-    is_active: boolean;
-    session_code?: string;
-    location_enforced: boolean; 
-    location?: {
-        latitude: number;
-        longitude: number;
-        radius: number; // in meters
-    };
-    location_name?: string;
-}
+type ViewMode = 'login' | 'signup';
 
-interface Curriculum {
-    id: string;
-    teacherId: number;
-    date: string; // YYYY-MM-DD
-    topic: string;
-    activities: string;
-}
-
-interface AttendanceRecord {
-    id: string;
-    sessionId: string;
-    studentName: string;
-    enrollmentId: string;
-    timestamp: string;
-    teacherId: number;
-}
-
-interface NewUser {
-    name: string;
-    email: string;
-    password?: string;
-    role: 'teacher' | 'student';
-    enrollment_id: string | null;
-    phone: string | null;
-}
-
-type ViewMode = 'login' | 'signup' | 'forgot_password' | 'forgot_password_confirmation';
-
-// =================================================================
-// MOCK DATA AND CONFIG
-// =================================================================
-const MOCK_TEACHER: User = { id: 101, created_at: new Date().toISOString(), name: 'Dr. Evelyn Reed', email: 'teacher@example.com', role: 'teacher', enrollment_id: null, phone: '555-0101', password: 'password123' };
-const MOCK_STUDENTS: User[] = [
-    { id: 201, created_at: new Date().toISOString(), name: 'Alex Johnson', email: 'alex@example.com', role: 'student', enrollment_id: 'S201', phone: '555-0102', password: 'password123' },
-    { id: 202, created_at: new Date().toISOString(), name: 'Maria Garcia', email: 'maria@example.com', role: 'student', enrollment_id: 'S202', phone: '555-0103', password: 'password123' },
-    { id: 203, created_at: new Date().toISOString(), name: 'Chen Wei', email: 'chen@example.com', role: 'student', enrollment_id: 'S203', phone: '555-0104', password: 'password123' },
-];
-const MOCK_SESSIONS: Session[] = [];
-const MOCK_CURRICULUM: Curriculum[] = [
-    { id: 'c1', teacherId: 101, date: new Date().toISOString().split('T')[0], topic: 'Introduction to React Hooks', activities: '1. useState deep dive\n2. useEffect for side effects\n3. Group project setup' }
-];
-const MOCK_ATTENDANCE: AttendanceRecord[] = [];
 
 // =================================================================
 // HELPERS
@@ -100,9 +39,9 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 const getGeolocationErrorMessage = (error: GeolocationPositionError): string => {
   switch (error.code) {
     case error.PERMISSION_DENIED:
-      return "Location permission denied. Please check your browser settings.";
+      return "Location permission denied. Please enable it in your browser settings to check in.";
     case error.POSITION_UNAVAILABLE:
-      return "Unable to retrieve your location at this time.";
+      return "Unable to retrieve your location. Please check your device's location services.";
     case error.TIMEOUT:
       return "Getting your location took too long. Please try again.";
     default:
@@ -110,32 +49,6 @@ const getGeolocationErrorMessage = (error: GeolocationPositionError): string => 
   }
 };
 
-
-// =================================================================
-// LOCALSTORAGE-BASED MOCK BACKEND
-// =================================================================
-
-const usePersistentMockState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-    const [state, setState] = useState<T>(() => {
-        try {
-            const item = window.localStorage.getItem(`maven-portal-${key}`);
-            return item ? JSON.parse(item) : defaultValue;
-        } catch (error) {
-            console.warn(`Error reading localStorage key “${key}”:`, error);
-            return defaultValue;
-        }
-    });
-
-    useEffect(() => {
-        try {
-            window.localStorage.setItem(`maven-portal-${key}`, JSON.stringify(state));
-        } catch (error) {
-            console.error(`Error setting localStorage key “${key}”:`, error);
-        }
-    }, [key, state]);
-
-    return [state, setState];
-};
 
 // =================================================================
 // CURRICULUM COPILOT MODAL
@@ -215,7 +128,7 @@ const CurriculumCopilotModal: React.FC<CurriculumCopilotModalProps> = ({ isOpen,
 
     return (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl transform transition-all duration-300 animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
                 <div className="p-6 border-b border-border">
                     <div className="flex justify-between items-center">
                         <h2 className="text-xl font-bold flex items-center gap-2"><Wand2 size={20} className="text-primary"/> Curriculum Copilot</h2>
@@ -244,78 +157,244 @@ const CurriculumCopilotModal: React.FC<CurriculumCopilotModalProps> = ({ isOpen,
                                 ))}
                             </div>
                         </div>
-                        <button onClick={handleGenerate} disabled={isLoading} className="w-full bg-primary text-primary-foreground py-2 rounded-md flex items-center justify-center gap-2">
+                        <button onClick={handleGenerate} disabled={isLoading || !topic.trim()} className="w-full bg-primary text-primary-foreground py-2 rounded-md flex items-center justify-center gap-2 disabled:opacity-50">
                             {isLoading ? <Loader className="animate-spin"/> : <RefreshCw size={16}/>} Generate Plan
                         </button>
                     </div>
 
                     {/* Right Side: Output */}
-                    <div className="bg-secondary/50 rounded-lg p-4 min-h-[300px]">
+                    <div className="bg-secondary/50 rounded-lg p-4 min-h-[300px] flex flex-col">
                         <h3 className="font-semibold mb-2">Generated Plan</h3>
-                        {isLoading ? (
-                            <div className="flex items-center justify-center h-full text-muted-foreground"><Loader className="animate-spin mr-2"/> Thinking...</div>
-                        ) : generatedPlan ? (
-                            <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">{generatedPlan}</pre>
-                        ) : (
-                            <div className="flex items-center justify-center h-full text-muted-foreground text-center">Your generated lesson plan will appear here.</div>
-                        )}
+                        <div className="flex-1 overflow-y-auto">
+                            {isLoading ? (
+                                <div className="flex items-center justify-center h-full text-muted-foreground"><Loader className="animate-spin mr-2"/> Thinking...</div>
+                            ) : generatedPlan ? (
+                                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">{generatedPlan}</pre>
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-muted-foreground text-center">Your generated lesson plan will appear here.</div>
+                            )}
+                        </div>
                     </div>
                 </div>
-                 {generatedPlan && (
+                 {generatedPlan && !isLoading && (
                     <div className="p-6 border-t border-border text-right">
-                        <button onClick={handleApplyPlan} className="bg-green-600 text-white px-4 py-2 rounded-md font-semibold">Apply this Plan</button>
+                        <button onClick={handleApplyPlan} className="bg-green-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-green-700 transition-colors">Apply this Plan</button>
                     </div>
                 )}
             </div>
+             <style>{`
+                @keyframes fade-in-up {
+                    from { opacity: 0; transform: translateY(20px) scale(0.98); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                .animate-fade-in-up {
+                    animation: fade-in-up 0.4s ease-out forwards;
+                }
+            `}</style>
         </div>
     );
 };
 
+// =================================================================
+// AUTHENTICATION SCREEN
+// =================================================================
+const AuthScreen: React.FC = () => {
+    const [viewMode, setViewMode] = useState<ViewMode>('login');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [name, setName] = useState('');
+    const [role, setRole] = useState<'teacher' | 'student'>('student');
+    const [loading, setLoading] = useState(false);
+    const toast = useToast();
+
+    const handleAuthAction = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            if (viewMode === 'login') {
+                const { error } = await supabase!.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                toast.success("Logged in successfully!");
+            } else { // signup
+                const { error } = await supabase!.auth.signUp({ 
+                    email, 
+                    password,
+                    options: {
+                        data: {
+                            name: name.trim(),
+                            role: role,
+                        }
+                    }
+                });
+                if (error) throw error;
+                toast.success("Signed up successfully! Please check your email for verification.");
+                setViewMode('login');
+            }
+        } catch (error: any) {
+            toast.error(error.error_description || error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <div className="w-full max-w-sm">
+                <div className="text-center mb-8">
+                    <h1 className="text-3xl font-bold">Student & Teacher Portal</h1>
+                    <p className="text-muted-foreground">{viewMode === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
+                </div>
+                <form onSubmit={handleAuthAction} className="space-y-4">
+                    {viewMode === 'signup' && (
+                        <div className="relative">
+                            <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                            <input type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" />
+                        </div>
+                    )}
+                    <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" />
+                    </div>
+                    <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" />
+                    </div>
+                    {viewMode === 'signup' && (
+                        <div>
+                            <label className="text-sm font-medium">I am a:</label>
+                            <div className="flex gap-4 mt-2">
+                                <button type="button" onClick={() => setRole('student')} className={`flex-1 p-2 rounded-md border-2 ${role === 'student' ? 'border-primary bg-primary/10' : 'border-border bg-input'}`}>Student</button>
+                                <button type="button" onClick={() => setRole('teacher')} className={`flex-1 p-2 rounded-md border-2 ${role === 'teacher' ? 'border-primary bg-primary/10' : 'border-border bg-input'}`}>Teacher</button>
+                            </div>
+                        </div>
+                    )}
+                    <button type="submit" disabled={loading} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center disabled:opacity-50">
+                        {loading && <Loader className="animate-spin mr-2"/>}
+                        {viewMode === 'login' ? 'Sign In' : 'Sign Up'}
+                    </button>
+                </form>
+                <div className="text-center mt-4">
+                    <button onClick={() => setViewMode(viewMode === 'login' ? 'signup' : 'login')} className="text-sm text-primary hover:underline">
+                        {viewMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // =================================================================
-// MAIN COMPONENT
+// DASHBOARDS
+// =================================================================
+
+const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
+    // Teacher-specific state will go here
+    return <div>Teacher Dashboard for {user.name}</div>;
+};
+
+const StudentDashboard: React.FC<{ user: Profile }> = ({ user }) => {
+    // Student-specific state will go here
+    return <div>Student Dashboard for {user.name}</div>;
+};
+
+// =================================================================
+// MAIN PORTAL COMPONENT
 // =================================================================
 const StudentTeacherPortal: React.FC = () => {
-    // If Supabase is not configured, we run in a local mock mode.
-    const [users, setUsers] = usePersistentMockState<User[]>('users', [MOCK_TEACHER, ...MOCK_STUDENTS]);
-    const [sessions, setSessions] = usePersistentMockState<Session[]>('sessions', MOCK_SESSIONS);
-    const [curriculum, setCurriculum] = usePersistentMockState<Curriculum[]>('curriculum', MOCK_CURRICULUM);
-    const [attendance, setAttendance] = usePersistentMockState<AttendanceRecord[]>('attendance', MOCK_ATTENDANCE);
-    const [currentUser, setCurrentUser] = usePersistentMockState<User | null>('currentUser', null);
-    
-    // In a real app, this would be a more robust session management.
-    // For this local-first app, just persisting the user object is enough.
+    const [session, setSession] = useState<SupabaseUser | null>(null);
+    const [profile, setProfile] = useState<Profile | null>(null);
+    const [loading, setLoading] = useState(true);
+    const toast = useToast();
 
+    useEffect(() => {
+        if (!isSupabaseConfigured) {
+            setLoading(false);
+            return;
+        }
+
+        const fetchSession = async () => {
+            const { data: { session } } = await supabase!.auth.getSession();
+            setSession(session?.user ?? null);
+            setLoading(false);
+        };
+        fetchSession();
+
+        const { data: authListener } = supabase!.auth.onAuthStateChange((_event, session) => {
+            setSession(session?.user ?? null);
+            if (_event === 'SIGNED_OUT') {
+                setProfile(null);
+            }
+        });
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (session && !profile) {
+            const fetchProfile = async () => {
+                const { data, error } = await supabase!
+                    .from('portal_users')
+                    .select('*')
+                    .eq('id', session.id)
+                    .single();
+                if (error) {
+                    toast.error("Could not fetch user profile.");
+                    console.error(error);
+                } else {
+                    setProfile(data);
+                }
+            };
+            fetchProfile();
+        }
+    }, [session, profile, toast]);
+
+    const handleLogout = async () => {
+        await supabase!.auth.signOut();
+        toast.info("You have been logged out.");
+    };
+
+    if (loading) {
+        return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary"/></div>;
+    }
+    
     if (!isSupabaseConfigured) {
         return (
-            <div className="flex-1 flex flex-col h-full bg-background text-foreground overflow-hidden">
-                <div className="p-4 border-b border-border flex-shrink-0 flex items-center justify-center text-center">
-                    <Info size={18} className="text-yellow-400 mr-2" />
-                    <p className="text-sm text-muted-foreground">
-                        Student/Teacher Portal is running in a **local-only mock mode**. To enable database features, configure your Supabase credentials in `supabase-config.ts`.
+            <div className="flex-1 flex items-center justify-center p-8 text-center">
+                <div className="p-6 bg-card border border-border rounded-lg">
+                    <ShieldCheck size={32} className="mx-auto text-primary mb-4"/>
+                    <h2 className="text-xl font-bold">Portal Feature requires configuration</h2>
+                    <p className="text-muted-foreground mt-2 max-w-md">
+                        This feature requires a database connection. Please configure your Supabase credentials on the <strong>Dashboard → Settings</strong> page to enable the Student/Teacher Portal.
                     </p>
-                </div>
-                {/* We can continue with the rest of the component, which will use the mock data hooks. */}
-                <div className="flex-1 flex items-center justify-center">
-                    <p>Portal is under construction in mock mode.</p>
                 </div>
             </div>
         );
     }
     
-    // TODO: Implement the Supabase logic here when credentials are provided.
-    // For now, the component will show the mock mode message and stop.
+    if (!session || !profile) {
+        return <AuthScreen />;
+    }
+
     return (
-         <div className="flex-1 flex items-center justify-center p-8 text-center">
-            <div className="p-6 bg-card border border-border rounded-lg">
-                <ShieldCheck size={32} className="mx-auto text-primary mb-4"/>
-                <h2 className="text-xl font-bold">Portal Feature requires configuration</h2>
-                <p className="text-muted-foreground mt-2 max-w-md">
-                    To use the Student/Teacher Portal, you need to set up a free Supabase account and add your project URL and public API key to the `components/supabase-config.ts` file.
-                </p>
-            </div>
+        <div className="flex-1 flex flex-col h-full bg-background text-foreground">
+            <header className="p-4 border-b border-border flex items-center justify-between">
+                <h1 className="text-xl font-bold">
+                    {profile.role === 'teacher' ? 'Teacher Dashboard' : 'Student Dashboard'}
+                </h1>
+                <div className="flex items-center gap-4">
+                    <span className="text-sm text-muted-foreground">Welcome, {profile.name}</span>
+                    <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300">
+                        <LogOut size={16}/> Logout
+                    </button>
+                </div>
+            </header>
+            <main className="flex-1 overflow-y-auto">
+                {profile.role === 'teacher' ? <TeacherDashboard user={profile} /> : <StudentDashboard user={profile} />}
+            </main>
         </div>
-    )
+    );
 };
 
 export default StudentTeacherPortal;

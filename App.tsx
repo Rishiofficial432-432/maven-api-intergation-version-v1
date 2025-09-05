@@ -503,7 +503,7 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
   };
 
   const handleAddKanbanCard = (columnId: string, text: string) => {
-    const newItem: KanbanItem = { id: crypto.randomUUID(), text };
+    const newItem = { id: `item-${crypto.randomUUID()}`, text };
     setKanbanColumns(prev => ({
         ...prev,
         [columnId]: {
