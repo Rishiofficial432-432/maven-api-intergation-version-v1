@@ -793,6 +793,10 @@ export const MamDesk: React.FC<MamDeskProps> = ({
       window.location.reload();
   };
 
+  // Fix: Add a handler for adding quick notes to pass to the AIBrainDump component.
+  const handleAddQuickNote = (text: string) => {
+    setQuickNotes(prev => [{ id: crypto.randomUUID(), text, createdAt: new Date().toISOString() }, ...prev]);
+  };
 
   const handleTaskSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1158,7 +1162,7 @@ const Settings = () => (
                 <div>
                     <label className="block text-sm font-medium mb-1">Supabase Anon Key</label>
                     <div className="flex items-center gap-2">
-                        <input type={isSupabaseKeyVisible ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="Enter your Supabase anonymous key" className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
+                        <input type={isSupabaseKeyVisible ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
                         <button onClick={() => setIsSupabaseKeyVisible(!isSupabaseKeyVisible)} className="p-2 text-muted-foreground hover:text-foreground">
                             {isSupabaseKeyVisible ? <EyeOff size={16}/> : <Eye size={16}/>}
                         </button>
@@ -1235,8 +1239,8 @@ const Settings = () => (
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={setQuickNotes} onNewNote={onNewNote} />;
-      case 'braindump': return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={setQuickNotes} onNewNote={onNewNote} />;
+      case 'dashboard': return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={handleAddQuickNote} onNewNote={onNewNote} />;
+      case 'braindump': return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={handleAddQuickNote} onNewNote={onNewNote} />;
       case 'tasks': return <Tasks />;
       case 'kanban': return <Kanban />;
       case 'attendance': return <AttendanceManager classes={classes} students={students} attendance={attendance} onAddClass={onAddClass} onDeleteClass={onDeleteClass} onAddStudent={onAddStudent} onDeleteStudent={onDeleteStudent} onSetAttendance={onSetAttendance} onAddStudentsBatch={onAddStudentsBatch}/>;

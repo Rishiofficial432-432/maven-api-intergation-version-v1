@@ -203,6 +203,7 @@ const AuthScreen: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
+    const [enrollmentId, setEnrollmentId] = useState('');
     const [role, setRole] = useState<'teacher' | 'student'>('student');
     const [loading, setLoading] = useState(false);
     const toast = useToast();
@@ -216,19 +217,34 @@ const AuthScreen: React.FC = () => {
                 if (error) throw error;
                 toast.success("Logged in successfully!");
             } else { // signup
+                const signupData: { name: string; role: string; enrollment_id?: string } = {
+                    name: name.trim(),
+                    role: role,
+                };
+                
+                if (role === 'student') {
+                    if (!enrollmentId.trim()) {
+                        toast.error("Enrollment ID is required for students.");
+                        setLoading(false);
+                        return;
+                    }
+                    signupData.enrollment_id = enrollmentId.trim();
+                }
+
                 const { error } = await supabase!.auth.signUp({ 
                     email, 
                     password,
                     options: {
-                        data: {
-                            name: name.trim(),
-                            role: role,
-                        }
+                        data: signupData
                     }
                 });
                 if (error) throw error;
                 toast.success("Signed up successfully! Please check your email for verification.");
                 setViewMode('login');
+                setName('');
+                setEmail('');
+                setPassword('');
+                setEnrollmentId('');
             }
         } catch (error: any) {
             toast.error(error.error_description || error.message);
@@ -244,6 +260,27 @@ const AuthScreen: React.FC = () => {
                     <h1 className="text-3xl font-bold">Student & Teacher Portal</h1>
                     <p className="text-muted-foreground">{viewMode === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
                 </div>
+                
+                {viewMode === 'login' && (
+                    <div className="bg-secondary/50 border border-border rounded-lg p-4 mb-6 text-sm">
+                        <h4 className="font-semibold text-foreground mb-2 flex items-center gap-2">
+                            <Info size={16} /> Demo Credentials
+                        </h4>
+                        <div className="space-y-2 text-muted-foreground">
+                            <div>
+                                <p className="font-medium text-foreground/90">Teacher Account:</p>
+                                <p><strong>Email:</strong> teacher@example.com</p>
+                                <p><strong>Password:</strong> password123</p>
+                            </div>
+                            <div>
+                                <p className="font-medium text-foreground/90">Student Account:</p>
+                                <p><strong>Email:</strong> alex@example.com</p>
+                                <p><strong>Password:</strong> password123</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <form onSubmit={handleAuthAction} className="space-y-4">
                     {viewMode === 'signup' && (
                         <div className="relative">
@@ -260,13 +297,22 @@ const AuthScreen: React.FC = () => {
                         <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" />
                     </div>
                     {viewMode === 'signup' && (
-                        <div>
-                            <label className="text-sm font-medium">I am a:</label>
-                            <div className="flex gap-4 mt-2">
-                                <button type="button" onClick={() => setRole('student')} className={`flex-1 p-2 rounded-md border-2 ${role === 'student' ? 'border-primary bg-primary/10' : 'border-border bg-input'}`}>Student</button>
-                                <button type="button" onClick={() => setRole('teacher')} className={`flex-1 p-2 rounded-md border-2 ${role === 'teacher' ? 'border-primary bg-primary/10' : 'border-border bg-input'}`}>Teacher</button>
+                        <>
+                            <div>
+                                <label className="text-sm font-medium">I am a:</label>
+                                <div className="flex gap-4 mt-2">
+                                    <button type="button" onClick={() => setRole('student')} className={`flex-1 p-2 rounded-md border-2 ${role === 'student' ? 'border-primary bg-primary/10' : 'border-border bg-input'}`}>Student</button>
+                                    <button type="button" onClick={() => setRole('teacher')} className={`flex-1 p-2 rounded-md border-2 ${role === 'teacher' ? 'border-primary bg-primary/10' : 'border-border bg-input'}`}>Teacher</button>
+                                </div>
                             </div>
-                        </div>
+
+                            {role === 'student' && (
+                                <div className="relative">
+                                    <ClipboardList className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                                    <input type="text" placeholder="Enrollment ID" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" />
+                                </div>
+                            )}
+                        </>
                     )}
                     <button type="submit" disabled={loading} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center disabled:opacity-50">
                         {loading && <Loader className="animate-spin mr-2"/>}
@@ -281,7 +327,7 @@ const AuthScreen: React.FC = () => {
             </div>
         </div>
     );
-}
+};
 
 // =================================================================
 // DASHBOARDS
@@ -362,12 +408,19 @@ const StudentTeacherPortal: React.FC = () => {
     if (!isSupabaseConfigured) {
         return (
             <div className="flex-1 flex items-center justify-center p-8 text-center">
-                <div className="p-6 bg-card border border-border rounded-lg">
+                <div className="p-6 bg-card border border-border rounded-lg max-w-lg">
                     <ShieldCheck size={32} className="mx-auto text-primary mb-4"/>
                     <h2 className="text-xl font-bold">Portal Feature requires configuration</h2>
-                    <p className="text-muted-foreground mt-2 max-w-md">
+                    <p className="text-muted-foreground mt-2">
                         This feature requires a database connection. Please configure your Supabase credentials on the <strong>Dashboard → Settings</strong> page to enable the Student/Teacher Portal.
                     </p>
+                    <div className="text-left bg-secondary/50 p-3 rounded-md mt-4 text-sm">
+                        <p className="text-muted-foreground font-semibold mb-2">Example Credentials:</p>
+                        <div className="font-mono text-xs break-all">
+                            <p><span className="text-foreground/80">URL:</span> <span className="text-green-400">https://xyz.supabase.co</span></p>
+                            <p className="mt-1"><span className="text-foreground/80">Anon Key:</span> <span className="text-green-400">eyJhbGciOi...</span></p>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
