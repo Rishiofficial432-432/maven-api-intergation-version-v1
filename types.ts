@@ -1,4 +1,5 @@
 
+
 export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help';
 
 export interface Page {
@@ -67,7 +68,7 @@ export interface CalendarEvent {
 }
 
 export interface Habit {
-    id: string;
+    id:string;
     name: string;
     streak: number;
     lastCompleted: string | null;
@@ -116,16 +117,18 @@ export interface Attendance {
 
 // Types for AI Scheduler
 export interface Teacher {
-    id: string;
     name: string;
-    availability: string[]; // e.g., ['Monday', 'Wednesday']
-    expertise: string[]; // e.g., ['Computer Science', 'Mathematics']
+    subjects: string[];
+    availableDays: string[];
 }
-export interface Course {
-    id: string;
+export interface Subject {
     name: string;
     hoursPerWeek: number;
-    requiredExpertise: string;
+}
+export interface ClassInfo {
+    name: string;
+    subjects: string[];
+    studentCount: number;
 }
 export interface Room {
     id: string;
@@ -134,8 +137,9 @@ export interface Room {
 }
 export interface TimetableEntry {
     day: string;
-    timeSlot: string; // e.g., "09:00 - 10:00"
-    courseName: string;
+    timeSlot: string;
+    className: string;
+    subjectName: string;
     teacherName: string;
     roomName: string;
 }

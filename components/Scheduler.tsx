@@ -1,58 +1,25 @@
 
+
 import React, { useState } from 'react';
-import { Teacher, Course, Room, TimetableEntry } from '../types';
-import { Plus, Trash2, Wand2, Loader, Users, BookOpen, Building } from 'lucide-react';
-import { geminiAI } from './gemini';
-import { Type } from '@google/genai';
+import { Teacher, Subject, ClassInfo, Room, TimetableEntry } from '../types';
+import { Plus, Trash2, Wand2, Loader, Users, BookOpen, Building, UploadCloud, Download } from 'lucide-react';
 import { useToast } from './Toast';
+
+declare const XLSX: any;
 
 const Scheduler: React.FC = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [courses, setCourses] = useState<Course[]>([]);
+    const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [classes, setClasses] = useState<ClassInfo[]>([]);
     const [rooms, setRooms] = useState<Room[]>([]);
     const [timetable, setTimetable] = useState<TimetableEntry[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
 
-    // State for input forms
-    const [teacherName, setTeacherName] = useState('');
-    const [teacherExpertise, setTeacherExpertise] = useState('');
-    const [teacherAvailability, setTeacherAvailability] = useState<Set<string>>(new Set());
-    const [courseName, setCourseName] = useState('');
-    const [courseHours, setCourseHours] = useState(3);
-    const [courseExpertise, setCourseExpertise] = useState('');
+    // State for room input form
     const [roomName, setRoomName] = useState('');
     const [roomCapacity, setRoomCapacity] = useState(30);
-
-    const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
-    const handleAddTeacher = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!teacherName.trim()) return;
-        setTeachers([...teachers, {
-            id: crypto.randomUUID(),
-            name: teacherName,
-            expertise: teacherExpertise.split(',').map(e => e.trim()),
-            availability: Array.from(teacherAvailability),
-        }]);
-        setTeacherName('');
-        setTeacherExpertise('');
-        setTeacherAvailability(new Set());
-    };
-
-    const handleAddCourse = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!courseName.trim()) return;
-        setCourses([...courses, {
-            id: crypto.randomUUID(),
-            name: courseName,
-            hoursPerWeek: courseHours,
-            requiredExpertise: courseExpertise,
-        }]);
-        setCourseName('');
-        setCourseHours(3);
-        setCourseExpertise('');
-    };
+    const [isDragging, setIsDragging] = useState(false);
 
     const handleAddRoom = (e: React.FormEvent) => {
         e.preventDefault();
@@ -66,162 +33,222 @@ const Scheduler: React.FC = () => {
         setRoomCapacity(30);
     };
 
-    const handleGenerateTimetable = async () => {
-        if (!geminiAI) {
-            toast.error("AI features are disabled. Please configure your API key in settings.");
-            return;
-        }
-        if (teachers.length === 0 || courses.length === 0 || rooms.length === 0) {
-            toast.error("Please add at least one teacher, course, and room before generating a timetable.");
-            return;
-        }
+    const processFile = (file: File) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = new Uint8Array(event.target!.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Teachers
+                const teachersSheet = workbook.Sheets['Teachers'];
+                if (!teachersSheet) throw new Error("Sheet 'Teachers' not found.");
+                const teachersData: any[] = XLSX.utils.sheet_to_json(teachersSheet);
+                setTeachers(teachersData.map(t => ({
+                    name: t.TeacherName,
+                    subjects: (t.SubjectsTaught || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+                    availableDays: (t.AvailableDays || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+                })));
 
-        setIsLoading(true);
-        setTimetable(null);
+                // Subjects
+                const subjectsSheet = workbook.Sheets['Subjects'];
+                if (!subjectsSheet) throw new Error("Sheet 'Subjects' not found.");
+                const subjectsData: any[] = XLSX.utils.sheet_to_json(subjectsSheet);
+                setSubjects(subjectsData.map(s => ({
+                    name: s.SubjectName,
+                    hoursPerWeek: parseInt(s.HoursPerWeek, 10),
+                })));
+                
+                // Classes
+                const classesSheet = workbook.Sheets['Classes'];
+                if (!classesSheet) throw new Error("Sheet 'Classes' not found.");
+                const classesData: any[] = XLSX.utils.sheet_to_json(classesSheet);
+                setClasses(classesData.map(c => ({
+                    name: c.ClassName,
+                    subjects: (c.Subjects || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+                    studentCount: parseInt(c.StudentCount, 10),
+                })));
 
-        const prompt = `
-You are an expert university scheduler AI. Your task is to create a conflict-free weekly timetable based on the provided data. The academic week is from Monday to Friday, with standard class slots from 09:00 to 17:00.
+                toast.success("Academic data loaded successfully!");
 
-**Constraints to strictly follow:**
-1. A teacher cannot teach two different courses at the same time.
-2. A room cannot host two different courses at the same time.
-3. A course must be taught by a teacher whose expertise matches the course's required expertise.
-4. A course must be scheduled only on a day when the assigned teacher is available.
-5. Each course must be scheduled for its total required hours per week (e.g., a 3-hour course needs three 1-hour slots).
-6. Try to distribute the classes throughout the week to avoid overloading any single day.
-
-**Input Data:**
-- Teachers: ${JSON.stringify(teachers)}
-- Courses: ${JSON.stringify(courses)}
-- Rooms: ${JSON.stringify(rooms)}
-
-**Output:**
-Your response MUST be a valid JSON array of timetable entries, following the provided schema. Do not include any other text or explanations.
-`;
-
-        const schema = {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    day: { type: Type.STRING },
-                    timeSlot: { type: Type.STRING },
-                    courseName: { type: Type.STRING },
-                    teacherName: { type: Type.STRING },
-                    roomName: { type: Type.STRING },
-                },
-            },
+            } catch (error: any) {
+                console.error("Error parsing Excel file:", error);
+                toast.error(`Failed to parse file: ${error.message}`);
+            }
         };
-
-        try {
-            const response = await geminiAI.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: "application/json", responseSchema: schema },
-            });
-            const jsonStr = response.text.trim();
-            const parsedTimetable: TimetableEntry[] = JSON.parse(jsonStr);
-            setTimetable(parsedTimetable);
-            toast.success("Timetable generated successfully!");
-        } catch (error) {
-            console.error("Timetable generation error:", error);
-            toast.error("Failed to generate timetable. The AI may have returned an invalid format or an error occurred.");
-        } finally {
-            setIsLoading(false);
+        reader.onerror = () => toast.error("Failed to read the file.");
+        reader.readAsArrayBuffer(file);
+    };
+    
+    const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            processFile(e.dataTransfer.files[0]);
         }
     };
     
-    const organizedTimetable = timetable ? weekdays.reduce((acc, day) => {
-        acc[day] = timetable.filter(entry => entry.day === day).sort((a,b) => a.timeSlot.localeCompare(b.timeSlot));
-        return acc;
-    }, {} as Record<string, TimetableEntry[]>) : null;
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            processFile(e.target.files[0]);
+            e.target.value = '';
+        }
+    };
+    
+    const downloadTemplate = () => {
+        const teachersData = [{ TeacherName: 'Mr. Smith', SubjectsTaught: 'Mathematics, Physics', AvailableDays: 'Monday,Tuesday,Wednesday,Thursday,Friday' }];
+        const subjectsData = [{ SubjectName: 'Mathematics', HoursPerWeek: 4 }];
+        const classesData = [{ ClassName: 'Grade 10A', Subjects: 'Mathematics, Physics', StudentCount: 25 }];
+        
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(teachersData), "Teachers");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(subjectsData), "Subjects");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(classesData), "Classes");
+        XLSX.writeFile(wb, "Timetable_Template.xlsx");
+    };
 
-    const renderInputSection = (title: string, icon: React.ReactNode, items: any[], deleteFn: (id: string) => void, form: React.ReactNode) => (
-        <div className="bg-card border border-border rounded-xl p-6">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">{icon} {title}</h3>
-            <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
-                {items.map(item => (
-                    <div key={item.id} className="bg-secondary p-2 rounded-md flex justify-between items-center text-sm">
-                        <span>{item.name}</span>
-                        <button onClick={() => deleteFn(item.id)} className="text-destructive/70 hover:text-destructive"><Trash2 size={14}/></button>
-                    </div>
-                ))}
-            </div>
-            {form}
-        </div>
-    );
+    const handleGenerateTimetable = async () => {
+        if (teachers.length === 0 || subjects.length === 0 || classes.length === 0 || rooms.length === 0) {
+            toast.error("Please add rooms and upload a valid configuration file before generating.");
+            return;
+        }
+    
+        setIsLoading(true);
+        setTimetable(null);
+    
+        const worker = new Worker(new URL('../workers/timetable.worker.ts', import.meta.url), { type: 'module' });
+    
+        worker.onmessage = (event) => {
+            const { success, schedule, error } = event.data;
+            if (success) {
+                setTimetable(schedule);
+                toast.success("Timetable generated successfully!");
+            } else {
+                toast.error(error || "An unknown error occurred during timetable generation.");
+            }
+            setIsLoading(false);
+            worker.terminate();
+        };
+    
+        worker.onerror = (error) => {
+            console.error('Worker error:', error);
+            toast.error("A critical worker error occurred. See console for details.");
+            setIsLoading(false);
+            worker.terminate();
+        };
+    
+        worker.postMessage({ teachers, subjects, classes, rooms });
+    };
+
+    const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const timeSlots = Array.from(new Set(timetable?.map(t => t.timeSlot) || [])).sort();
+
+    const timetableByClass = timetable?.reduce((acc, entry) => {
+        if (!acc[entry.className]) acc[entry.className] = [];
+        acc[entry.className].push(entry);
+        return acc;
+    }, {} as Record<string, TimetableEntry[]>);
 
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {renderInputSection("Teachers", <Users/>, teachers, id => setTeachers(teachers.filter(t => t.id !== id)), 
-                    <form onSubmit={handleAddTeacher} className="space-y-2 p-2 border-t border-border">
-                        <input value={teacherName} onChange={e => setTeacherName(e.target.value)} placeholder="Teacher Name" className="w-full bg-input p-2 rounded-md text-sm" />
-                        <input value={teacherExpertise} onChange={e => setTeacherExpertise(e.target.value)} placeholder="Expertise (comma-sep)" className="w-full bg-input p-2 rounded-md text-sm" />
-                        <div className="grid grid-cols-3 gap-1">
-                            {weekdays.map(day => 
-                                <button type="button" key={day} onClick={() => setTeacherAvailability(prev => { const next = new Set(prev); if (next.has(day)) next.delete(day); else next.add(day); return next; })}
-                                className={`p-1 text-xs rounded ${teacherAvailability.has(day) ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>{day.substring(0,3)}</button>
-                            )}
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Step 1 & 2: Configuration */}
+                <div className="bg-card border border-border rounded-xl p-6 space-y-6">
+                    <div>
+                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><Building /> 1. Configure Rooms</h3>
+                        <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                             {rooms.map(item => (
+                                <div key={item.id} className="bg-secondary p-2 rounded-md flex justify-between items-center text-sm">
+                                    <span>{item.name} (Capacity: {item.capacity})</span>
+                                    <button onClick={() => setRooms(rooms.filter(r => r.id !== item.id))} className="text-destructive/70 hover:text-destructive"><Trash2 size={14}/></button>
+                                </div>
+                            ))}
                         </div>
-                        <button type="submit" className="w-full bg-primary/20 text-primary p-2 rounded-md text-sm font-semibold">Add Teacher</button>
-                    </form>
-                )}
-                {renderInputSection("Courses", <BookOpen/>, courses, id => setCourses(courses.filter(c => c.id !== id)),
-                     <form onSubmit={handleAddCourse} className="space-y-2 p-2 border-t border-border">
-                        <input value={courseName} onChange={e => setCourseName(e.target.value)} placeholder="Course Name" className="w-full bg-input p-2 rounded-md text-sm" />
-                        <input value={courseExpertise} onChange={e => setCourseExpertise(e.target.value)} placeholder="Required Expertise" className="w-full bg-input p-2 rounded-md text-sm" />
-                        <div className="flex items-center gap-2">
-                            <label className="text-sm">Hours/Week:</label>
-                            <input type="number" value={courseHours} onChange={e => setCourseHours(parseInt(e.target.value))} className="w-full bg-input p-2 rounded-md text-sm" />
+                        <form onSubmit={handleAddRoom} className="space-y-2 p-2 mt-2 border-t border-border">
+                            <div className="flex gap-2">
+                                <input value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="Room Name/Number" className="w-full bg-input p-2 rounded-md text-sm" />
+                                <input type="number" value={roomCapacity} onChange={e => setRoomCapacity(parseInt(e.target.value))} placeholder="Capacity" className="w-24 bg-input p-2 rounded-md text-sm" />
+                            </div>
+                            <button type="submit" className="w-full bg-primary/20 text-primary p-2 rounded-md text-sm font-semibold">Add Room</button>
+                        </form>
+                    </div>
+
+                    <div>
+                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2"><UploadCloud /> 2. Upload Data File</h3>
+                        <input type="file" id="file-upload" className="hidden" accept=".xlsx, .xls" onChange={handleFileSelect} />
+                        <div
+                            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            onDrop={handleFileDrop}
+                            className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
+                        >
+                           <label htmlFor="file-upload" className="w-full text-center cursor-pointer">
+                                <p className="text-sm text-muted-foreground">Drag & drop or click to upload an Excel file</p>
+                                <p className="text-xs text-muted-foreground/70 mt-1">Contains Teachers, Subjects, and Classes</p>
+                           </label>
                         </div>
-                        <button type="submit" className="w-full bg-primary/20 text-primary p-2 rounded-md text-sm font-semibold">Add Course</button>
-                    </form>
-                )}
-                {renderInputSection("Rooms", <Building/>, rooms, id => setRooms(rooms.filter(r => r.id !== id)),
-                     <form onSubmit={handleAddRoom} className="space-y-2 p-2 border-t border-border">
-                        <input value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="Room Name/Number" className="w-full bg-input p-2 rounded-md text-sm" />
-                        <div className="flex items-center gap-2">
-                             <label className="text-sm">Capacity:</label>
-                            <input type="number" value={roomCapacity} onChange={e => setRoomCapacity(parseInt(e.target.value))} className="w-full bg-input p-2 rounded-md text-sm" />
-                        </div>
-                        <button type="submit" className="w-full bg-primary/20 text-primary p-2 rounded-md text-sm font-semibold">Add Room</button>
-                    </form>
-                )}
-            </div>
-            
-            <div className="text-center">
-                <button
-                    onClick={handleGenerateTimetable}
-                    disabled={isLoading}
-                    className="px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold text-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 flex items-center gap-2 mx-auto"
-                >
-                    {isLoading ? <><Loader className="animate-spin" /> Generating...</> : <><Wand2 /> Generate Timetable with AI</>}
-                </button>
+                        <button onClick={downloadTemplate} className="mt-2 text-sm text-primary hover:underline flex items-center gap-1 mx-auto"><Download size={14}/> Download Template</button>
+                    </div>
+                </div>
+
+                {/* Data Summary & Generation */}
+                <div className="bg-card border border-border rounded-xl p-6 flex flex-col">
+                    <h3 className="text-xl font-bold mb-4">3. Generate Timetable</h3>
+                    <div className="grid grid-cols-3 gap-4 text-center flex-grow">
+                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold">{teachers.length}</p><p className="text-sm text-muted-foreground">Teachers</p></div>
+                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold">{subjects.length}</p><p className="text-sm text-muted-foreground">Subjects</p></div>
+                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold">{classes.length}</p><p className="text-sm text-muted-foreground">Classes</p></div>
+                    </div>
+                    <button
+                        onClick={handleGenerateTimetable}
+                        disabled={isLoading}
+                        className="mt-6 px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold text-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 flex items-center gap-2 mx-auto"
+                    >
+                        {isLoading ? <><Loader className="animate-spin" /> Generating...</> : <><Wand2 /> Generate Timetable</>}
+                    </button>
+                </div>
             </div>
 
-            {organizedTimetable && (
-                <div className="bg-card border border-border rounded-xl p-6">
-                    <h2 className="text-2xl font-bold mb-4">Generated Weekly Timetable</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                        {weekdays.map(day => (
-                            <div key={day} className="bg-secondary p-3 rounded-lg">
-                                <h3 className="font-bold text-center mb-3">{day}</h3>
-                                <div className="space-y-2">
-                                    {organizedTimetable[day]?.length > 0 ? organizedTimetable[day].map(entry => (
-                                        <div key={`${entry.day}-${entry.timeSlot}-${entry.courseName}`} className="bg-accent p-2 rounded-md text-xs">
-                                            <p className="font-semibold text-primary">{entry.timeSlot}</p>
-                                            <p className="font-bold">{entry.courseName}</p>
-                                            <p className="text-muted-foreground">{entry.teacherName}</p>
-                                            <p className="text-muted-foreground">@{entry.roomName}</p>
-                                        </div>
-                                    )) : (
-                                        <p className="text-xs text-muted-foreground text-center py-4">No classes</p>
-                                    )}
-                                </div>
+            {timetableByClass && (
+                <div className="space-y-6">
+                    {Object.entries(timetableByClass).map(([className, entries]) => (
+                        <div key={className} className="bg-card border border-border rounded-xl p-6">
+                            <h2 className="text-2xl font-bold mb-4">Timetable for: <span className="text-primary">{className}</span></h2>
+                            <div className="overflow-x-auto">
+                                <table className="w-full border-collapse">
+                                    <thead>
+                                        <tr>
+                                            <th className="p-2 border border-border bg-secondary w-32">Time</th>
+                                            {weekdays.map(day => <th key={day} className="p-2 border border-border bg-secondary">{day}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {timeSlots.map(slot => (
+                                            <tr key={slot}>
+                                                <td className="p-2 border border-border font-mono text-xs text-center bg-secondary">{slot}</td>
+                                                {weekdays.map(day => {
+                                                    const entry = entries.find(e => e.day === day && e.timeSlot === slot);
+                                                    return (
+                                                        <td key={day} className="p-2 border border-border text-center align-top h-24">
+                                                            {entry ? (
+                                                                <div className="bg-accent p-2 rounded-md text-xs text-left h-full">
+                                                                    <p className="font-bold">{entry.subjectName}</p>
+                                                                    <p className="text-muted-foreground">{entry.teacherName}</p>
+                                                                    <p className="text-muted-foreground">@{entry.roomName}</p>
+                                                                </div>
+                                                            ) : null}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

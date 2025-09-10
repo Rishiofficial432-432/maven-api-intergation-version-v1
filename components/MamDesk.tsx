@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 // Fix: Removed `Settings` icon import to resolve name conflict with the Settings component.
 // Added `AlertTriangle` icon import for use in the data wipe confirmation modal.
@@ -25,7 +27,8 @@ import { updateApiKey } from './gemini';
 import { updateSupabaseCredentials, connectionStatus } from './supabase-config';
 import { 
     Page, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance, 
-    Teacher, Course, Room, TimetableEntry 
+    // FIX: Removed unused 'Course' type which is not exported from '../types'.
+    Teacher, Room, TimetableEntry 
 } from '../types';
 
 
