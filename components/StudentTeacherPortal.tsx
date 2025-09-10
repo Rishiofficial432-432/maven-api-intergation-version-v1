@@ -1,7 +1,4 @@
 
-
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, FlaskConical, PencilRuler } from 'lucide-react';
 import { supabase, isSupabaseConfigured, Database, initPromise } from './supabase-config';
@@ -202,7 +199,7 @@ const CurriculumCopilotModal: React.FC<CurriculumCopilotModalProps> = ({ isOpen,
 // =================================================================
 // AUTHENTICATION SCREEN
 // =================================================================
-const AuthScreen: React.FC<{ onDemoLogin: (profile: Profile) => void }> = ({ onDemoLogin }) => {
+const AuthScreen: React.FC = () => {
     const [viewMode, setViewMode] = useState<ViewMode>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -216,30 +213,8 @@ const AuthScreen: React.FC<{ onDemoLogin: (profile: Profile) => void }> = ({ onD
         e.preventDefault();
         setLoading(true);
 
-        // Demo mode check
-        if ((email === 'teacher@example.com' || email === 'student@example.com') && password === 'password123') {
-            const isTeacher = email === 'teacher@example.com';
-            const demoProfile: Profile = {
-                id: isTeacher ? 'demo-teacher-id' : 'demo-student-id',
-                created_at: new Date().toISOString(),
-                email: email,
-                enrollment_id: isTeacher ? null : 'DEMO-001',
-                name: isTeacher ? 'Demo Teacher' : 'Demo Student',
-                phone: null,
-                role: isTeacher ? 'teacher' : 'student',
-                teacher_id: null
-            };
-            toast.success(`Logged in as ${demoProfile.name}!`);
-            onDemoLogin(demoProfile);
-            setLoading(false);
-            return;
-        }
-
-        if (!isSupabaseConfigured) {
-            toast.error("Database not configured. Please use demo credentials or set up Supabase in settings.");
-            setLoading(false);
-            return;
-        }
+        // Assumption: This component is only rendered if Supabase is configured.
+        // The check is handled by the parent StudentTeacherPortal component.
 
         try {
             if (viewMode === 'login') {
@@ -290,20 +265,6 @@ const AuthScreen: React.FC<{ onDemoLogin: (profile: Profile) => void }> = ({ onD
                     <h1 className="text-3xl font-bold">Student & Teacher Portal</h1>
                     <p className="text-muted-foreground">{viewMode === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
                 </div>
-                
-                {!isSupabaseConfigured && viewMode === 'login' && (
-                    <div className="bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-lg p-4 mb-6 text-sm">
-                        <h4 className="font-semibold text-blue-200 mb-2 flex items-center gap-2">
-                            <Info size={16} /> Demo Mode Available
-                        </h4>
-                        <p className="text-xs">Database not configured. You can log in with demo accounts to explore the UI.</p>
-                        <div className="mt-2 pt-2 border-t border-blue-500/20 space-y-1 text-xs">
-                             <p><strong>Teacher:</strong> <code className="bg-background px-1 rounded">teacher@example.com</code></p>
-                             <p><strong>Student:</strong> <code className="bg-background px-1 rounded">student@example.com</code></p>
-                             <p><strong>Password:</strong> <code className="bg-background px-1 rounded">password123</code></p>
-                        </div>
-                    </div>
-                )}
 
                 <form onSubmit={handleAuthAction} className="space-y-4">
                     {viewMode === 'signup' && (
@@ -368,11 +329,10 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
     const [topic, setTopic] = useState('');
     const [activities, setActivities] = useState('');
     const toast = useToast();
-    const isDemoMode = user.id.startsWith('demo-');
 
     // Fetch active session and curriculum on mount
     useEffect(() => {
-        if (isDemoMode || !isSupabaseConfigured) return;
+        if (!isSupabaseConfigured) return;
         const fetchActiveSession = async () => {
             const { data, error } = await supabase!
                 .from('portal_sessions')
@@ -398,7 +358,7 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
         };
         fetchActiveSession();
         fetchCurriculum();
-    }, [user.id, isDemoMode]);
+    }, [user.id]);
     
     // Generate QR Code when session changes
     useEffect(() => {
@@ -409,7 +369,7 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
             });
             // Fetch initial attendance list
             const fetchAttendance = async () => {
-                if (isDemoMode || !isSupabaseConfigured) return;
+                if (!isSupabaseConfigured) return;
                  const { data, error } = await supabase!.from('portal_attendance').select('*, portal_users!student_id(*)').eq('session_id', activeSession.id);
                  if (error) toast.error("Could not fetch attendance");
                  else setLiveAttendance(data as AttendanceRecord[]);
@@ -419,11 +379,11 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
             setQrCodeUrl('');
             setLiveAttendance([]);
         }
-    }, [activeSession, toast, isDemoMode]);
+    }, [activeSession, toast]);
 
     // Real-time subscription for attendance
     useEffect(() => {
-        if (!activeSession || isDemoMode || !isSupabaseConfigured) return;
+        if (!activeSession || !isSupabaseConfigured) return;
         const channel = supabase!
             .channel(`public:portal_attendance:session_id=eq.${activeSession.id}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_attendance', filter: `session_id=eq.${activeSession.id}` },
@@ -439,10 +399,9 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
             )
             .subscribe();
         return () => { supabase!.removeChannel(channel); };
-    }, [activeSession, toast, isDemoMode]);
+    }, [activeSession, toast]);
 
     const startSession = async () => {
-        if (isDemoMode) { toast.info("Starting sessions is disabled in demo mode."); return; }
         setStartingSession(true);
         let locationData: { latitude: number; longitude: number } | null = null;
         if (locationEnforced) {
@@ -477,7 +436,6 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
     };
 
     const endSession = async () => {
-        if (isDemoMode) { toast.info("Ending sessions is disabled in demo mode."); return; }
         if (!activeSession) return;
         const { error } = await supabase!.from('portal_sessions').update({ is_active: false }).eq('id', activeSession.id);
         if (error) toast.error(error.message);
@@ -488,7 +446,6 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
     };
     
     const handleSaveCurriculum = async () => {
-        if (isDemoMode) { toast.info("Saving curriculum is disabled in demo mode."); return; }
         const date = new Date().toISOString().split('T')[0];
         if (!topic.trim()) {
             toast.error("Please enter a topic for the curriculum.");
@@ -650,10 +607,9 @@ const StudentDashboard: React.FC<{ user: Profile }> = ({ user }) => {
     const [attendanceHistory, setAttendanceHistory] = useState<(Session & { checked_in: boolean })[]>([]);
     const [todayCurriculum, setTodayCurriculum] = useState<Curriculum | null>(null);
     const toast = useToast();
-    const isDemoMode = user.id.startsWith('demo-');
     
     useEffect(() => {
-        if (isDemoMode || !isSupabaseConfigured) return;
+        if (!isSupabaseConfigured) return;
         const fetchHistory = async () => {
             const { data: sessions, error } = await supabase!.from('portal_sessions').select('*').order('created_at', { ascending: false }).limit(10);
             if (error) { toast.error("Could not fetch session history"); return; }
@@ -664,11 +620,10 @@ const StudentDashboard: React.FC<{ user: Profile }> = ({ user }) => {
             setAttendanceHistory(sessions.map(s => ({ ...s, checked_in: attendedSessionIds.has(s.id) })));
         }
         fetchHistory();
-    }, [user.id, toast, isDemoMode]);
+    }, [user.id, toast]);
     
     const handleCheckIn = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isDemoMode) { toast.info("Checking in is disabled in demo mode."); return; }
         setCheckingIn(true);
         try {
             const { data: session, error: sessionError } = await supabase!.from('portal_sessions').select('*').eq('session_code', code).single();
@@ -770,7 +725,6 @@ const StudentTeacherPortal: React.FC = () => {
     const [isClientInitialized, setIsClientInitialized] = useState(false);
     const [session, setSession] = useState<SupabaseUser | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
-    const [demoProfile, setDemoProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
     const toast = useToast();
 
@@ -824,11 +778,6 @@ const StudentTeacherPortal: React.FC = () => {
     }, [session, profile, toast]);
 
     const handleLogout = async () => {
-        if (demoProfile) {
-            setDemoProfile(null);
-            toast.info("You have been logged out of demo mode.");
-            return;
-        }
         if (!isSupabaseConfigured) return;
         await supabase!.auth.signOut();
         toast.info("You have been logged out.");
@@ -837,18 +786,29 @@ const StudentTeacherPortal: React.FC = () => {
     if (loading || !isClientInitialized) {
         return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary"/></div>;
     }
-    
-    if (!isSupabaseConfigured && !demoProfile) {
-        return <AuthScreen onDemoLogin={setDemoProfile} />;
+
+    if (!isSupabaseConfigured) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                <div className="bg-card border border-border rounded-xl p-8 max-w-md">
+                    <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-4"/>
+                    <h2 className="text-xl font-bold text-foreground">Portal Configuration Required</h2>
+                    <p className="text-muted-foreground mt-2">
+                        The Student/Teacher Portal requires a connection to a Supabase database. Please configure your Supabase URL and Anon Key in the application's settings to enable this feature.
+                    </p>
+                    <p className="text-xs mt-4 text-muted-foreground">
+                        Navigate to: <span className="font-mono bg-secondary px-1 py-0.5 rounded">Dashboard &gt; Settings</span>
+                    </p>
+                </div>
+            </div>
+        );
     }
     
-    const userProfile = profile || demoProfile;
-
-    if (!session && !demoProfile) {
-        return <AuthScreen onDemoLogin={setDemoProfile} />;
+    if (!session) {
+        return <AuthScreen />;
     }
-
-    if (!userProfile) {
+    
+    if (!profile) {
          return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary"/></div>;
     }
 
@@ -856,17 +816,17 @@ const StudentTeacherPortal: React.FC = () => {
         <div className="flex-1 flex flex-col h-full bg-background text-foreground">
             <header className="p-4 border-b border-border flex items-center justify-between">
                 <h1 className="text-xl font-bold">
-                    {userProfile.role === 'teacher' ? 'Teacher Dashboard' : 'Student Dashboard'}
+                    {profile.role === 'teacher' ? 'Teacher Dashboard' : 'Student Dashboard'}
                 </h1>
                 <div className="flex items-center gap-4">
-                    <span className="text-sm text-muted-foreground">Welcome, {userProfile.name}</span>
+                    <span className="text-sm text-muted-foreground">Welcome, {profile.name}</span>
                     <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300">
                         <LogOut size={16}/> Logout
                     </button>
                 </div>
             </header>
             <main className="flex-1 overflow-y-auto p-6">
-                {userProfile.role === 'teacher' ? <TeacherDashboard user={userProfile} /> : <StudentDashboard user={userProfile} />}
+                {profile.role === 'teacher' ? <TeacherDashboard user={profile} /> : <StudentDashboard user={profile} />}
             </main>
         </div>
     );

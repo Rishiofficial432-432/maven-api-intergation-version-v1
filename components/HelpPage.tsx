@@ -70,6 +70,34 @@ export const HelpPage: React.FC = () => {
                 </p>
             </Section>
 
+            <Section title="API Key Configuration">
+                <p>
+                    Maven relies on a couple of external APIs to power its most advanced features. These keys are stored locally in your browser and are required for certain functionalities to work. You can set them in the <strong>Dashboard → Settings</strong> page.
+                </p>
+                <h3 className="text-xl font-bold text-white mt-4 mb-2">Google Gemini API Key</h3>
+                <p>
+                    <strong>Required for:</strong> All AI features.
+                </p>
+                <ul className="list-disc pl-6 space-y-1">
+                    <li>The AI Assistant (chatbot)</li>
+                    <li>AI Brain Dump processing</li>
+                    <li>In-note AI commands (Summarize, Improve, etc.) via `Cmd+K`</li>
+                    <li>Global AI Search via `Cmd+P`</li>
+                    <li>DocuMind AI explanations</li>
+                </ul>
+                <p className="mt-2">
+                    To get your key, visit the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google AI Studio</a>, create a new project, and generate an API key.
+                </p>
+
+                <h3 className="text-xl font-bold text-white mt-6 mb-2">Supabase Credentials</h3>
+                <p>
+                    <strong>Required for:</strong> The Student/Teacher Portal feature only.
+                </p>
+                <p>
+                    This feature requires a cloud database to manage users and real-time attendance sessions. If you do not plan to use the portal, you can leave these fields blank. To set it up, you need a Supabase account and a project. You can find your Project URL and Anon Key in your Supabase project's API settings.
+                </p>
+            </Section>
+
             <Section title="Getting Started: The Maven Interface">
                 <p>The application is divided into three main areas:</p>
                 <ul className="list-disc pl-6 space-y-2">

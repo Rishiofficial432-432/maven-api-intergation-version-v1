@@ -2,6 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 
 export let geminiAI: GoogleGenAI | null = null;
 
+const GEMINI_API_KEY_FALLBACK = "AIzaSyCPdOt5TakRkdDSv1V3IIBeB9HyId60ZIo";
+
 const initializeAiClient = (apiKey: string | null) => {
     try {
         if (apiKey && apiKey.trim().length > 10) { // Simple validation
@@ -29,17 +31,11 @@ export const updateApiKey = (apiKey: string | null) => {
     initializeAiClient(keyToStore);
 };
 
-// Initial load from localStorage
-const initialKey = localStorage.getItem('gemini-api-key');
+// Initial load from localStorage, with a fallback to the hardcoded key
+const initialKey = localStorage.getItem('gemini-api-key') || GEMINI_API_KEY_FALLBACK;
 
 if (initialKey) {
     initializeAiClient(initialKey);
 } else {
-    // Check for the fallback from index.html (which is now empty by default)
-    const envKey = process.env.API_KEY;
-    if (envKey) {
-        initializeAiClient(envKey);
-    } else {
-        console.warn("Gemini API key not found in localStorage or environment. AI features will be disabled until a key is provided in settings.");
-    }
+    console.warn("Gemini API key not found. AI features will be disabled until a key is provided in settings.");
 }

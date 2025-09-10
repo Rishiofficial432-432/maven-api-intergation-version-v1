@@ -4,6 +4,10 @@
 
 
 
+
+
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
@@ -21,7 +25,7 @@ import SearchPalette from './components/SearchPalette';
 import LandingPage from './components/LandingPage';
 import AboutPage from './components/AboutPage';
 import { HelpPage } from './components/HelpPage';
-import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon } from 'lucide-react';
 import { updateSupabaseCredentials, getSupabaseCredentials, connectionStatus as supabaseConnectionStatus } from './components/supabase-config';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
@@ -207,7 +211,7 @@ const App: React.FC = () => {
   const [dataWipeConfirmation, setDataWipeConfirmation] = useState('');
   
   // Settings page state
-  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini-api-key') || '');
+  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini-api-key') || 'AIzaSyCPdOt5TakRkdDSv1V3IIBeB9HyId60ZIo');
   const [supabaseUrl, setSupabaseUrl] = useState(getSupabaseCredentials().url);
   const [supabaseKey, setSupabaseKey] = useState(getSupabaseCredentials().key);
   const [supabaseStatus, setSupabaseStatus] = useState(supabaseConnectionStatus);
@@ -954,20 +958,40 @@ const App: React.FC = () => {
                 )}
                 <div className="max-w-4xl mx-auto space-y-8">
                     <section className="bg-card border border-border rounded-xl p-6">
-                         <h2 className="text-xl font-bold mb-4">API Configuration</h2>
-                         <div className="space-y-4">
+                        <h2 className="text-2xl font-bold mb-1">API Configuration</h2>
+                        <p className="text-muted-foreground mb-6">Maven uses external services for AI features and the Student/Teacher portal. Your keys are stored securely in your browser and are never sent to our servers.</p>
+
+                        {/* Gemini AI Configuration */}
+                        <div className="p-4 border border-border rounded-lg mb-6">
+                            <h3 className="text-lg font-semibold flex items-center gap-2"><BrainCircuitIcon size={20} /> Google AI (Gemini)</h3>
+                            <p className="text-sm text-muted-foreground mt-1 mb-4">Required for all AI features, including the AI Assistant, AI Brain Dump, DocuMind explanations, and in-note commands.</p>
+                            
                             <div>
-                                <label className="block text-sm font-medium text-foreground/80 mb-1">Google Gemini API Key</label>
-                                <div className="flex items-center gap-2">
-                                     <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Gemini API Key" className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">Required for all AI features. Your key is stored locally and never sent to our servers.</p>
+                                <label className="block text-sm font-medium text-foreground/80 mb-1">Gemini API Key</label>
+                                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Google Gemini API Key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
                             </div>
+                            
+                            <details className="mt-3 text-sm">
+                                <summary className="cursor-pointer text-primary hover:underline">How to get your API key</summary>
+                                <ol className="list-decimal list-inside mt-2 space-y-1 text-muted-foreground text-xs">
+                                    <li>Go to the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary/90 underline">Google AI Studio</a>.</li>
+                                    <li>Log in with your Google account.</li>
+                                    <li>Click on the "Get API key" button.</li>
+                                    <li>Create a new API key in your project.</li>
+                                    <li>Copy the generated key and paste it into the field above.</li>
+                                </ol>
+                            </details>
+                        </div>
+
+                        {/* Supabase Configuration */}
+                        <div className="p-4 border border-border rounded-lg">
+                            <h3 className="text-lg font-semibold flex items-center gap-2"><UsersIcon size={20} /> Supabase (Student/Teacher Portal)</h3>
+                            <p className="text-sm text-muted-foreground mt-1 mb-4">Required *only* for the real-time Student/Teacher Portal feature. If you don't need the portal, you can leave this blank.</p>
                             <div>
                                 <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Project URL</label>
                                 <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://xyz.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
                             </div>
-                             <div>
+                            <div className="mt-4">
                                 <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
                                 <div className="relative">
                                     <input type={showSupabaseKey ? "text" : "password"} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="w-full bg-input border-border rounded-md px-3 py-2 text-sm pr-10" />
@@ -975,15 +999,25 @@ const App: React.FC = () => {
                                         {showSupabaseKey ? <EyeOff size={16}/> : <Eye size={16}/>}
                                     </button>
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-1">Required for the Student/Teacher Portal feature. Stored locally.</p>
-                                <p className={`text-xs mt-1 ${supabaseStatus.configured ? 'text-green-400' : 'text-amber-400'}`}>{supabaseStatus.message}</p>
                             </div>
-                         </div>
-                         <div className="mt-6 text-right">
-                             <button onClick={handleSaveSettings} className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-semibold flex items-center gap-2 ml-auto">
-                                <Save size={16}/> Save Configuration
-                            </button>
-                         </div>
+                            <p className={`text-xs mt-2 ${supabaseStatus.configured ? 'text-green-400' : 'text-amber-400'}`}>{supabaseStatus.message}</p>
+                            <details className="mt-3 text-sm">
+                                <summary className="cursor-pointer text-primary hover:underline">How to get Supabase credentials</summary>
+                                <ol className="list-decimal list-inside mt-2 space-y-1 text-muted-foreground text-xs">
+                                    <li>Go to your project on <a href="https://supabase.com/" target="_blank" rel="noopener noreferrer" className="text-primary/90 underline">Supabase</a>.</li>
+                                    <li>Navigate to Project Settings (the gear icon).</li>
+                                    <li>Click on the "API" section in the sidebar.</li>
+                                    <li>You will find your Project URL and the `anon` public key there.</li>
+                                    <li>Copy and paste them into the fields above.</li>
+                                </ol>
+                            </details>
+                        </div>
+                        
+                        <div className="mt-6 text-right">
+                            <button onClick={handleSaveSettings} className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-semibold flex items-center gap-2 ml-auto">
+                                <Save size={16}/> Save All Configurations
+                           </button>
+                        </div>
                     </section>
                      <section className="bg-card border border-border rounded-xl p-6">
                          <h2 className="text-xl font-bold mb-4">Data Management</h2>
