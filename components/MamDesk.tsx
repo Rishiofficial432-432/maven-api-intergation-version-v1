@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 // Fix: Removed `Settings` icon import to resolve name conflict with the Settings component.
 // Added `AlertTriangle` icon import for use in the data wipe confirmation modal.
@@ -107,6 +108,33 @@ export interface Attendance {
         [studentId: string]: 'Present' | 'Absent';
     };
 }
+
+// Types for AI Scheduler
+export interface Teacher {
+    id: string;
+    name: string;
+    availability: string[]; // e.g., ['Monday', 'Wednesday']
+    expertise: string[]; // e.g., ['Computer Science', 'Mathematics']
+}
+export interface Course {
+    id: string;
+    name: string;
+    hoursPerWeek: number;
+    requiredExpertise: string;
+}
+export interface Room {
+    id: string;
+    name: string;
+    capacity: number;
+}
+export interface TimetableEntry {
+    day: string;
+    timeSlot: string; // e.g., "09:00 - 10:00"
+    courseName: string;
+    teacherName: string;
+    roomName: string;
+}
+
 
 // --- AI BRAIN DUMP SUB-COMPONENT ---
 

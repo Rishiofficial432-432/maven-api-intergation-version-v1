@@ -266,22 +266,19 @@ const AuthScreen: React.FC = () => {
                 {viewMode === 'login' && (
                     <div className="bg-secondary/50 border border-border rounded-lg p-4 mb-6 text-sm">
                         <h4 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                            <Info size={16} /> Demo Credentials
+                            <Info size={16} /> How to Use the Demo Credentials
                         </h4>
-                        <div className="space-y-2 text-muted-foreground">
-                            <div>
-                                <p className="font-medium text-foreground/90">Teacher Account:</p>
-                                <p><strong>Email:</strong> teacher@example.com</p>
-                                <p><strong>Password:</strong> password123</p>
-                            </div>
-                            <div>
-                                <p className="font-medium text-foreground/90">Student Account:</p>
-                                <p><strong>Email:</strong> alex@example.com</p>
-                                <p><strong>Password:</strong> password123</p>
-                            </div>
+                        <ol className="list-decimal list-inside space-y-2 text-muted-foreground text-xs">
+                            <li>Go to <strong>Dashboard → Settings</strong> and enter your Supabase Project URL and Anon Key.</li>
+                            <li>Go to your Supabase project's <strong>Authentication → Users</strong> page.</li>
+                            <li>Click "Add user" and manually create the accounts below with the password <code className="bg-background px-1 rounded">password123</code>.</li>
+                        </ol>
+                        <div className="mt-3 pt-3 border-t border-border/50 space-y-1 text-muted-foreground text-xs">
+                             <p><strong>Teacher:</strong> <code className="bg-background px-1 rounded">teacher@example.com</code></p>
+                             <p><strong>Student:</strong> <code className="bg-background px-1 rounded">alex@example.com</code></p>
                         </div>
                          <div className="mt-3 pt-3 border-t border-border/50 text-xs text-amber-400/80">
-                            <p><strong>Note:</strong> For these demo credentials to work, you must first create these users in your own Supabase project's "Authentication" section.</p>
+                            <p><strong>Note:</strong> For the portal to work fully, you must also run the SQL setup script from <code className="bg-background px-1 rounded">supabase-config.ts</code> in your Supabase SQL Editor.</p>
                         </div>
                     </div>
                 )}

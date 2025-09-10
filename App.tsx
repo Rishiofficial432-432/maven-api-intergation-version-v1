@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
@@ -10,7 +11,7 @@ import JournalView from './components/JournalView';
 import InteractiveMindMap from './components/InteractiveMindMap';
 import GoogleWorkspace from './components/GoogleWorkspace';
 import { geminiAI, updateApiKey } from './components/gemini';
-import StudentTeacherPortal from './components/StudentTeacherPortal';
+import AcademicView from './components/AcademicView';
 import { ToastProvider, useToast } from './components/Toast';
 import SearchPalette from './components/SearchPalette';
 import LandingPage from './components/LandingPage';
@@ -101,7 +102,7 @@ export const deleteBannerData = (key: string): Promise<void> => {
 };
 
 
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'portal' | 'about' | 'settings' | 'help';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help';
 
 export interface Page {
   id: string;
@@ -1073,8 +1074,8 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
                 return <InteractiveMindMap />;
             case 'workspace':
                 return <GoogleWorkspace authToken={authToken} setAuthToken={setAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
-            case 'portal':
-                return <StudentTeacherPortal />;
+            case 'academics':
+                return <AcademicView goals={goals} events={events} />;
             case 'about':
                 return <AboutPage />;
             case 'settings':

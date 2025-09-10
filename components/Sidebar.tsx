@@ -3,7 +3,7 @@ import { Page, View } from '../App';
 import { PlusIcon, FileTextIcon, BookIcon, LayoutGridIcon } from './Icons';
 import { 
   Home, CheckSquare, List, Calendar, Timer, Target, BarChart3, User, Settings, HelpCircleIcon, FileText, Dice6, BookText, Clipboard, FileSearch,
-  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info
+  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap
 } from 'lucide-react';
 
 
@@ -71,13 +71,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </kbd>
                 )}
             </button>
-             <button
-                onClick={() => setView('portal')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'portal' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
-                title="Student Portal"
+            <button
+                onClick={() => setView('academics')}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'academics' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+                title="Academics"
             >
-                <Users className="w-5 h-5 flex-shrink-0" />
-                {!isCollapsed && <span>Portal</span>}
+                <GraduationCap className="w-5 h-5 flex-shrink-0" />
+                {!isCollapsed && <span>Academics</span>}
             </button>
             <button
                 onClick={() => setView('notes')}
@@ -185,7 +185,7 @@ const Sidebar: React.FC<SidebarProps> = ({
              {view === 'journal' && <BookText className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'documind' && <FileSearch className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'workspace' && <Briefcase className="w-8 h-8 mx-auto mb-2"/>}
-             {view === 'portal' && <Users className="w-8 h-8 mx-auto mb-2"/>}
+             {view === 'academics' && <GraduationCap className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'about' && <Info className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'settings' && <Settings className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'help' && <HelpCircleIcon className="w-8 h-8 mx-auto mb-2"/>}

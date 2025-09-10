@@ -1,0 +1,220 @@
+import React, { useState, useEffect } from 'react';
+import StudentTeacherPortal from './StudentTeacherPortal';
+import { supabase, isSupabaseConfigured } from './supabase-config';
+import { User as SupabaseUser } from '@supabase/supabase-js';
+import { Database } from './supabase-config';
+import { Goal, CalendarEvent } from './MamDesk';
+import { geminiAI } from './gemini';
+import { useToast } from './Toast';
+import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock } from 'lucide-react';
+import Scheduler from './Scheduler';
+
+type AcademicViewTab = 'portal' | 'routine' | 'analytics' | 'scheduler';
+type Profile = Database['public']['Tables']['portal_users']['Row'];
+
+interface AcademicViewProps {
+    goals: Goal[];
+    events: CalendarEvent[];
+}
+
+// Daily Routine Planner Component
+const DailyRoutineGenerator: React.FC<AcademicViewProps> = ({ goals, events }) => {
+    const [routine, setRoutine] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const toast = useToast();
+
+    const generateRoutine = async () => {
+        if (!geminiAI) {
+            toast.error("AI features are disabled. Please configure your API key in settings.");
+            return;
+        }
+        setIsLoading(true);
+        setRoutine('');
+        
+        const today = new Date().toISOString().split('T')[0];
+        const todayEvents = events.filter(e => e.date === today).map(e => `- ${e.time}: ${e.title}`).join('\n');
+        const userGoals = goals.filter(g => !g.completed).map(g => `- ${g.text}`).join('\n');
+
+        const prompt = `
+You are an expert student productivity coach. Your task is to generate a personalized daily routine for a student.
+
+Today's Date: ${today}
+
+Here are the student's fixed appointments/classes for today:
+${todayEvents || "No scheduled events today."}
+
+Here are the student's long-term goals:
+${userGoals || "No long-term goals set."}
+
+Based on this information, create a productive daily schedule. Identify the free periods between the fixed appointments and suggest specific, actionable tasks that align with the student's long-term goals. Structure the output as a simple, clear timeline. Make the suggestions encouraging and motivational.
+
+Crucial Instruction: The output MUST be plain text only. Do not use any markdown formatting.
+- Do NOT use '#' for headers.
+- Do NOT use '**' for bold text.
+- Do NOT use '*' for list items. Use a simple dash '-' instead for lists.
+- Do NOT use any other markdown. The entire response should be readable as plain text without any rendering.
+`;
+
+        try {
+            const response = await geminiAI.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+            });
+            const generatedText = response.text;
+            if (!generatedText) throw new Error("AI returned an empty response.");
+            setRoutine(generatedText);
+        } catch (error) {
+            console.error("Routine generation failed:", error);
+            toast.error("Failed to generate routine. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
+            <div className="md:col-span-1 bg-card border border-border rounded-xl p-6 flex flex-col">
+                <h3 className="text-xl font-bold mb-4">Your Inputs</h3>
+                <div className="space-y-4 overflow-y-auto">
+                    <div>
+                        <h4 className="font-semibold text-muted-foreground mb-2">Today's Schedule</h4>
+                        {events.filter(e => e.date === new Date().toISOString().split('T')[0]).length > 0 ? (
+                            <ul className="list-disc pl-5 text-sm space-y-1">
+                                {events.filter(e => e.date === new Date().toISOString().split('T')[0]).map(e => <li key={e.id}>{e.time} - {e.title}</li>)}
+                            </ul>
+                        ) : <p className="text-sm text-muted-foreground">No events scheduled for today.</p>}
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-muted-foreground mb-2">Your Goals</h4>
+                        {goals.filter(g => !g.completed).length > 0 ? (
+                            <ul className="list-disc pl-5 text-sm space-y-1">
+                                {goals.filter(g => !g.completed).map(g => <li key={g.id}>{g.text}</li>)}
+                            </ul>
+                        ) : <p className="text-sm text-muted-foreground">No active goals set.</p>}
+                    </div>
+                </div>
+                <button
+                    onClick={generateRoutine}
+                    disabled={isLoading}
+                    className="mt-auto w-full bg-primary text-primary-foreground py-2 rounded-md font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                    {isLoading ? <Loader className="animate-spin" /> : <Wand2 size={16}/>}
+                    Generate Today's Routine
+                </button>
+            </div>
+            <div className="md:col-span-2 bg-card border border-border rounded-xl p-6">
+                <h3 className="text-xl font-bold mb-4">AI-Generated Daily Plan</h3>
+                <div className="overflow-y-auto h-[calc(100vh-250px)]">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
+                            <Loader className="animate-spin mr-2" /> Building your personalized routine...
+                        </div>
+                    ) : routine ? (
+                        <pre className="whitespace-pre-wrap text-foreground/90 font-sans leading-relaxed">{routine}</pre>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                            <Info size={32} className="mb-4" />
+                            <p>Click "Generate Today's Routine" to get a personalized plan that combines your schedule and goals.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// Attendance Analytics Component (Teacher View)
+const AttendanceAnalytics = () => {
+    // Placeholder - this would be a complex component
+    return (
+        <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col items-center justify-center text-center">
+            <BarChart2 size={48} className="text-primary mb-4" />
+            <h2 className="text-2xl font-bold">Attendance Analytics</h2>
+            <p className="text-muted-foreground mt-2 max-w-lg">
+                This dashboard will provide teachers with powerful insights into class attendance trends, helping to identify at-risk students and improve engagement.
+                <br /><br />
+                (Feature under construction)
+            </p>
+        </div>
+    );
+};
+
+
+// Main AcademicView Component
+const AcademicView: React.FC<AcademicViewProps> = (props) => {
+    const [activeTab, setActiveTab] = useState<AcademicViewTab>('portal');
+    const [profile, setProfile] = useState<Profile | null>(null);
+
+    // Effect to check user role from Supabase to conditionally show tabs
+    useEffect(() => {
+        const fetchProfile = async () => {
+            if (isSupabaseConfigured) {
+                const { data: { session } } = await supabase!.auth.getSession();
+                if (session) {
+                    const { data } = await supabase!.from('portal_users').select('*').eq('id', session.user.id).single();
+                    setProfile(data);
+                }
+            }
+        };
+        fetchProfile();
+    }, []);
+
+    const navItems = [
+        { id: 'portal', label: 'Portal', icon: ClipboardList, roles: ['student', 'teacher'] },
+        { id: 'routine', label: 'Daily Routine', icon: CalendarCheck, roles: ['student'] },
+        { id: 'scheduler', label: 'Scheduler', icon: Clock, roles: ['teacher'] },
+        { id: 'analytics', label: 'Analytics', icon: BarChart2, roles: ['teacher'] },
+    ];
+    
+    const availableNavItems = navItems.filter(item => {
+        if (!isSupabaseConfigured || !profile) {
+            // If not logged into portal, show portal tab and maybe routine
+             return item.id === 'portal' || item.id === 'routine';
+        }
+        return item.roles.includes(profile.role);
+    });
+
+    const renderContent = () => {
+        switch (activeTab) {
+            case 'portal':
+                return <StudentTeacherPortal />;
+            case 'routine':
+                return <DailyRoutineGenerator {...props} />;
+            case 'scheduler':
+                return <Scheduler />;
+            case 'analytics':
+                return <AttendanceAnalytics />;
+            default:
+                return <StudentTeacherPortal />;
+        }
+    };
+
+    return (
+        <div className="flex-1 flex flex-col h-full bg-accent/20 overflow-hidden">
+            <header className="p-4 border-b border-border/50 bg-card/80 backdrop-blur-sm flex-shrink-0">
+                <div className="flex items-center justify-between">
+                     <h1 className="text-2xl font-bold flex items-center gap-3"><GraduationCap /> Academics Hub</h1>
+                     <nav className="flex items-center gap-2 bg-secondary p-1.5 rounded-lg">
+                        {availableNavItems.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveTab(item.id as AcademicViewTab)}
+                                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                                    activeTab === item.id ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                            >
+                                <item.icon size={16} />
+                                {item.label}
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+            </header>
+            <main className="flex-1 overflow-y-auto p-6">
+                {renderContent()}
+            </main>
+        </div>
+    );
+};
+
+export default AcademicView;
