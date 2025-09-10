@@ -8,13 +8,16 @@ import Chatbot from './components/Chatbot';
 import JournalView from './components/JournalView';
 import InteractiveMindMap from './components/InteractiveMindMap';
 import GoogleWorkspace from './components/GoogleWorkspace';
-import { geminiAI } from './components/gemini';
+import { geminiAI, updateApiKey } from './components/gemini';
 import StudentTeacherPortal from './components/StudentTeacherPortal';
 import { ToastProvider, useToast } from './components/Toast';
 import SearchPalette from './components/SearchPalette';
 import LandingPage from './components/LandingPage';
 import AboutPage from './components/AboutPage';
-import { MapPin, Loader } from 'lucide-react';
+import { HelpPage } from './components/HelpPage';
+import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { updateSupabaseCredentials, connectionStatus } from './components/supabase-config';
+
 
 // --- IndexedDB Utility for Banners ---
 const DB_NAME = 'MavenDB';
@@ -97,7 +100,7 @@ export const deleteBannerData = (key: string): Promise<void> => {
 };
 
 
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'portal' | 'about';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'portal' | 'about' | 'settings' | 'help';
 
 export interface Page {
   id: string;
@@ -182,6 +185,103 @@ const playCompletionSound = () => {
     }
 };
 
+const SettingsPage: React.FC<{
+    theme: string;
+    setTheme: (theme: string) => void;
+    apiKeyValue: string;
+    setApiKeyValue: (key: string) => void;
+    supabaseUrl: string;
+    setSupabaseUrl: (url: string) => void;
+    supabaseKey: string;
+    setSupabaseKey: (key: string) => void;
+    onSaveApiKeys: () => void;
+    onExportData: () => void;
+    onImportData: (event: React.ChangeEvent<HTMLInputElement>) => void;
+    onWipeData: () => void;
+}> = ({ theme, setTheme, apiKeyValue, setApiKeyValue, supabaseUrl, setSupabaseUrl, supabaseKey, setSupabaseKey, onSaveApiKeys, onExportData, onImportData, onWipeData }) => {
+    const [isSupabaseKeyVisible, setIsSupabaseKeyVisible] = useState(false);
+    const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
+    const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
+
+    return (
+         <main className="flex-1 flex flex-col bg-accent/20 overflow-y-auto p-4 sm:p-6 lg:p-8">
+            <div className={`p-8 ${cardClasses} space-y-8 max-w-4xl mx-auto w-full`}>
+                <div>
+                    <h2 className="text-2xl font-bold mb-4">Settings</h2>
+                    <div className="space-y-4">
+                        <div>
+                            <h3 className="text-lg font-semibold mb-2">Theme</h3>
+                            <div className="flex gap-2">
+                                {['dark', 'light', 'midnight', 'midlight'].map(t => (
+                                    <button key={t} onClick={() => setTheme(t)} className={`px-4 py-2 rounded-md text-sm capitalize ${theme === t ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>{t}</button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 className="text-lg font-semibold mb-2 flex items-center gap-2"><BrainCircuitIcon size={20}/> API & Database Keys</h3>
+                    <p className="text-sm text-muted-foreground mb-4">Enter your keys here to enable AI features and the Student/Teacher Portal. Keys are stored locally in your browser and are never sent anywhere else.</p>
+                    <div className="space-y-4 max-w-lg">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Google Gemini API Key</label>
+                            <div className="flex items-center gap-2">
+                                <input type="password" value={apiKeyValue} onChange={e => setApiKeyValue(e.target.value)} placeholder="Enter your Gemini API Key" className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Supabase Project URL</label>
+                            <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://<project-id>.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Supabase Anon Key</label>
+                            <div className="flex items-center gap-2">
+                                <input type={isSupabaseKeyVisible ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
+                                <button onClick={() => setIsSupabaseKeyVisible(!isSupabaseKeyVisible)} className="p-2 text-muted-foreground hover:text-foreground">
+                                    {isSupabaseKeyVisible ? <EyeOff size={16}/> : <Eye size={16}/>}
+                                </button>
+                            </div>
+                            <p className={`text-xs mt-2 font-semibold ${connectionStatus.configured ? 'text-green-400' : 'text-yellow-400'}`}>{connectionStatus.message}</p>
+                        </div>
+                        <button onClick={onSaveApiKeys} className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2"><Save size={16}/> Save Keys</button>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 className="text-lg font-semibold mb-2">Data Management</h3>
+                    <div className="flex flex-wrap gap-4 items-center">
+                        <button onClick={onExportData} className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                            <Download size={16}/> Export All Data
+                        </button>
+                        <label className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 cursor-pointer">
+                            <Upload size={16}/> Import Data
+                            <input type="file" className="hidden" accept=".json" onChange={onImportData} />
+                        </label>
+                        <button onClick={() => setIsWipeModalOpen(true)} className="flex items-center gap-2 px-4 py-2 text-sm bg-destructive/20 text-destructive rounded-md hover:bg-destructive/30">
+                        <AlertTriangle size={16}/> Wipe All Data
+                        </button>
+                    </div>
+                    {isWipeModalOpen && (
+                        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+                            <div className="bg-card border border-border rounded-lg p-6 max-w-md text-center shadow-2xl">
+                                <AlertTriangle size={32} className="mx-auto text-destructive mb-4"/>
+                                <h2 className="text-xl font-bold">Are you absolutely sure?</h2>
+                                <p className="text-muted-foreground my-4">This action is irreversible. All your notes, tasks, and settings will be permanently deleted from this browser. This cannot be undone.</p>
+                                <div className="flex justify-center gap-4">
+                                    <button onClick={() => setIsWipeModalOpen(false)} className="px-6 py-2 bg-secondary rounded-md">Cancel</button>
+                                    <button onClick={() => { onWipeData(); setIsWipeModalOpen(false); }} className="px-6 py-2 bg-destructive text-destructive-foreground rounded-md">Yes, Wipe Data</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </main>
+    );
+};
+
+
 const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLandingPage }) => {
   // Initialize DB on mount
   useEffect(() => {
@@ -245,6 +345,94 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
   // Google Workspace State
   const [authToken, setAuthToken] = usePersistentState<any | null>('maven-google-auth', null);
   const [workspaceHistory, setWorkspaceHistory] = usePersistentState<WorkspaceHistoryEntry[]>('maven-workspace-history', []);
+  
+  // Settings state (lifted from MamDesk)
+  const [apiKeyValue, setApiKeyValue] = useState(localStorage.getItem('gemini-api-key') || '');
+  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('supabase-url') || '');
+  const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('supabase-anon-key') || '');
+
+  // Settings handlers (lifted from MamDesk)
+  const handleSaveApiKeys = () => {
+      updateApiKey(apiKeyValue);
+      const { success, message } = updateSupabaseCredentials(supabaseUrl, supabaseKey);
+      if (success) {
+        toast.success(message);
+      } else {
+        toast.error(message);
+      }
+  };
+
+  const handleWipeData = () => {
+      localStorage.clear();
+      window.location.reload();
+  };
+  
+  const handleExportData = () => {
+    try {
+        const allData = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) {
+                if (key.startsWith('sb-') || key === 'supabase-url' || key === 'supabase-anon-key') {
+                    continue;
+                }
+                (allData as any)[key] = localStorage.getItem(key);
+            }
+        }
+        const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const date = new Date().toISOString().slice(0, 10);
+        a.download = `maven_backup_${date}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Data exported successfully!");
+    } catch (error) {
+        console.error("Export failed:", error);
+        toast.error("Failed to export data.");
+    }
+  };
+  
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+          try {
+              const text = e.target?.result;
+              if (typeof text !== 'string') throw new Error("File is not readable text.");
+              
+              const importedData = JSON.parse(text);
+              if (window.confirm("This will overwrite all current data. Are you sure you want to continue?")) {
+                  const keysToKeep = Object.keys(localStorage).filter(key => 
+                      key.startsWith('sb-') || key === 'supabase-url' || key === 'supabase-anon-key'
+                  );
+                  const valuesToKeep = keysToKeep.map(key => ({ key, value: localStorage.getItem(key) }));
+                  
+                  localStorage.clear();
+
+                  valuesToKeep.forEach(({ key, value }) => {
+                      if (value) localStorage.setItem(key, value);
+                  });
+
+                  Object.keys(importedData).forEach(key => {
+                      if (typeof importedData[key] === 'string') {
+                          localStorage.setItem(key, importedData[key]);
+                      }
+                  });
+                  toast.success("Data imported successfully! The app will now reload.");
+                  setTimeout(() => window.location.reload(), 1500);
+              }
+          } catch (error) {
+              console.error("Import failed:", error);
+              toast.error("Failed to import data. The file may be invalid.");
+          }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+  };
 
 
   useEffect(() => {
@@ -810,6 +998,108 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
     
     const handleJournalDelete = (date: string) => setJournalEntries(prev => prev.filter(e => e.date !== date));
 
+    const renderMainContent = () => {
+        switch (view) {
+            case 'notes':
+                return activePage ? (
+                    <Editor
+                        key={activePage.id}
+                        page={activePage}
+                        onUpdatePage={handleUpdatePage}
+                        onDeletePage={handleDeletePage}
+                        onNewPage={handleNewPage}
+                    />
+                ) : (
+                    <WelcomePlaceholder onNewPage={handleNewPage} />
+                );
+            case 'dashboard':
+                return (
+                    <MamDesk
+                        activeTab={activeTab}
+                        tasks={tasks}
+                        onAddTask={handleAddTask}
+                        onToggleTask={handleToggleTask}
+                        onDeleteTask={handleDeleteTask}
+                        kanbanColumns={kanbanColumns}
+                        setKanbanColumns={setKanbanColumns}
+                        onAddKanbanCard={handleAddKanbanCard}
+                        quickNotes={quickNotes}
+                        setQuickNotes={setQuickNotes}
+                        events={events}
+                        onAddEvent={handleAddEvent}
+                        habits={habits}
+                        setHabits={setHabits}
+                        pomodoroTime={pomodoroTime}
+                        pomodoroActive={pomodoroActive}
+                        pomodoroSessions={pomodoroSessions}
+                        onTogglePomodoro={() => setPomodoroActive(!pomodoroActive)}
+                        onResetPomodoro={() => {
+                            setPomodoroActive(false);
+                            setPomodoroTime(25*60);
+                        }}
+                        decisionOptions={decisionOptions}
+                        setDecisionOptions={setDecisionOptions}
+                        decisionResult={decisionResult}
+                        setDecisionResult={setDecisionResult}
+                        isDecisionSpinning={isDecisionSpinning}
+                        setIsDecisionSpinning={setIsDecisionSpinning}
+                        currentDecisionSpin={currentDecisionSpin}
+                        setCurrentDecisionSpin={setCurrentDecisionSpin}
+                        theme={theme}
+                        setTheme={setTheme}
+                        pages={pages}
+                        classes={classes}
+                        students={students}
+                        attendance={attendance}
+                        onAddClass={handleAddClass}
+                        onDeleteClass={handleDeleteClass}
+                        onAddStudent={handleAddStudent}
+                        onDeleteStudent={handleDeleteStudent}
+                        onSetAttendance={handleSetAttendance}
+                        onAddStudentsBatch={handleAddStudentsBatch}
+                        onNewNote={handleNewPage}
+                        personalQuotes={personalQuotes}
+                        setPersonalQuotes={setPersonalQuotes}
+                        moodEntries={moodEntries}
+                        setMoodEntries={setMoodEntries}
+                        expenses={expenses}
+                        setExpenses={setExpenses}
+                        goals={goals}
+                        setGoals={setGoals}
+                    />
+                );
+            case 'journal':
+                return <JournalView entries={journalEntries} onUpdate={handleJournalUpdate} onDelete={handleJournalDelete} />;
+            case 'documind':
+                return <InteractiveMindMap />;
+            case 'workspace':
+                return <GoogleWorkspace authToken={authToken} setAuthToken={setAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
+            case 'portal':
+                return <StudentTeacherPortal />;
+            case 'about':
+                return <AboutPage />;
+            case 'settings':
+                return <SettingsPage 
+                            theme={theme} 
+                            setTheme={setTheme} 
+                            apiKeyValue={apiKeyValue}
+                            setApiKeyValue={setApiKeyValue}
+                            supabaseUrl={supabaseUrl}
+                            setSupabaseUrl={setSupabaseUrl}
+                            supabaseKey={supabaseKey}
+                            setSupabaseKey={setSupabaseKey}
+                            onSaveApiKeys={handleSaveApiKeys}
+                            onExportData={handleExportData}
+                            onImportData={handleImportData}
+                            onWipeData={handleWipeData}
+                        />;
+            case 'help':
+                return <main className="flex-1 flex flex-col bg-accent/20 overflow-y-auto p-4 sm:p-6 lg:p-8"><HelpPage /></main>;
+            default:
+                return <WelcomePlaceholder onNewPage={handleNewPage} />;
+        }
+    };
+
     return (
     <div className="h-screen w-screen flex bg-background text-foreground overflow-hidden">
       <Sidebar
@@ -827,92 +1117,7 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
         onGoToLandingPage={onGoToLandingPage}
       />
       <div className="flex-1 flex flex-col min-w-0">
-        {view === 'notes' ? (
-          activePage ? (
-            <Editor
-              key={activePage.id}
-              page={activePage}
-              onUpdatePage={handleUpdatePage}
-              onDeletePage={handleDeletePage}
-              onNewPage={handleNewPage}
-            />
-          ) : (
-            <WelcomePlaceholder onNewPage={handleNewPage} />
-          )
-        ) : view === 'dashboard' ? (
-          <MamDesk
-            activeTab={activeTab}
-            tasks={tasks}
-            onAddTask={handleAddTask}
-            onToggleTask={handleToggleTask}
-            onDeleteTask={handleDeleteTask}
-            kanbanColumns={kanbanColumns}
-            setKanbanColumns={setKanbanColumns}
-            onAddKanbanCard={handleAddKanbanCard}
-            quickNotes={quickNotes}
-            setQuickNotes={setQuickNotes}
-            events={events}
-            onAddEvent={handleAddEvent}
-            habits={habits}
-            setHabits={setHabits}
-            pomodoroTime={pomodoroTime}
-            pomodoroActive={pomodoroActive}
-            pomodoroSessions={pomodoroSessions}
-            onTogglePomodoro={() => setPomodoroActive(!pomodoroActive)}
-            onResetPomodoro={() => {
-              setPomodoroActive(false);
-              setPomodoroTime(25*60);
-            }}
-            decisionOptions={decisionOptions}
-            setDecisionOptions={setDecisionOptions}
-            decisionResult={decisionResult}
-            setDecisionResult={setDecisionResult}
-            isDecisionSpinning={isDecisionSpinning}
-            setIsDecisionSpinning={setIsDecisionSpinning}
-            currentDecisionSpin={currentDecisionSpin}
-            setCurrentDecisionSpin={setCurrentDecisionSpin}
-            theme={theme}
-            setTheme={setTheme}
-            pages={pages}
-            classes={classes}
-            students={students}
-            attendance={attendance}
-            onAddClass={handleAddClass}
-            onDeleteClass={handleDeleteClass}
-            onAddStudent={handleAddStudent}
-            onDeleteStudent={handleDeleteStudent}
-            onSetAttendance={handleSetAttendance}
-            onAddStudentsBatch={handleAddStudentsBatch}
-            onNewNote={handleNewPage}
-            personalQuotes={personalQuotes}
-            setPersonalQuotes={setPersonalQuotes}
-            moodEntries={moodEntries}
-            setMoodEntries={setMoodEntries}
-            expenses={expenses}
-            setExpenses={setExpenses}
-            goals={goals}
-            setGoals={setGoals}
-          />
-        ) : view === 'journal' ? (
-            <JournalView 
-                entries={journalEntries}
-                onUpdate={handleJournalUpdate}
-                onDelete={handleJournalDelete}
-            />
-        ) : view === 'documind' ? (
-            <InteractiveMindMap />
-        ) : view === 'workspace' ? (
-            <GoogleWorkspace
-                authToken={authToken}
-                setAuthToken={setAuthToken}
-                history={workspaceHistory}
-                onFileImport={handleFileImport}
-            />
-        ) : view === 'portal' ? (
-            <StudentTeacherPortal />
-        ) : view === 'about' ? (
-            <AboutPage />
-        ) : null}
+        {renderMainContent()}
       </div>
       <div className={`transition-all duration-300 ease-in-out flex-shrink-0 ${isChatbotCollapsed ? 'w-16' : 'w-96'}`}>
         <Chatbot

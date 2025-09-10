@@ -1,4 +1,3 @@
-
 # Maven: A Deep Dive into Your Intelligent Workspace
 
 This document provides a comprehensive, top-to-bottom explanation of the Maven application. It covers the core philosophy, the application's features, and detailed walkthroughs of each workflow, from creating a simple note to managing a classroom.
@@ -10,7 +9,7 @@ This document provides a comprehensive, top-to-bottom explanation of the Maven a
 Before diving into the features, it's essential to understand what makes Maven different. It is a **local-first** and **privacy-first** application.
 
 -   **What this means for you:** All your information—every note, task, journal entry, and setting—is stored directly on your computer's hard drive, within your web browser's secure storage. Your data never leaves your device unless you explicitly use an AI feature (which sends only that specific request to Google's servers) or the Google Workspace integration.
--   **The benefits:** You have absolute ownership and privacy. The app works perfectly offline, and there are no accounts or sign-ups required.
+-   **The benefits:** You have absolute ownership and privacy. The app works perfectly offline, and there are no accounts or sign-ups required. The one exception to this is the optional Student/Teacher Portal, which requires a cloud database (Supabase) to function, but this is a self-contained module that you control.
 
 ---
 
@@ -55,15 +54,13 @@ This is for turning chaotic thoughts into organized actions.
     *   A **New Note Idea**: A note titled "Podcast about history of space exploration" with some initial brainstorming points as content.
 *   **Finalizing:** You see checkboxes next to each suggestion. You can uncheck any you don't want. Once you're happy, you click "Save Selected Items". Instantly, the event is added to your Calendar, the task appears in your Task List, and a new note is created in your Notes view.
 
-#### **Attendance Manager Workflow (for Educators)**
+#### **Attendance Manager (Legacy Local Version)**
 
-This is a complete system for managing classroom attendance.
+This is the local-only attendance tool found within the Dashboard.
 
-*   **Step 1: Setup:** A teacher, "Dr. Reed," navigates to the Attendance widget. She creates a new class called "History 101". She can then either add students one-by-one (e.g., Name: "Alex Johnson", Enrollment ID: "S201") or use the "Import" button to upload an Excel file containing her entire class roster.
-*   **Step 2: Starting a Session:** It's the start of class. Dr. Reed selects "History 101". She sees a toggle for "Location-Aware" attendance. She enables it. This is a security feature to ensure students are physically present. When she clicks **"Start New Session"**, the app captures her current GPS location and generates a unique 6-digit **One-Time Password (OTP)**.
-*   **Step 3: Student Check-in:** A student, "Alex," logs into his Student Portal on his own device. He sees a simple input field. Dr. Reed announces the code, "123456". Alex types it in and clicks "Check In".
-*   **Step 4: Automatic Verification:** The system verifies the OTP. Because this is a location-aware session, the app then **mandatorily requests Alex's location** via his device's GPS. The system checks if he is within the radius set by Dr. Reed (e.g., 100 meters). If he is, he is marked "Present". If he denies location access or is too far away, the check-in will fail, even with the correct OTP.
-*   **Step 5: Live View and Reporting:** On Dr. Reed's screen, Alex's name immediately appears in the "Live Attendance" list. After the session, this record is saved permanently. At any time, Dr. Reed can view past attendance records or click "Export" to download a complete attendance sheet for "History 101" as an Excel file.
+*   **Setup:** A teacher, "Dr. Reed," navigates to the Attendance widget. She creates a new class called "History 101". She can then either add students one-by-one or use the "Import" button to upload an Excel file containing her class roster.
+*   **Daily Tracking:** Each day, she selects the date and marks each student as "Present" or "Absent".
+*   **Reporting:** At any time, Dr. Reed can click "Export" to download a complete attendance sheet for "History 101" as an Excel file.
 
 #### **Other Dashboard Widgets**
 
@@ -72,6 +69,20 @@ This is a complete system for managing classroom attendance.
 -   **Calendar:** A traditional calendar where you can add and view events for each day.
 -   **Pomodoro Timer:** A focus timer to help you work in 25-minute intervals.
 -   **Habit Tracker:** Add habits like "Read for 15 minutes". Each day you complete it, you mark it off and build your streak.
+
+### The Student/Teacher Portal Workflow (Cloud-Powered)
+
+This is a separate, more advanced module for real-time, secure attendance. It requires a one-time setup of Supabase credentials in the Settings page.
+
+*   **Step 1: Setup & Login:** A teacher, "Dr. Reed," and a student, "Alex," each create accounts in the Portal. Dr. Reed logs in and sees her Teacher Dashboard.
+*   **Step 2: Class & Student Management:** Inside her dashboard, Dr. Reed creates her "History 101" class. She adds Alex as a student by providing his name and unique enrollment ID. She can manage all her students and classes from this view.
+*   **Step 3: Starting a Secure Session:** It's the start of class. Dr. Reed navigates to the "Sessions" tab. She sees a toggle for **"Location-Aware"** attendance. To prevent cheating, she enables it. When she clicks **"Start New Session"**, the app captures her current GPS location and generates a unique 6-digit session code (e.g., "123456").
+*   **Step 4: Student Check-in:** Alex logs into his Student Portal. He sees a simple input field for the session code. Dr. Reed announces the code, and Alex types it in.
+*   **Step 5: Automatic Verification:** The system verifies the code. Because this is a location-aware session, the app then **mandatorily requests Alex's location** via his device's GPS. The system checks if he is within the allowed radius of Dr. Reed's location (e.g., 100 meters).
+    *   If he is close enough, he is marked "Present" and gets an instant confirmation.
+    *   If he denies location access or is too far away, the check-in fails, even with the correct code.
+*   **Step 6: Live View and Analytics:** On Dr. Reed's screen, Alex's name immediately appears in the "Live Attendance" list for the session. Later, she can navigate to the **"Analytics" tab** to see a full breakdown of attendance rates for her class and for each student individually, helping her identify engagement issues.
+*   **Step 7: Curriculum and Transparency:** Dr. Reed uses the "Curriculum" tab to log the day's topic: "Lecture on the Roman Empire." When Alex checks in, he not only sees his "Present" status but also the day's topic, ensuring he's informed.
 
 ### The Journal Workflow
 

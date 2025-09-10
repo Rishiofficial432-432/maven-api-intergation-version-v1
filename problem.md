@@ -72,3 +72,21 @@ From a student's perspective, the traditional attendance process can be ambiguou
 
 -   **No Self-Service Verification:** If a student is concerned about their attendance record, their only recourse is to ask the teacher, who then has to manually look up the information. This creates extra work for the educator and provides no autonomy for the student.
 -   **Disputes and Errors:** Without a clear, timestamped record, disputes over attendance are common and difficult to resolve, relying on memory rather than data. A student cannot easily prove they were present if a manual error occurred. The portal solves this by providing immediate feedback and a transparent history, ensuring trust and accountability.
+
+---
+
+## How Maven Solves This Problem
+
+The Student/Teacher Portal in Maven is a purpose-built solution that directly addresses every challenge outlined above, creating a modern, secure, and efficient ecosystem for classroom management.
+
+-   **Solving Manual Inefficiency:** The portal replaces paper and roll calls with a fast, digital check-in process. Teachers start a session with a single click, and students check in instantly, saving valuable class time. The **Live Attendance Dashboard** provides the real-time view that educators lack with manual systems.
+
+-   **Ensuring Attendance Integrity:** The core problem of "buddy punching" is solved by the **Location-Aware Attendance** feature. When enabled, the system uses the student's device GPS to verify they are physically within a set radius of the classroom, making it impossible for an absent student to be marked present by a friend.
+
+-   **Providing Actionable Insights:** Maven's portal moves beyond simple record-keeping. The **Analytics Dashboard** automatically calculates attendance rates for the entire class and for each individual student. This empowers educators to instantly identify students with declining attendance who may be at risk, fulfilling a critical need for data-driven student support.
+
+-   **Unifying Planning and Communication:** The integrated **Curriculum Log** solves the problem of disconnected information. Teachers can log the day's topic and activities directly within the portal. Students see this information right alongside their check-in confirmation, creating a single source of truth for the day's session and helping absent students catch up easily.
+
+-   **Streamlining Roster Management:** Tedious manual data entry is eliminated. Teachers can manage their student rosters directly within the portal, and the system is designed to scale with their needs.
+
+-   **Empowering Students:** The student-facing portal provides the transparency and confirmation that manual systems lack. Students receive **immediate feedback** upon checking in and can view their **complete attendance history** at any time, fostering accountability and reducing disputes.

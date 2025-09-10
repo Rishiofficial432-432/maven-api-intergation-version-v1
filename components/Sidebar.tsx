@@ -35,8 +35,6 @@ const navItems = [
     { id: 'habits', icon: Target, label: 'Habit Tracker' },
     { id: 'analytics', icon: BarChart3, label: 'Analytics' },
     { id: 'personal', icon: User, label: 'Personal' },
-    { id: 'settings', icon: Settings, label: 'Settings' },
-    { id: 'help', icon: HelpCircleIcon, label: 'Help & Guide' },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -72,6 +70,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <span className="text-xs">⌘</span>P
                     </kbd>
                 )}
+            </button>
+             <button
+                onClick={() => setView('portal')}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'portal' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+                title="Student Portal"
+            >
+                <Users className="w-5 h-5 flex-shrink-0" />
+                {!isCollapsed && <span>Portal</span>}
             </button>
             <button
                 onClick={() => setView('notes')}
@@ -112,14 +118,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
                 <Briefcase className="w-5 h-5 flex-shrink-0" />
                 {!isCollapsed && <span>Workspace</span>}
-            </button>
-             <button
-                onClick={() => setView('portal')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'portal' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
-                title="Student Portal"
-            >
-                <Users className="w-5 h-5 flex-shrink-0" />
-                {!isCollapsed && <span>Portal</span>}
             </button>
              <button
                 onClick={() => setView('about')}
@@ -189,11 +187,29 @@ const Sidebar: React.FC<SidebarProps> = ({
              {view === 'workspace' && <Briefcase className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'portal' && <Users className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'about' && <Info className="w-8 h-8 mx-auto mb-2"/>}
+             {view === 'settings' && <Settings className="w-8 h-8 mx-auto mb-2"/>}
+             {view === 'help' && <HelpCircleIcon className="w-8 h-8 mx-auto mb-2"/>}
             {!isCollapsed && <p className="capitalize">{view}</p>}
           </div>
         )}
       </div>
-       <div className="mt-auto p-3 border-t border-border/50">
+       <div className="mt-auto p-3 border-t border-border/50 space-y-1">
+        <button
+            onClick={() => setView('settings')}
+            className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'settings' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+            title="Settings"
+        >
+            <Settings className="w-5 h-5 flex-shrink-0" />
+            {!isCollapsed && <span>Settings</span>}
+        </button>
+        <button
+            onClick={() => setView('help')}
+            className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'help' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+            title="Help & Guide"
+        >
+            <HelpCircleIcon className="w-5 h-5 flex-shrink-0" />
+            {!isCollapsed && <span>Help & Guide</span>}
+        </button>
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)} 
           className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground ${isCollapsed ? 'justify-center' : ''}`}

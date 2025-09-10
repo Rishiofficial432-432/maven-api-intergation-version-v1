@@ -334,12 +334,10 @@ const AuthScreen: React.FC = () => {
 // =================================================================
 
 const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
-    // Teacher-specific state will go here
     return <div>Teacher Dashboard for {user.name}</div>;
 };
 
 const StudentDashboard: React.FC<{ user: Profile }> = ({ user }) => {
-    // Student-specific state will go here
     return <div>Student Dashboard for {user.name}</div>;
 };
 
@@ -443,7 +441,7 @@ const StudentTeacherPortal: React.FC = () => {
                     </button>
                 </div>
             </header>
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto p-6">
                 {profile.role === 'teacher' ? <TeacherDashboard user={profile} /> : <StudentDashboard user={profile} />}
             </main>
         </div>

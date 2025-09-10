@@ -65,27 +65,28 @@ The current version of Maven has evolved far beyond the MVP, integrating a compr
 3.  **Journal View:** A dedicated space for daily reflection with a beautiful calendar interface to easily navigate past entries.
 4.  **DocuMind View:** An innovative tool that automatically generates interactive, explorable mind maps from your documents (.txt, .md, .pdf, .docx, .pptx), helping you visualize and understand complex information.
 5.  **Google Workspace Integration:** Securely connect to your Google Drive to search for and import content from Google Docs and Sheets directly into your notes.
-6.  **Student/Teacher Portal:** A complete, real-time attendance management system with QR code/OTP-based check-ins, location verification, and curriculum logging.
+6.  **Student/Teacher Portal:** A complete, real-time attendance management system with secure check-ins (OTP & optional location-awareness), live dashboards, curriculum logging, and attendance analytics.
 7.  **About Page:** An in-app page detailing the application's features and philosophy.
 
 ### 🛠️ Productivity Widgets & Tools
 
 8.  **Task Management:** A simple yet effective to-do list to track pending and completed tasks.
 9.  **Kanban Board:** A visual project management tool to organize tasks in "To Do," "In Progress," and "Done" columns.
-10. **Calendar & Events:** Schedule and view appointments and important dates.
-11. **Pomodoro Timer:** A built-in focus timer to help you work in focused bursts using the Pomodoro Technique.
-12. **Decision Maker:** A fun and useful tool to help you make choices when you're undecided, complete with pre-made templates.
-13. **Quick Notes:** A scratchpad on your dashboard for jotting down fleeting ideas and temporary information.
-14. **Habit Tracker:** Build and maintain good habits by tracking your daily consistency and streaks.
-15. **Productivity Analytics:** Get insights into your work patterns with visualizations of completed tasks, habit consistency, and more.
-16. **Personal Suite:** A collection of widgets for personal well-being, including a Mood Tracker, a personal Quote collection, a Goal Setter, and an Expense Tracker.
-17. **Settings & Data Management:** Customize your experience with multiple themes and securely manage your data with local import/export functionality and API key configuration.
+10. **Attendance Manager (Legacy):** A local-only tool for educators to manage classes, track student attendance, and import/export student lists via Excel.
+11. **Calendar & Events:** Schedule and view appointments and important dates.
+12. **Pomodoro Timer:** A built-in focus timer to help you work in focused bursts using the Pomodoro Technique.
+13. **Decision Maker:** A fun and useful tool to help you make choices when you're undecided, complete with pre-made templates.
+14. **Quick Notes:** A scratchpad on your dashboard for jotting down fleeting ideas and temporary information.
+15. **Habit Tracker:** Build and maintain good habits by tracking your daily consistency and streaks.
+16. **Productivity Analytics:** Get insights into your work patterns with visualizations of completed tasks, habit consistency, and more.
+17. **Personal Suite:** A collection of widgets for personal well-being, including a Mood Tracker, a personal Quote collection, a Goal Setter, and an Expense Tracker.
+18. **Settings & Data Management:** Customize your experience with multiple themes and securely manage your data with local import/export functionality and API key configuration.
 
 ### 🤖 AI-Powered Intelligence
 
-18. **AI Assistant:** A conversational chatbot that can understand natural language to control the entire application. It can create tasks, schedule events, manage habits, provide a daily briefing, and much more.
-19. **Global AI Search:** A universal search palette (`Cmd+P`) that performs semantic searches across your entire knowledge base to synthesize direct answers to your questions, citing the source notes.
-20. **AI Brain Dump:** An intelligent parser that transforms unstructured "brain dumps" of text into categorized, actionable items (tasks, events, notes).
+19. **AI Assistant:** A conversational chatbot that can understand natural language to control the entire application. It can create tasks, schedule events, manage habits, provide a daily briefing, and much more.
+20. **Global AI Search:** A universal search palette (`Cmd+P`) that performs semantic searches across your entire knowledge base to synthesize direct answers to your questions, citing the source notes.
+21. **AI Brain Dump:** An intelligent parser that transforms unstructured "brain dumps" of text into categorized, actionable items (tasks, events, notes).
 
 ---
 

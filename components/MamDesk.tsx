@@ -769,29 +769,6 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   const [newKanbanTexts, setNewKanbanTexts] = useState({ todo: '', progress: '', done: '' });
   const [newNote, setNewNote] = useState('');
   const [draggedItem, setDraggedItem] = useState<{ colId: string; item: KanbanItem } | null>(null);
-  const toast = useToast();
-  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
-
-  const [apiKeyValue, setApiKeyValue] = useState(localStorage.getItem('gemini-api-key') || '');
-  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('supabase-url') || '');
-  const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('supabase-anon-key') || '');
-  const [isSupabaseKeyVisible, setIsSupabaseKeyVisible] = useState(false);
-
-  const handleSaveApiKeys = () => {
-      updateApiKey(apiKeyValue);
-      const { success, message } = updateSupabaseCredentials(supabaseUrl, supabaseKey);
-      if (success) {
-        toast.success(message);
-      } else {
-        toast.error(message);
-      }
-  };
-
-  const handleWipeData = () => {
-      localStorage.clear();
-      // Use window.location.reload() to ensure all state is reset from scratch
-      window.location.reload();
-  };
 
   // Fix: Add a handler for adding quick notes to pass to the AIBrainDump component.
   const handleAddQuickNote = (text: string) => {
@@ -846,78 +823,6 @@ export const MamDesk: React.FC<MamDeskProps> = ({
       }));
     }
     setDraggedItem(null);
-  };
-  
-  const handleExportData = () => {
-    try {
-        const allData = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key) {
-                // We exclude the supabase credentials for security, the user should re-enter them.
-                if (key.startsWith('sb-') || key === 'supabase-url' || key === 'supabase-anon-key') {
-                    continue;
-                }
-                (allData as any)[key] = localStorage.getItem(key);
-            }
-        }
-        const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const date = new Date().toISOString().slice(0, 10);
-        a.download = `maven_backup_${date}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("Data exported successfully!");
-    } catch (error) {
-        console.error("Export failed:", error);
-        toast.error("Failed to export data.");
-    }
-  };
-  
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          try {
-              const text = e.target?.result;
-              if (typeof text !== 'string') throw new Error("File is not readable text.");
-              
-              const importedData = JSON.parse(text);
-              if (window.confirm("This will overwrite all current data. Are you sure you want to continue?")) {
-                  // Clear existing keys before importing
-                  const keysToKeep = Object.keys(localStorage).filter(key => 
-                      key.startsWith('sb-') || key === 'supabase-url' || key === 'supabase-anon-key'
-                  );
-                  const valuesToKeep = keysToKeep.map(key => ({ key, value: localStorage.getItem(key) }));
-                  
-                  localStorage.clear();
-
-                  // Restore sensitive keys
-                  valuesToKeep.forEach(({ key, value }) => {
-                      if (value) localStorage.setItem(key, value);
-                  });
-
-                  // Set new data
-                  Object.keys(importedData).forEach(key => {
-                      if (typeof importedData[key] === 'string') {
-                          localStorage.setItem(key, importedData[key]);
-                      }
-                  });
-                  toast.success("Data imported successfully! The app will now reload.");
-                  setTimeout(() => window.location.reload(), 1500);
-              }
-          } catch (error) {
-              console.error("Import failed:", error);
-              toast.error("Failed to import data. The file may be invalid.");
-          }
-      };
-      reader.readAsText(file);
-      // Reset input to allow importing same file again
-      event.target.value = '';
   };
   
    const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
@@ -1129,81 +1034,6 @@ export const MamDesk: React.FC<MamDeskProps> = ({
     );
 };
   
-const Settings = () => (
-    <div className={`p-8 ${cardClasses} space-y-8`}>
-        <div>
-            <h2 className="text-2xl font-bold mb-4">Settings</h2>
-            <div className="space-y-4">
-                <div>
-                    <h3 className="text-lg font-semibold mb-2">Theme</h3>
-                    <div className="flex gap-2">
-                        {['dark', 'light', 'midnight', 'midlight'].map(t => (
-                            <button key={t} onClick={() => setTheme(t)} className={`px-4 py-2 rounded-md text-sm capitalize ${theme === t ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>{t}</button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div>
-            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2"><BrainCircuitIcon size={20}/> API & Database Keys</h3>
-            <p className="text-sm text-muted-foreground mb-4">Enter your keys here to enable AI features and the Student/Teacher Portal. Keys are stored locally in your browser and are never sent anywhere else.</p>
-            <div className="space-y-4 max-w-lg">
-                <div>
-                    <label className="block text-sm font-medium mb-1">Google Gemini API Key</label>
-                    <div className="flex items-center gap-2">
-                         <input type="password" value={apiKeyValue} onChange={e => setApiKeyValue(e.target.value)} placeholder="Enter your Gemini API Key" className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
-                    </div>
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium mb-1">Supabase Project URL</label>
-                    <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://<project-id>.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium mb-1">Supabase Anon Key</label>
-                    <div className="flex items-center gap-2">
-                        <input type={isSupabaseKeyVisible ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
-                        <button onClick={() => setIsSupabaseKeyVisible(!isSupabaseKeyVisible)} className="p-2 text-muted-foreground hover:text-foreground">
-                            {isSupabaseKeyVisible ? <EyeOff size={16}/> : <Eye size={16}/>}
-                        </button>
-                    </div>
-                    <p className={`text-xs mt-2 font-semibold ${connectionStatus.configured ? 'text-green-400' : 'text-yellow-400'}`}>{connectionStatus.message}</p>
-                </div>
-                 <button onClick={handleSaveApiKeys} className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2"><Save size={16}/> Save Keys</button>
-            </div>
-        </div>
-
-        <div>
-            <h3 className="text-lg font-semibold mb-2">Data Management</h3>
-            <div className="flex flex-wrap gap-4 items-center">
-                <button onClick={handleExportData} className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
-                    <Download size={16}/> Export All Data
-                </button>
-                <label className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 cursor-pointer">
-                    <Upload size={16}/> Import Data
-                    <input type="file" className="hidden" accept=".json" onChange={handleImportData} />
-                </label>
-                <button onClick={() => setIsWipeModalOpen(true)} className="flex items-center gap-2 px-4 py-2 text-sm bg-destructive/20 text-destructive rounded-md hover:bg-destructive/30">
-                   <AlertTriangle size={16}/> Wipe All Data
-                </button>
-            </div>
-             {isWipeModalOpen && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-                    <div className="bg-card border border-border rounded-lg p-6 max-w-md text-center shadow-2xl">
-                        <AlertTriangle size={32} className="mx-auto text-destructive mb-4"/>
-                        <h2 className="text-xl font-bold">Are you absolutely sure?</h2>
-                        <p className="text-muted-foreground my-4">This action is irreversible. All your notes, tasks, and settings will be permanently deleted from this browser. This cannot be undone.</p>
-                        <div className="flex justify-center gap-4">
-                            <button onClick={() => setIsWipeModalOpen(false)} className="px-6 py-2 bg-secondary rounded-md">Cancel</button>
-                            <button onClick={handleWipeData} className="px-6 py-2 bg-destructive text-destructive-foreground rounded-md">Yes, Wipe Data</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    </div>
-);
-  
   const Personal = () => (
     <div className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-6 ${cardClasses}`}>
         {/* Goals */}
@@ -1251,8 +1081,6 @@ const Settings = () => (
       case 'habits': return <HabitTracker />;
       case 'analytics': return <div className={`p-6 ${cardClasses}`}><h2 className="text-xl font-bold">Analytics</h2><p className="text-muted-foreground">Coming soon!</p></div>;
       case 'personal': return <Personal />;
-      case 'settings': return <Settings />;
-      case 'help': return <HelpPage />;
       default: return <Dashboard />;
     }
   };
