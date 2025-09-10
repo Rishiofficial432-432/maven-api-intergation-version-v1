@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 // Fix: Removed `Settings` icon import to resolve name conflict with the Settings component.
 // Added `AlertTriangle` icon import for use in the data wipe confirmation modal.
@@ -1069,7 +1070,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={handleAddQuickNote} onNewNote={onNewNote} />;
+      case 'dashboard': return <Dashboard />;
       case 'braindump': return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={handleAddQuickNote} onNewNote={onNewNote} />;
       case 'tasks': return <Tasks />;
       case 'kanban': return <Kanban />;

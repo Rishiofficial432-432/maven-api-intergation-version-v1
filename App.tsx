@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
@@ -16,7 +17,7 @@ import LandingPage from './components/LandingPage';
 import AboutPage from './components/AboutPage';
 import { HelpPage } from './components/HelpPage';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff } from 'lucide-react';
-import { updateSupabaseCredentials, connectionStatus } from './components/supabase-config';
+import { updateSupabaseCredentials, getSupabaseCredentials, connectionStatus as supabaseConnectionStatus } from './components/supabase-config';
 
 
 // --- IndexedDB Utility for Banners ---
@@ -188,17 +189,39 @@ const playCompletionSound = () => {
 const SettingsPage: React.FC<{
     theme: string;
     setTheme: (theme: string) => void;
-    apiKeyValue: string;
-    setApiKeyValue: (key: string) => void;
-    supabaseUrl: string;
-    setSupabaseUrl: (url: string) => void;
-    supabaseKey: string;
-    setSupabaseKey: (key: string) => void;
-    onSaveApiKeys: () => void;
     onExportData: () => void;
     onImportData: (event: React.ChangeEvent<HTMLInputElement>) => void;
     onWipeData: () => void;
-}> = ({ theme, setTheme, apiKeyValue, setApiKeyValue, supabaseUrl, setSupabaseUrl, supabaseKey, setSupabaseKey, onSaveApiKeys, onExportData, onImportData, onWipeData }) => {
+}> = ({ theme, setTheme, onExportData, onImportData, onWipeData }) => {
+    const [apiKeyValue, setApiKeyValue] = useState(localStorage.getItem('gemini-api-key') || '');
+    const [supabaseUrl, setSupabaseUrl] = useState('');
+    const [supabaseKey, setSupabaseKey] = useState('');
+    const [connectionStatus, setConnectionStatus] = useState(supabaseConnectionStatus);
+    
+    const toast = useToast();
+
+    useEffect(() => {
+        const fetchCreds = async () => {
+            const { url, key } = await getSupabaseCredentials();
+            setSupabaseUrl(url);
+            setSupabaseKey(key);
+            setConnectionStatus(supabaseConnectionStatus); // Update status after async load
+        };
+        fetchCreds();
+    }, []);
+
+
+    const handleSaveApiKeys = async () => {
+      updateApiKey(apiKeyValue);
+      const { success, message } = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
+      if (success) {
+        toast.success(message);
+      } else {
+        toast.error(message);
+      }
+       setConnectionStatus(supabaseConnectionStatus);
+    };
+
     const [isSupabaseKeyVisible, setIsSupabaseKeyVisible] = useState(false);
     const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
     const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
@@ -244,7 +267,7 @@ const SettingsPage: React.FC<{
                             </div>
                             <p className={`text-xs mt-2 font-semibold ${connectionStatus.configured ? 'text-green-400' : 'text-yellow-400'}`}>{connectionStatus.message}</p>
                         </div>
-                        <button onClick={onSaveApiKeys} className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2"><Save size={16}/> Save Keys</button>
+                        <button onClick={handleSaveApiKeys} className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2"><Save size={16}/> Save Keys</button>
                     </div>
                 </div>
 
@@ -346,23 +369,9 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
   const [authToken, setAuthToken] = usePersistentState<any | null>('maven-google-auth', null);
   const [workspaceHistory, setWorkspaceHistory] = usePersistentState<WorkspaceHistoryEntry[]>('maven-workspace-history', []);
   
-  // Settings state (lifted from MamDesk)
-  const [apiKeyValue, setApiKeyValue] = useState(localStorage.getItem('gemini-api-key') || '');
-  const [supabaseUrl, setSupabaseUrl] = useState(localStorage.getItem('supabase-url') || '');
-  const [supabaseKey, setSupabaseKey] = useState(localStorage.getItem('supabase-anon-key') || '');
-
   // Settings handlers (lifted from MamDesk)
-  const handleSaveApiKeys = () => {
-      updateApiKey(apiKeyValue);
-      const { success, message } = updateSupabaseCredentials(supabaseUrl, supabaseKey);
-      if (success) {
-        toast.success(message);
-      } else {
-        toast.error(message);
-      }
-  };
-
   const handleWipeData = () => {
+      indexedDB.deleteDatabase('MavenCredentialsDB'); // Also delete credential DB
       localStorage.clear();
       window.location.reload();
   };
@@ -406,17 +415,7 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
               
               const importedData = JSON.parse(text);
               if (window.confirm("This will overwrite all current data. Are you sure you want to continue?")) {
-                  const keysToKeep = Object.keys(localStorage).filter(key => 
-                      key.startsWith('sb-') || key === 'supabase-url' || key === 'supabase-anon-key'
-                  );
-                  const valuesToKeep = keysToKeep.map(key => ({ key, value: localStorage.getItem(key) }));
-                  
                   localStorage.clear();
-
-                  valuesToKeep.forEach(({ key, value }) => {
-                      if (value) localStorage.setItem(key, value);
-                  });
-
                   Object.keys(importedData).forEach(key => {
                       if (typeof importedData[key] === 'string') {
                           localStorage.setItem(key, importedData[key]);
@@ -1082,13 +1081,6 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
                 return <SettingsPage 
                             theme={theme} 
                             setTheme={setTheme} 
-                            apiKeyValue={apiKeyValue}
-                            setApiKeyValue={setApiKeyValue}
-                            supabaseUrl={supabaseUrl}
-                            setSupabaseUrl={setSupabaseUrl}
-                            supabaseKey={supabaseKey}
-                            setSupabaseKey={setSupabaseKey}
-                            onSaveApiKeys={handleSaveApiKeys}
                             onExportData={handleExportData}
                             onImportData={handleImportData}
                             onWipeData={handleWipeData}

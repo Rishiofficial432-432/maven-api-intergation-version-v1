@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, FlaskConical, PencilRuler, Users as UsersIcon } from 'lucide-react';
-import { supabase, isSupabaseConfigured, Database } from './supabase-config';
+import { supabase, isSupabaseConfigured, Database, initPromise } from './supabase-config';
 import { useToast } from './Toast';
 import { geminiAI } from './gemini';
 import QRCode from 'qrcode';
@@ -11,7 +12,7 @@ import { User as SupabaseUser } from '@supabase/supabase-js';
 type Profile = Database['public']['Tables']['portal_users']['Row'];
 type Session = Database['public']['Tables']['portal_sessions']['Row'];
 type Curriculum = Database['public']['Tables']['portal_curriculum']['Row'];
-type AttendanceRecord = Database['public']['Tables']['portal_attendance']['Row'];
+type AttendanceRecord = Database['public']['Tables']['portal_attendance']['Row'] & { portal_users: Profile | null };
 
 type ViewMode = 'login' | 'signup';
 
@@ -345,38 +346,44 @@ const StudentDashboard: React.FC<{ user: Profile }> = ({ user }) => {
 // MAIN PORTAL COMPONENT
 // =================================================================
 const StudentTeacherPortal: React.FC = () => {
+    const [isClientInitialized, setIsClientInitialized] = useState(false);
     const [session, setSession] = useState<SupabaseUser | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
     const toast = useToast();
 
     useEffect(() => {
-        if (!isSupabaseConfigured) {
-            setLoading(false);
-            return;
-        }
+        // Wait for the async initialization to complete
+        initPromise.then(() => {
+            setIsClientInitialized(true);
 
-        const fetchSession = async () => {
-            const { data: { session } } = await supabase!.auth.getSession();
-            setSession(session?.user ?? null);
-            setLoading(false);
-        };
-        fetchSession();
-
-        const { data: authListener } = supabase!.auth.onAuthStateChange((_event, session) => {
-            setSession(session?.user ?? null);
-            if (_event === 'SIGNED_OUT') {
-                setProfile(null);
+            if (!isSupabaseConfigured) {
+                setLoading(false);
+                return;
             }
-        });
 
-        return () => {
-            authListener.subscription.unsubscribe();
-        };
+            const fetchSession = async () => {
+                const { data: { session } } = await supabase!.auth.getSession();
+                setSession(session?.user ?? null);
+                setLoading(false);
+            };
+            fetchSession();
+
+            const { data: authListener } = supabase!.auth.onAuthStateChange((_event, session) => {
+                setSession(session?.user ?? null);
+                if (_event === 'SIGNED_OUT') {
+                    setProfile(null);
+                }
+            });
+
+            return () => {
+                authListener.subscription.unsubscribe();
+            };
+        });
     }, []);
 
     useEffect(() => {
-        if (session && !profile) {
+        if (session && !profile && isSupabaseConfigured) {
             const fetchProfile = async () => {
                 const { data, error } = await supabase!
                     .from('portal_users')
@@ -395,11 +402,12 @@ const StudentTeacherPortal: React.FC = () => {
     }, [session, profile, toast]);
 
     const handleLogout = async () => {
+        if (!isSupabaseConfigured) return;
         await supabase!.auth.signOut();
         toast.info("You have been logged out.");
     };
 
-    if (loading) {
+    if (loading || !isClientInitialized) {
         return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary"/></div>;
     }
     

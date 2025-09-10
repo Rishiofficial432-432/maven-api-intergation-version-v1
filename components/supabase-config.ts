@@ -1,6 +1,5 @@
 
-
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /*
 -- =================================================================
@@ -298,23 +297,64 @@ export interface Database {
   }
 }
 
+// --- IndexedDB for Credentials ---
+const DB_NAME = 'MavenCredentialsDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'credentials';
+let credDB: IDBDatabase | null = null;
+
+const initCredDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    if (credDB) return resolve(credDB);
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => {
+      credDB = request.result;
+      resolve(credDB);
+    };
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const getCred = async (key: string): Promise<string | null> => {
+  const db = await initCredDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+};
+
+const setCred = async (key: string, value: string): Promise<void> => {
+  const db = await initCredDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = value ? store.put(value, key) : store.delete(key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+
 // --- Supabase Configuration ---
-const placeholderUrl = 'YOUR_SUPABASE_URL';
-const placeholderKey = 'YOUR_SUPABASE_ANON_KEY';
+let supabase: SupabaseClient<Database> | null = null;
+let isSupabaseConfigured = false;
+let connectionStatus = { configured: false, message: "Initializing Supabase..." };
 
-let supabase: ReturnType<typeof createClient<Database>> | null = null;
-export let isSupabaseConfigured = false;
-export let connectionStatus = { configured: false, message: "Supabase credentials not found. Portal is disabled." };
+const initializeSupabaseClient = async () => {
+    const supabaseUrl = await getCred('supabase-url');
+    const supabaseAnonKey = await getCred('supabase-anon-key');
 
-
-const initializeSupabaseClient = () => {
-    const supabaseUrl = localStorage.getItem('supabase-url') || placeholderUrl;
-    const supabaseAnonKey = localStorage.getItem('supabase-anon-key') || placeholderKey;
-
-    const isUrlPlaceholder = supabaseUrl.includes('YOUR_SUPABASE_URL');
-    const isKeyPlaceholder = supabaseAnonKey.includes('YOUR_SUPABASE_ANON_KEY');
-
-    if (!isUrlPlaceholder && !isKeyPlaceholder) {
+    if (supabaseUrl && supabaseAnonKey) {
         try {
             supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
             isSupabaseConfigured = true;
@@ -330,31 +370,37 @@ const initializeSupabaseClient = () => {
         supabase = null;
         isSupabaseConfigured = false;
         connectionStatus = { configured: false, message: "Supabase credentials not configured." };
-        // console.log("Supabase credentials not configured. Student/Teacher Portal is disabled.");
     }
 };
 
-export const updateSupabaseCredentials = (url: string, key: string): { success: boolean; message: string } => {
-    if (url.trim() && key.trim()) {
-        localStorage.setItem('supabase-url', url.trim());
-        localStorage.setItem('supabase-anon-key', key.trim());
-        initializeSupabaseClient();
-        if (isSupabaseConfigured) {
-            // Trigger a page reload to ensure auth state is correctly re-evaluated everywhere
-            window.location.reload();
-            return { success: true, message: "Supabase credentials saved. App is reloading..." };
-        } else {
-            return { success: false, message: "Failed to initialize with new credentials. Please check them." };
-        }
+const updateSupabaseCredentials = async (url: string, key: string): Promise<{ success: boolean; message: string }> => {
+    await setCred('supabase-url', url.trim());
+    await setCred('supabase-anon-key', key.trim());
+    await initializeSupabaseClient();
+    
+    if (isSupabaseConfigured) {
+        window.location.reload();
+        return { success: true, message: "Supabase credentials saved. App is reloading..." };
     } else {
-        localStorage.removeItem('supabase-url');
-        localStorage.removeItem('supabase-anon-key');
-        initializeSupabaseClient();
-        return { success: true, message: "Supabase credentials cleared." };
+        return { success: false, message: "Failed to initialize with new credentials. Please check them." };
     }
 };
+
+const getSupabaseCredentials = async (): Promise<{ url: string; key: string }> => {
+    const url = await getCred('supabase-url') || '';
+    const key = await getCred('supabase-anon-key') || '';
+    return { url, key };
+};
+
 
 // Initial load
-initializeSupabaseClient();
+const initPromise = initializeSupabaseClient();
 
-export { supabase };
+export { 
+    supabase, 
+    isSupabaseConfigured, 
+    connectionStatus, 
+    updateSupabaseCredentials, 
+    getSupabaseCredentials,
+    initPromise
+};
