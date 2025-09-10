@@ -1,6 +1,3 @@
-
-
-
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /*
@@ -357,7 +354,7 @@ const updateSupabaseCredentials = (url: string, key: string): { success: boolean
         // Clear bad keys if initialization fails
         localStorage.removeItem('supabase-url');
         localStorage.removeItem('supabase-anon-key');
-        initializeSupabaseClient();
+        initializeSupabaseClient(); // re-init with fallback
         return { success: false, message: "Failed to initialize with new credentials. Please check them." };
     }
 };
