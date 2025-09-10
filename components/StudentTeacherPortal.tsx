@@ -265,20 +265,20 @@ const AuthScreen: React.FC = () => {
                 
                 {viewMode === 'login' && (
                     <div className="bg-secondary/50 border border-border rounded-lg p-4 mb-6 text-sm">
-                        <h4 className="font-semibold text-foreground mb-2 flex items-center gap-2">
-                            <Info size={16} /> How to Use the Demo Credentials
+                        <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+                            <Info size={16} /> Portal Setup Guide
                         </h4>
-                        <ol className="list-decimal list-inside space-y-2 text-muted-foreground text-xs">
-                            <li>Go to <strong>Dashboard → Settings</strong> and enter your Supabase Project URL and Anon Key.</li>
-                            <li>Go to your Supabase project's <strong>Authentication → Users</strong> page.</li>
-                            <li>Click "Add user" and manually create the accounts below with the password <code className="bg-background px-1 rounded">password123</code>.</li>
+                        <ol className="list-decimal list-inside space-y-3 text-muted-foreground text-xs">
+                            <li>Go to <strong>Dashboard → Settings</strong> and save your Supabase Project URL and Anon Key.</li>
+                            <li>In your Supabase project, go to the <strong>SQL Editor</strong> and run the setup script from the top of the `supabase-config.ts` file.</li>
+                            <li className="font-semibold text-amber-300">
+                                In Supabase, go to <strong>Authentication → Providers → Email</strong> and turn <strong>OFF</strong> the "Confirm email" toggle. This is crucial for demo accounts to work.
+                            </li>
+                            <li>In Supabase, go to <strong>Authentication → Users</strong> and click "Add user" to manually create the demo accounts with password <code className="bg-background px-1 rounded">password123</code>.</li>
                         </ol>
                         <div className="mt-3 pt-3 border-t border-border/50 space-y-1 text-muted-foreground text-xs">
                              <p><strong>Teacher:</strong> <code className="bg-background px-1 rounded">teacher@example.com</code></p>
                              <p><strong>Student:</strong> <code className="bg-background px-1 rounded">alex@example.com</code></p>
-                        </div>
-                         <div className="mt-3 pt-3 border-t border-border/50 text-xs text-amber-400/80">
-                            <p><strong>Note:</strong> For the portal to work fully, you must also run the SQL setup script from <code className="bg-background px-1 rounded">supabase-config.ts</code> in your Supabase SQL Editor.</p>
                         </div>
                     </div>
                 )}
