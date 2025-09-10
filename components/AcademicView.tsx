@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import StudentTeacherPortal from './StudentTeacherPortal';
 import { supabase, isSupabaseConfigured } from './supabase-config';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { Database } from './supabase-config';
-import { Goal, CalendarEvent } from './MamDesk';
+import { Goal, CalendarEvent } from '../types';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
 import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock } from 'lucide-react';

@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Page } from '../App';
+import { Page } from '../types';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
 import { Search, X, Loader, FileText, AlertTriangle } from 'lucide-react';

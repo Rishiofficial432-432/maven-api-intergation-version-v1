@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { JournalEntry } from '../App';
+import { JournalEntry } from '../types';
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 
 interface JournalViewProps {

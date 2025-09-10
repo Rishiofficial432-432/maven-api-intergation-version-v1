@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Page } from '../App';
+import { Page } from '../types';
 import CommandPalette from './AiToolbar';
 import { TrashIcon, ImageIcon, Wand2Icon } from './Icons';
 import { 

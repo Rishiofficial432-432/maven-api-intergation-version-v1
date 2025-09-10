@@ -1,9 +1,10 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Tool, Part, Type, Chat } from '@google/genai';
 import { geminiAI } from './gemini';
 import { MessageCircleIcon, SendHorizonalIcon, MicIcon, MicOffIcon } from './Icons';
 import Clock from './Clock';
-import { Page } from '../App';
+import { Page } from '../types';
 import { ChevronRight, Sun, Loader } from 'lucide-react';
 
 interface Message {

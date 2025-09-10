@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Teacher, Course, Room, TimetableEntry } from './MamDesk';
+import { Teacher, Course, Room, TimetableEntry } from '../types';
 import { Plus, Trash2, Wand2, Loader, Users, BookOpen, Building } from 'lucide-react';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';

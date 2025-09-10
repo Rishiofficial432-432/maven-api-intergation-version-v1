@@ -1,10 +1,14 @@
 
 
+
+
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Editor from './components/Editor';
 // FIX: Changed to named import for MamDesk to resolve circular dependency.
-import { MamDesk, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance } from './components/MamDesk';
+import { MamDesk } from './components/MamDesk';
 import { WelcomePlaceholder } from './components/WelcomePlaceholder';
 import Chatbot from './components/Chatbot';
 import JournalView from './components/JournalView';
@@ -19,6 +23,10 @@ import AboutPage from './components/AboutPage';
 import { HelpPage } from './components/HelpPage';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { updateSupabaseCredentials, getSupabaseCredentials, connectionStatus as supabaseConnectionStatus } from './components/supabase-config';
+import {
+  View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
+  MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance
+} from './types';
 
 
 // --- IndexedDB Utility for Banners ---
@@ -57,7 +65,8 @@ const initDB = (): Promise<boolean> => {
 export const setBannerData = (key: string, value: Blob): Promise<void> => {
   return new Promise((resolve, reject) => {
     if (!db) {
-      return reject('DB not initialized');
+      reject('DB not initialized');
+      return;
     }
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
@@ -73,7 +82,10 @@ export const setBannerData = (key: string, value: Blob): Promise<void> => {
 
 export const getBannerData = (key: string): Promise<Blob | null> => {
   return new Promise((resolve, reject) => {
-    if (!db) return reject('DB not initialized');
+    if (!db) {
+        reject('DB not initialized');
+        return;
+    }
     const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
     const request = store.get(key);
@@ -88,7 +100,10 @@ export const getBannerData = (key: string): Promise<Blob | null> => {
 
 export const deleteBannerData = (key: string): Promise<void> => {
     return new Promise((resolve, reject) => {
-        if (!db) return reject('DB not initialized');
+        if (!db) {
+            reject('DB not initialized');
+            return;
+        }
         const transaction = db.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
         const request = store.delete(key);
@@ -101,392 +116,187 @@ export const deleteBannerData = (key: string): Promise<void> => {
     });
 };
 
-
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help';
-
-export interface Page {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: Date;
-  bannerUrl?: string;
-  bannerType?: 'image' | 'video';
-}
-
-export interface JournalEntry {
-  id: string;
-  date: string; // YYYY-MM-DD
-  content: string;
-  createdAt: Date;
-}
-
-export interface DriveFile {
-  id: string;
-  name: string;
-  mimeType: string;
-  iconLink: string;
-}
-
-export interface WorkspaceHistoryEntry {
-    fileId: string;
-    fileName: string;
-    fileType: 'doc' | 'sheet';
-    noteTitle: string;
-    importedAt: string;
-}
-
 // Custom hook for persisting state to localStorage, moved here for centralization
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(() => {
+  const [value, setValue] = useState<T>(() => {
     try {
-      const storedValue = localStorage.getItem(key);
-      if (key === 'ai-notes-pages' && storedValue) {
-        return JSON.parse(storedValue).map((p: any) => ({...p, createdAt: new Date(p.createdAt)}));
-      }
-       if (key === 'maven-journal-entries' && storedValue) {
-        return JSON.parse(storedValue).map((e: any) => ({...e, createdAt: new Date(e.createdAt)}));
-      }
-       if (key === 'maven-mind-maps' && storedValue) {
-        return JSON.parse(storedValue).map((m: any) => ({...m, createdAt: new Date(m.createdAt)}));
-      }
-      return storedValue ? JSON.parse(storedValue) : defaultValue;
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item, (k, v) => {
+        // A reviver function to restore dates
+        if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)) {
+          return new Date(v);
+        }
+        return v;
+      }) : defaultValue;
     } catch (error) {
-      console.error(`Error reading from localStorage for key "${key}":`, error);
+      console.error(error);
       return defaultValue;
     }
   });
 
   useEffect(() => {
     try {
-      localStorage.setItem(key, JSON.stringify(state));
+      window.localStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
-      console.error(`Error writing to localStorage for key "${key}":`, error);
+      console.error(error);
     }
-  }, [key, state]);
+  }, [key, value]);
 
-  return [state, setState];
+  return [value, setValue];
 };
 
-const playCompletionSound = () => {
-    try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        if (!audioContext) return;
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
-        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.05);
-        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.5);
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.5);
-    } catch (e) {
-        console.error("Could not play sound:", e);
-    }
-};
-
-const SettingsPage: React.FC<{
-    theme: string;
-    setTheme: (theme: string) => void;
-    onExportData: () => void;
-    onImportData: (event: React.ChangeEvent<HTMLInputElement>) => void;
-    onWipeData: () => void;
-}> = ({ theme, setTheme, onExportData, onImportData, onWipeData }) => {
-    const [apiKeyValue, setApiKeyValue] = useState(localStorage.getItem('gemini-api-key') || '');
-    const [supabaseUrl, setSupabaseUrl] = useState('');
-    const [supabaseKey, setSupabaseKey] = useState('');
-    const [connectionStatus, setConnectionStatus] = useState(supabaseConnectionStatus);
-    
-    const toast = useToast();
-
-    useEffect(() => {
-        const fetchCreds = async () => {
-            const { url, key } = await getSupabaseCredentials();
-            setSupabaseUrl(url);
-            setSupabaseKey(key);
-            setConnectionStatus(supabaseConnectionStatus); // Update status after async load
-        };
-        fetchCreds();
-    }, []);
-
-
-    const handleSaveApiKeys = async () => {
-      updateApiKey(apiKeyValue);
-      const { success, message } = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
-      if (success) {
-        toast.success(message);
-      } else {
-        toast.error(message);
-      }
-       setConnectionStatus(supabaseConnectionStatus);
-    };
-
-    const [isSupabaseKeyVisible, setIsSupabaseKeyVisible] = useState(false);
-    const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
-    const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
-
-    return (
-         <main className="flex-1 flex flex-col bg-accent/20 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            <div className={`p-8 ${cardClasses} space-y-8 max-w-4xl mx-auto w-full`}>
-                <div>
-                    <h2 className="text-2xl font-bold mb-4">Settings</h2>
-                    <div className="space-y-4">
-                        <div>
-                            <h3 className="text-lg font-semibold mb-2">Theme</h3>
-                            <div className="flex gap-2">
-                                {['dark', 'light', 'midnight', 'midlight'].map(t => (
-                                    <button key={t} onClick={() => setTheme(t)} className={`px-4 py-2 rounded-md text-sm capitalize ${theme === t ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}>{t}</button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 className="text-lg font-semibold mb-2 flex items-center gap-2"><BrainCircuitIcon size={20}/> API & Database Keys</h3>
-                    <p className="text-sm text-muted-foreground mb-4">Enter your keys here to enable AI features and the Student/Teacher Portal. Keys are stored locally in your browser and are never sent anywhere else.</p>
-                    <div className="space-y-4 max-w-lg">
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Google Gemini API Key</label>
-                            <div className="flex items-center gap-2">
-                                <input type="password" value={apiKeyValue} onChange={e => setApiKeyValue(e.target.value)} placeholder="Enter your Gemini API Key" className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Supabase Project URL</label>
-                            <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://<project-id>.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium mb-1">Supabase Anon Key</label>
-                            <div className="flex items-center gap-2">
-                                <input type={isSupabaseKeyVisible ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
-                                <button onClick={() => setIsSupabaseKeyVisible(!isSupabaseKeyVisible)} className="p-2 text-muted-foreground hover:text-foreground">
-                                    {isSupabaseKeyVisible ? <EyeOff size={16}/> : <Eye size={16}/>}
-                                </button>
-                            </div>
-                            <p className={`text-xs mt-2 font-semibold ${connectionStatus.configured ? 'text-green-400' : 'text-yellow-400'}`}>{connectionStatus.message}</p>
-                        </div>
-                        <button onClick={handleSaveApiKeys} className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2"><Save size={16}/> Save Keys</button>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 className="text-lg font-semibold mb-2">Data Management</h3>
-                    <div className="flex flex-wrap gap-4 items-center">
-                        <button onClick={onExportData} className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
-                            <Download size={16}/> Export All Data
-                        </button>
-                        <label className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 cursor-pointer">
-                            <Upload size={16}/> Import Data
-                            <input type="file" className="hidden" accept=".json" onChange={onImportData} />
-                        </label>
-                        <button onClick={() => setIsWipeModalOpen(true)} className="flex items-center gap-2 px-4 py-2 text-sm bg-destructive/20 text-destructive rounded-md hover:bg-destructive/30">
-                        <AlertTriangle size={16}/> Wipe All Data
-                        </button>
-                    </div>
-                    {isWipeModalOpen && (
-                        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-                            <div className="bg-card border border-border rounded-lg p-6 max-w-md text-center shadow-2xl">
-                                <AlertTriangle size={32} className="mx-auto text-destructive mb-4"/>
-                                <h2 className="text-xl font-bold">Are you absolutely sure?</h2>
-                                <p className="text-muted-foreground my-4">This action is irreversible. All your notes, tasks, and settings will be permanently deleted from this browser. This cannot be undone.</p>
-                                <div className="flex justify-center gap-4">
-                                    <button onClick={() => setIsWipeModalOpen(false)} className="px-6 py-2 bg-secondary rounded-md">Cancel</button>
-                                    <button onClick={() => { onWipeData(); setIsWipeModalOpen(false); }} className="px-6 py-2 bg-destructive text-destructive-foreground rounded-md">Yes, Wipe Data</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </main>
-    );
-};
-
-
-const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLandingPage }) => {
-  // Initialize DB on mount
-  useEffect(() => {
-    initDB().catch(err => console.error("Failed to initialize DB:", err));
-  }, []);
-
-  // Theme State
-  const [theme, setTheme] = usePersistentState<string>('maven-theme', 'dark');
-  const toast = useToast();
-
-  useEffect(() => {
-    document.documentElement.className = `theme-${theme}`;
-  }, [theme]);
-
-  // Notes State
-  const [pages, setPages] = usePersistentState<Page[]>('ai-notes-pages', []);
-  const [activePageId, setActivePageId] = useState<string | null>(null);
+const App: React.FC = () => {
+  // --- STATE MANAGEMENT ---
+  const [pages, setPages] = usePersistentState<Page[]>('maven-pages', []);
+  const [journalEntries, setJournalEntries] = usePersistentState<JournalEntry[]>('maven-journal', []);
+  const [activePageId, setActivePageId] = useState<string | null>(localStorage.getItem('maven-last-page-id'));
   const [view, setView] = usePersistentState<View>('maven-view', 'notes');
-  const [activeTab, setActiveTab] = usePersistentState('maven-activeTab', 'dashboard');
+  const [activeDashboardTab, setActiveDashboardTab] = usePersistentState<string>('maven-dashboard-tab', 'dashboard');
   
-  // MamDesk State
+  // Dashboard states
   const [tasks, setTasks] = usePersistentState<Task[]>('maven-tasks', []);
   const [kanbanColumns, setKanbanColumns] = usePersistentState<KanbanState>('maven-kanban', {
     todo: { name: 'To Do', items: [] },
     progress: { name: 'In Progress', items: [] },
     done: { name: 'Done', items: [] },
   });
-  const [quickNotes, setQuickNotes] = usePersistentState<QuickNote[]>('maven-notes', []);
+  const [quickNotes, setQuickNotes] = usePersistentState<QuickNote[]>('maven-quicknotes', []);
   const [events, setEvents] = usePersistentState<CalendarEvent[]>('maven-events', []);
   const [habits, setHabits] = usePersistentState<Habit[]>('maven-habits', []);
   const [personalQuotes, setPersonalQuotes] = usePersistentState<Quote[]>('maven-quotes', []);
-  const [moodEntries, setMoodEntries] = usePersistentState<MoodEntry[]>('maven-mood', []);
+  const [moodEntries, setMoodEntries] = usePersistentState<MoodEntry[]>('maven-moods', []);
   const [expenses, setExpenses] = usePersistentState<Expense[]>('maven-expenses', []);
   const [goals, setGoals] = usePersistentState<Goal[]>('maven-goals', []);
-
-  // Attendance State
-  const [classes, setClasses] = usePersistentState<Class[]>('maven-classes', []);
-  const [students, setStudents] = usePersistentState<Student[]>('maven-students', []);
-  const [attendance, setAttendance] = usePersistentState<Attendance>('maven-attendance', {});
-
-  // Pomodoro State
+  
+  // Pomodoro Timer
   const [pomodoroTime, setPomodoroTime] = useState(25 * 60);
   const [pomodoroActive, setPomodoroActive] = useState(false);
-  const [pomodoroSessions, setPomodoroSessions] = usePersistentState('maven-pomodoro-sessions', 0);
+  const [pomodoroSessions, setPomodoroSessions] = usePersistentState<number>('maven-pomodoro-sessions', 0);
   const timerRef = useRef<number | null>(null);
-
-  // Decision Maker State
+  
+  // Decision Maker
   const [decisionOptions, setDecisionOptions] = usePersistentState<string[]>('maven-decision-options', []);
-  const [decisionResult, setDecisionResult] = usePersistentState<string>('maven-decision-result', '');
+  const [decisionResult, setDecisionResult] = useState('');
   const [isDecisionSpinning, setIsDecisionSpinning] = useState(false);
   const [currentDecisionSpin, setCurrentDecisionSpin] = useState('');
   
-  // Journal State
-  const [journalEntries, setJournalEntries] = usePersistentState<JournalEntry[]>('maven-journal-entries', []);
+  // Theme
+  const [theme, setTheme] = usePersistentState<string>('maven-theme', 'theme-dark');
 
-  // UI State
+  // Sidebar & Chatbot Collapse State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = usePersistentState<boolean>('maven-sidebar-collapsed', false);
   const [isChatbotCollapsed, setIsChatbotCollapsed] = usePersistentState<boolean>('maven-chatbot-collapsed', false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   
   // Google Workspace State
-  const [authToken, setAuthToken] = usePersistentState<any | null>('maven-google-auth', null);
+  const [googleAuthToken, setGoogleAuthToken] = usePersistentState<any | null>('maven-google-token', null);
   const [workspaceHistory, setWorkspaceHistory] = usePersistentState<WorkspaceHistoryEntry[]>('maven-workspace-history', []);
   
-  // Settings handlers (lifted from MamDesk)
-  const handleWipeData = () => {
-      indexedDB.deleteDatabase('MavenCredentialsDB'); // Also delete credential DB
-      localStorage.clear();
-      window.location.reload();
-  };
-  
-  const handleExportData = () => {
-    try {
-        const allData = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key) {
-                if (key.startsWith('sb-') || key === 'supabase-url' || key === 'supabase-anon-key') {
-                    continue;
-                }
-                (allData as any)[key] = localStorage.getItem(key);
-            }
-        }
-        const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const date = new Date().toISOString().slice(0, 10);
-        a.download = `maven_backup_${date}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("Data exported successfully!");
-    } catch (error) {
-        console.error("Export failed:", error);
-        toast.error("Failed to export data.");
-    }
-  };
-  
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
+  // Search Palette State
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          try {
-              const text = e.target?.result;
-              if (typeof text !== 'string') throw new Error("File is not readable text.");
-              
-              const importedData = JSON.parse(text);
-              if (window.confirm("This will overwrite all current data. Are you sure you want to continue?")) {
-                  localStorage.clear();
-                  Object.keys(importedData).forEach(key => {
-                      if (typeof importedData[key] === 'string') {
-                          localStorage.setItem(key, importedData[key]);
-                      }
-                  });
-                  toast.success("Data imported successfully! The app will now reload.");
-                  setTimeout(() => window.location.reload(), 1500);
-              }
-          } catch (error) {
-              console.error("Import failed:", error);
-              toast.error("Failed to import data. The file may be invalid.");
-          }
-      };
-      reader.readAsText(file);
-      event.target.value = '';
-  };
+  // Attendance Manager State
+  const [classes, setClasses] = usePersistentState<Class[]>('maven-classes', []);
+  const [students, setStudents] = usePersistentState<Student[]>('maven-students', []);
+  const [attendance, setAttendance] = usePersistentState<Attendance>('maven-attendance', {});
+  
+  // App Load State
+  const [hasEntered, setHasEntered] = useState(sessionStorage.getItem('maven-has-entered') === 'true');
+  const toast = useToast();
+  
+  const [isDataWipeModalOpen, setIsDataWipeModalOpen] = useState(false);
+  const [dataWipeConfirmation, setDataWipeConfirmation] = useState('');
+  
+  // Settings page state
+  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini-api-key') || '');
+  const [supabaseUrl, setSupabaseUrl] = useState(getSupabaseCredentials().url);
+  const [supabaseKey, setSupabaseKey] = useState(getSupabaseCredentials().key);
+  const [supabaseStatus, setSupabaseStatus] = useState(supabaseConnectionStatus);
+  const [showSupabaseKey, setShowSupabaseKey] = useState(false);
 
+  // --- LIFECYCLE & INITIALIZATION ---
 
   useEffect(() => {
-    if (pomodoroActive && pomodoroTime > 0) {
-      timerRef.current = window.setTimeout(() => setPomodoroTime(t => t - 1), 1000);
-    } else if (pomodoroTime === 0 && pomodoroActive) {
-      setPomodoroActive(false);
-      setPomodoroSessions(prev => prev + 1);
-      toast.success('Pomodoro session completed! 🍅');
-      playCompletionSound();
-      setPomodoroTime(25 * 60);
+    initDB().then(success => {
+      if (!success) {
+        toast.error("Failed to initialize local database. Banners may not work correctly.");
+      }
+    });
+  }, [toast]);
+  
+  useEffect(() => {
+    document.documentElement.className = theme;
+  }, [theme]);
+  
+  // Pomodoro Timer Effect
+  useEffect(() => {
+    if (pomodoroActive) {
+      timerRef.current = window.setInterval(() => {
+        setPomodoroTime(t => {
+          if (t <= 1) {
+            clearInterval(timerRef.current!);
+            setPomodoroActive(false);
+            setPomodoroSessions(s => s + 1);
+            new Notification("Pomodoro session complete!");
+            return 25 * 60;
+          }
+          return t - 1;
+        });
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
     }
     return () => {
-        if (timerRef.current) clearTimeout(timerRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [pomodoroActive, pomodoroTime, setPomodoroSessions, toast]);
-  
-   // Global keyboard shortcut for search
+  }, [pomodoroActive, setPomodoroSessions]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
-        e.preventDefault();
-        setIsSearchOpen(isOpen => !isOpen);
-      }
+        if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+            e.preventDefault();
+            setIsSearchOpen(isOpen => !isOpen);
+        }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+  
+  const handleEnterApp = () => {
+    setHasEntered(true);
+    sessionStorage.setItem('maven-has-entered', 'true');
+  };
 
+  const handleGoToLandingPage = () => {
+    setHasEntered(false);
+    sessionStorage.removeItem('maven-has-entered');
+  };
 
-  // Notes Handlers
-  const handleNewPage = (title: string = 'Untitled Page', content: string = '') => {
+  // --- PAGE & CONTENT MANAGEMENT ---
+  const activePage = pages.find(p => p.id === activePageId);
+
+  const handleNewPage = (title: string = 'Untitled Page', content: string = ''): Page => {
     const newPage: Page = {
       id: crypto.randomUUID(),
-      title: title,
-      content: content,
+      title,
+      content,
       createdAt: new Date(),
     };
-    setPages(prevPages => [newPage, ...prevPages]);
+    setPages(prev => [newPage, ...prev]);
     setActivePageId(newPage.id);
-    setView('notes'); // Switch to notes view when a new page is created
+    setView('notes');
     return newPage;
   };
 
-  const handleSelectPage = (id: string) => {
-    setActivePageId(id);
-    setView('notes');
+  const onUpdatePage = (id: string, updates: Partial<Omit<Page, 'id'>>) => {
+    setPages(pages.map(p => (p.id === id ? { ...p, ...updates } : p)));
   };
 
-  const handleDeletePage = async (id: string) => {
+  const onDeletePage = async (id: string) => {
     const pageToDelete = pages.find(p => p.id === id);
-    if (pageToDelete?.bannerUrl && !pageToDelete.bannerUrl.startsWith('data:')) {
+    if (!pageToDelete) return;
+    
+    // Delete associated banner from IndexedDB if it exists
+    if (pageToDelete.bannerUrl && !pageToDelete.bannerUrl.startsWith('data:')) {
         try {
             await deleteBannerData(pageToDelete.bannerUrl);
         } catch (error) {
@@ -494,706 +304,786 @@ const AppContent: React.FC<{ onGoToLandingPage: () => void }> = ({ onGoToLanding
         }
     }
 
-    setPages(prevPages => {
-      const remainingPages = prevPages.filter(page => page.id !== id);
-      if (activePageId === id) {
-        setActivePageId(remainingPages.length > 0 ? remainingPages[0].id : null);
-      }
-      return remainingPages;
-    });
-    return `Note successfully deleted.`;
-  };
-  
-  const handleDeleteNoteByTitle = async (title: string) => {
-    const pageToDelete = pages.find(p => p.title.toLowerCase() === title.toLowerCase());
-    if (pageToDelete) {
-        await handleDeletePage(pageToDelete.id);
-        return `Successfully deleted the note titled "${title}".`;
-    }
-    return `Could not find a note with the title "${title}".`;
-  };
-
-  const handleUpdatePage = (id: string, updates: Partial<Omit<Page, 'id'>>) => {
-    setPages(prevPages =>
-      prevPages.map(page =>
-        page.id === id ? { ...page, ...updates } : page
-      )
-    );
-  };
-  
-  const handleGenerateCreativeContent = (content: string) => {
-    if (activePage) {
-        const formattedContent = content.replace(/\n/g, '<br/>');
-        const newContent = activePage.content ? `${activePage.content}<br/><br/>${formattedContent}` : formattedContent;
-        handleUpdatePage(activePage.id, { content: newContent });
-        return `✍️ Content added to note: "${activePage.title}"`;
-    }
-    return `⚠️ Please select a note first before adding content.`;
-  };
-
-  const handlePlanAndCreateNote = async (topic: string): Promise<string> => {
-    if (!geminiAI) {
-      return "⚠️ AI features are disabled. API key not configured.";
-    }
-    try {
-      const prompt = `Create a detailed, structured plan for the following topic: "${topic}". Use markdown for formatting, including headers, bullet points, and checklists (e.g., "- [ ] Task").`;
-      
-      const response = await geminiAI.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-      });
-
-      const planContent = response.text;
-      if (!planContent && (response as any).promptFeedback?.blockReason) {
-          throw new Error(`Request was blocked by the API. Reason: ${(response as any).promptFeedback.blockReason}`);
-      }
-      if (!planContent.trim()) {
-          throw new Error("The AI returned an empty response.");
-      }
-
-      const finalHtmlContent = `<pre style="white-space: pre-wrap; font-family: inherit; font-size: inherit; line-height: 1.6;">${planContent.trim()}</pre>`;
-
-      handleNewPage(`Plan for ${topic}`, finalHtmlContent);
-
-      return `✅ I've created a new note with a plan for "${topic}".`;
-    } catch (error: any) {
-        console.error("Failed to generate plan:", error);
-        return `⚠️ Sorry, I couldn't generate a plan for "${topic}". ${error.message}`;
+    const remainingPages = pages.filter(p => p.id !== id);
+    setPages(remainingPages);
+    if (activePageId === id) {
+      setActivePageId(remainingPages.length > 0 ? remainingPages[0].id : null);
     }
   };
 
-  const handleWireframeAndCreateNote = async (description: string): Promise<string> => {
-    if (!geminiAI) {
-      return "⚠️ AI features are disabled. API key not configured.";
-    }
-    try {
-      const prompt = `Generate a textual wireframe or structural layout for the following description: "${description}". Use a combination of simple text, symbols, and ASCII-art like boxes to represent components like buttons, inputs, images, and text blocks. The output should be clear and enclosed in a code block. For example:
-+----------------------------------+
-| [Logo]      Nav | Link1 | Link2  |
-+----------------------------------+
-|                                  |
-|      <Image Placeholder>         |
-|                                  |
-+----------------------------------+
-|       [Product Title]            |
-|                                  |
-|  "Product description goes here" |
-|                                  |
-|      <Button: Add to Cart>       |
-+----------------------------------+`;
-      
-      const response = await geminiAI.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-      });
-      const wireframeContent = response.text;
-       if (!wireframeContent && (response as any).promptFeedback?.blockReason) {
-          throw new Error(`Request was blocked by the API. Reason: ${(response as any).promptFeedback.blockReason}`);
-      }
-      if (!wireframeContent.trim()) {
-          throw new Error("The AI returned an empty response.");
-      }
-      const finalHtmlContent = `<pre style="white-space: pre-wrap; font-family: monospace; font-size: 14px; line-height: 1.2;">${wireframeContent.trim()}</pre>`;
-
-      handleNewPage(`Wireframe for ${description}`, finalHtmlContent);
-
-      return `✅ Done! I've created a new note with a wireframe for "${description}".`;
-    } catch (error: any) {
-      console.error("Failed to generate wireframe:", error);
-      return `⚠️ Sorry, I was unable to create the wireframe for "${description}". ${error.message}`;
-    }
-  };
-  
-  // Google Workspace Handler
-  const handleFileImport = ({ file, htmlContent }: { file: DriveFile, htmlContent: string }) => {
-    const newNoteTitle = `Imported: ${file.name}`;
-    const newPage = handleNewPage(newNoteTitle, htmlContent);
-
-    const historyEntry: WorkspaceHistoryEntry = {
-        fileId: file.id,
-        fileName: file.name,
-        fileType: file.mimeType.includes('spreadsheet') ? 'sheet' : 'doc',
-        noteTitle: newPage.title,
-        importedAt: new Date().toISOString(),
-    };
-    setWorkspaceHistory(prev => [historyEntry, ...prev]);
-
-    setActivePageId(newPage.id);
+  const onSelectPage = (id: string) => {
+    setActivePageId(id);
+    localStorage.setItem('maven-last-page-id', id);
     setView('notes');
   };
 
-
-  // MamDesk Handlers
-  const handleAddTask = (text: string) => {
-    if (text.trim()) {
-      setTasks(prev => [...prev, { id: crypto.randomUUID(), text: text, completed: false, createdAt: new Date().toISOString() }]);
-      return `✅ Task added: "${text}"`;
+  // --- JOURNAL MANAGEMENT ---
+  const onUpdateJournal = (date: string, content: string) => {
+    const existingEntry = journalEntries.find(e => e.date === date);
+    if (existingEntry) {
+      if (content.trim() === '') {
+        // If content is empty, delete the entry
+        onDeleteJournal(date);
+      } else {
+        setJournalEntries(prev => prev.map(e => e.date === date ? { ...e, content } : e));
+      }
+    } else if (content.trim() !== '') {
+      // Create new entry only if content is not empty
+      const newEntry: JournalEntry = { id: crypto.randomUUID(), date, content, createdAt: new Date() };
+      setJournalEntries(prev => [...prev, newEntry]);
     }
-    return `⚠️ Could not add an empty task.`;
   };
-  
-  const handleToggleTask = (id: string) => setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  const handleDeleteTask = (id: string) => setTasks(tasks.filter(t => t.id !== id));
-  
-  const handleCompleteTaskByText = (text: string) => {
-      let taskId: string | null = null;
-      const lowerCaseText = text.toLowerCase();
-      const updatedTasks = tasks.map(task => {
-          if (!task.completed && task.text.toLowerCase().includes(lowerCaseText)) {
-              taskId = task.id;
-              return { ...task, completed: true };
-          }
-          return task;
-      });
 
-      if (taskId !== null) {
-          setTasks(updatedTasks);
-          return `✅ Marked task "${text}" as completed.`;
-      }
-      return `⚠️ Could not find an incomplete task matching "${text}".`;
+  const onDeleteJournal = (date: string) => {
+    setJournalEntries(prev => prev.filter(e => e.date !== date));
   };
   
-  const handleDeleteTaskByText = (text: string) => {
-      let taskFound = false;
-      const lowerCaseText = text.toLowerCase();
-      const remainingTasks = tasks.filter(task => {
-          if (task.text.toLowerCase().includes(lowerCaseText)) {
-              taskFound = true;
-              return false; // Exclude this task
-          }
-          return true;
-      });
+  // --- GOOGLE WORKSPACE ---
+  const handleFileImport = (data: { file: DriveFile; htmlContent: string }) => {
+    const newNote = handleNewPage(data.file.name, data.htmlContent);
+    const historyEntry: WorkspaceHistoryEntry = {
+        fileId: data.file.id,
+        fileName: data.file.name,
+        fileType: data.file.mimeType.includes('spreadsheet') ? 'sheet' : 'doc',
+        noteTitle: newNote.title,
+        importedAt: new Date().toISOString()
+    };
+    setWorkspaceHistory(prev => [historyEntry, ...prev]);
+    toast.success(`Imported "${data.file.name}" into a new note.`);
+  };
 
-      if (taskFound) {
-          setTasks(remainingTasks);
-          return `🗑️ Deleted task matching "${text}".`;
-      }
-      return `⚠️ Could not find a task matching "${text}".`;
+
+  // --- CHATBOT FUNCTION HANDLERS ---
+  const onAddTask = (text: string): string => {
+    const newTask: Task = { id: crypto.randomUUID(), text, completed: false, createdAt: new Date().toISOString() };
+    setTasks(prev => [newTask, ...prev]);
+    return `✅ Task added: "${text}"`;
+  };
+
+  const onAddEvent = (title: string, date: string, time: string): string => {
+    const newEvent: CalendarEvent = { id: crypto.randomUUID(), title, date, time };
+    setEvents(prev => [...prev, newEvent]);
+    return `🗓️ Event scheduled: "${title}" on ${date} at ${time}.`;
   };
   
-  const handleListTasks = () => {
-    if (tasks.length === 0) return "You have no tasks.";
-    const incomplete = tasks.filter(t => !t.completed);
+   const onCompleteTaskByText = (text: string): string => {
+    let found = false;
+    let taskText = '';
+    setTasks(prev => prev.map(t => {
+        if (!t.completed && t.text.toLowerCase().includes(text.toLowerCase())) {
+            found = true;
+            taskText = t.text;
+            return { ...t, completed: true };
+        }
+        return t;
+    }));
+    return found ? `✅ Marked task "${taskText}" as complete.` : `🤔 Task containing "${text}" not found or already complete.`;
+  };
+
+  const onDeleteTaskByText = (text: string): string => {
+    let found = false;
+    let originalLength = tasks.length;
+    setTasks(prev => prev.filter(t => {
+        const match = t.text.toLowerCase().includes(text.toLowerCase());
+        if(match) found = true;
+        return !match;
+    }));
+    return found ? `🗑️ Task containing "${text}" deleted.` : `🤔 Task containing "${text}" not found.`;
+  };
+  
+  const onListTasks = (): string => {
     const completed = tasks.filter(t => t.completed);
-    let taskList = "";
-    if (incomplete.length > 0) {
-        taskList += "📝 Incomplete Tasks:\n" + incomplete.map(t => `- ${t.text}`).join('\n');
+    const pending = tasks.filter(t => !t.completed);
+    if (tasks.length === 0) return "You have no tasks.";
+    let response = "";
+    if (pending.length > 0) {
+        response += "Pending Tasks:\n" + pending.map(t => `- ${t.text}`).join('\n');
     }
     if (completed.length > 0) {
-         taskList += "\n\n✅ Completed Tasks:\n" + completed.map(t => `- ${t.text}`).join('\n');
+        response += "\n\nCompleted Tasks:\n" + completed.map(t => `- ${t.text}`).join('\n');
     }
-    return taskList.trim();
+    return response.trim();
+  };
+  
+  const onDeleteNoteByTitle = async (title: string): Promise<string> => {
+    const noteToDelete = pages.find(p => p.title.toLowerCase() === title.toLowerCase());
+    if (noteToDelete) {
+      await onDeletePage(noteToDelete.id);
+      return `✅ Note titled "${noteToDelete.title}" has been deleted.`;
+    }
+    return `❌ Note titled "${title}" was not found.`;
   };
 
-  const handleAddEvent = (title: string, date: string, time: string) => {
-      setEvents(prev => [...prev, { id: crypto.randomUUID(), title, date, time }]);
-      return `🗓️ Event added: "${title}" on ${date} at ${time}.`;
+  const onGetDailyBriefing = (): string => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayEvents = events.filter(e => e.date === today);
+    const pendingTasks = tasks.filter(t => !t.completed);
+    
+    let briefing = "Here's your daily briefing:\n";
+    
+    if (todayEvents.length > 0) {
+      briefing += "\nToday's Events:\n" + todayEvents.map(e => `- ${e.time}: ${e.title}`).join('\n');
+    } else {
+      briefing += "\nNo events scheduled for today.";
+    }
+    
+    if (pendingTasks.length > 0) {
+      briefing += "\n\nPending Tasks:\n" + pendingTasks.map(t => `- ${t.text}`).join('\n');
+    } else {
+      briefing += "\n\nYou have no pending tasks. Great job!";
+    }
+    
+    return briefing;
   };
+  
+  const onGenerateCreativeContent = (content: string): string => {
+      if (!activePage) {
+          handleNewPage("Creative Content", content);
+          return "I've created a new page for your content as you didn't have one open.";
+      }
+      onUpdatePage(activePage.id, { content: activePage.content + `<p>${content}</p>` });
+      return "I've added the generated content to your current note.";
+  };
+  
+   const onMoveKanbanCard = (cardText: string, targetColumn: 'To Do' | 'In Progress' | 'Done'): string => {
+    const columnMap = { 'To Do': 'todo', 'In Progress': 'progress', 'Done': 'done' };
+    const targetColId = columnMap[targetColumn];
+    if (!targetColId) return `Invalid column: "${targetColumn}".`;
 
-  const handleAddKanbanCard = (columnId: string, text: string) => {
-    const newItem = { id: `item-${crypto.randomUUID()}`, text };
+    let card: KanbanItem | undefined;
+    let sourceColId: string | undefined;
+    
+    for (const [colId, col] of Object.entries(kanbanColumns)) {
+        card = col.items.find(item => item.text.toLowerCase().includes(cardText.toLowerCase()));
+        if (card) {
+            sourceColId = colId;
+            break;
+        }
+    }
+
+    if (!card || !sourceColId) return `Card "${cardText}" not found.`;
+    if (sourceColId === targetColId) return `Card "${card.text}" is already in "${targetColumn}".`;
+
+    // Remove from source
+    const newSourceItems = kanbanColumns[sourceColId as keyof KanbanState].items.filter(i => i.id !== card!.id);
+    // Add to target
+    const newTargetItems = [...kanbanColumns[targetColId as keyof KanbanState].items, card];
+
     setKanbanColumns(prev => ({
-        ...prev,
-        [columnId]: {
-            ...prev[columnId],
-            items: [...prev[columnId].items, newItem]
-        }
+      ...prev,
+      [sourceColId as keyof KanbanState]: { ...prev[sourceColId as keyof KanbanState], items: newSourceItems },
+      [targetColId as keyof KanbanState]: { ...prev[targetColId as keyof KanbanState], items: newTargetItems },
     }));
+
+    return `✅ Moved card "${card.text}" to "${targetColumn}".`;
+  };
+
+  const onAddQuickNote = (text: string): string => {
+    setQuickNotes(prev => [{ id: crypto.randomUUID(), text, createdAt: new Date().toISOString() }, ...prev]);
+    return "✅ Quick note added.";
+  };
+
+  const onListQuickNotes = (): string => {
+    if (quickNotes.length === 0) return "You have no quick notes.";
+    return "Here are your quick notes:\n" + quickNotes.map(n => `- ${n.text}`).join('\n');
   };
   
-  const handleMoveKanbanCard = (cardText: string, targetColumn: 'To Do' | 'In Progress' | 'Done'): string => {
-      let cardFound: KanbanItem | null = null;
-      let sourceColumnId: string | null = null;
-      const lowerCardText = cardText.toLowerCase();
-
-      const newColumns = { ...kanbanColumns };
-
-      // Find and remove the card
-      for (const colId in newColumns) {
-          const cardIndex = newColumns[colId].items.findIndex(item => item.text.toLowerCase().includes(lowerCardText));
-          if (cardIndex > -1) {
-              cardFound = newColumns[colId].items[cardIndex];
-              sourceColumnId = colId;
-              newColumns[colId].items.splice(cardIndex, 1);
-              break;
-          }
-      }
-
-      if (!cardFound || !sourceColumnId) {
-          return `⚠️ Could not find a card matching "${cardText}".`;
-      }
-
-      // Find the target column and add the card
-      const targetColumnId = Object.keys(newColumns).find(id => newColumns[id].name === targetColumn);
-      if (!targetColumnId) {
-          return `⚠️ Invalid target column "${targetColumn}". Please use 'To Do', 'In Progress', or 'Done'.`;
-      }
-
-      newColumns[targetColumnId].items.push(cardFound);
-      setKanbanColumns(newColumns);
-      
-      return `✅ Moved card "${cardFound.text}" to "${targetColumn}".`;
-  };
-  
-    const handleAddQuickNote = (text: string) => {
-        setQuickNotes(prev => [{ id: crypto.randomUUID(), text, createdAt: new Date().toISOString() }, ...prev]);
-        return `🗒️ Quick note added.`;
-    };
-    
-    const handleListQuickNotes = () => {
-        if (quickNotes.length === 0) return "You have no quick notes.";
-        return "Your quick notes:\n" + quickNotes.map(n => `- ${n.text}`).join('\n');
+  const onAddHabit = (name: string): string => {
+    if (habits.some(h => h.name.toLowerCase() === name.toLowerCase())) {
+        return `You are already tracking the habit "${name}".`;
     }
-    
-    const handleAddHabit = (name: string) => {
-        if (habits.some(h => h.name.toLowerCase() === name.toLowerCase())) {
-            return `⚠️ A habit named "${name}" already exists.`;
-        }
-        setHabits(prev => [...prev, { id: crypto.randomUUID(), name: name.trim(), streak: 0, lastCompleted: null, history: [] }]);
-        return `💪 New habit added: "${name}". Let's get started!`;
-    };
+    const newHabit: Habit = { id: crypto.randomUUID(), name, streak: 0, lastCompleted: null, history: [] };
+    setHabits(prev => [...prev, newHabit]);
+    return `💪 New habit added: "${name}". Let's get started!`;
+  };
 
-    const handleCompleteHabit = (name: string) => {
-        const todayStr = new Date().toDateString();
-        let habitFound = false;
-        const updatedHabits: (Habit & { alreadyCompleted?: boolean })[] = habits.map(h => {
-            if (h.name.toLowerCase() === name.toLowerCase()) {
-                habitFound = true;
-                if (h.lastCompleted === todayStr) {
-                    return { ...h, alreadyCompleted: true }; // Custom flag to handle message
-                }
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                const isConsecutive = h.lastCompleted === yesterday.toDateString();
-                return { ...h, streak: isConsecutive ? h.streak + 1 : 1, lastCompleted: todayStr, history: [...h.history, { date: todayStr, completed: true }] };
-            }
+  const onCompleteHabit = (name: string): string => {
+    const todayStr = new Date().toDateString();
+    let habitFound = false;
+    let alreadyCompleted = false;
+    setHabits(prev => prev.map(h => {
+      if (h.name.toLowerCase() === name.toLowerCase()) {
+        habitFound = true;
+        if (h.lastCompleted === todayStr) {
+            alreadyCompleted = true;
             return h;
-        });
+        }
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const isConsecutive = h.lastCompleted === yesterday.toDateString();
+        return { ...h, streak: isConsecutive ? h.streak + 1 : 1, lastCompleted: todayStr };
+      }
+      return h;
+    }));
+    if (!habitFound) return `Habit "${name}" not found.`;
+    if (alreadyCompleted) return `You've already completed "${name}" today. Great job!`;
+    return `✅ Habit "${name}" marked as complete for today! Keep it up!`;
+  };
+  
+  const onDeleteHabit = (name: string): string => {
+    let found = false;
+    setHabits(prev => prev.filter(h => {
+        const match = h.name.toLowerCase() === name.toLowerCase();
+        if (match) found = true;
+        return !match;
+    }));
+    return found ? `🗑️ Habit "${name}" has been deleted.` : `🤔 Habit "${name}" not found.`;
+  };
+  
+  const onListHabits = (): string => {
+    if (habits.length === 0) return "You are not tracking any habits yet.";
+    return "Your current habits:\n" + habits.map(h => `- ${h.name} (Streak: ${h.streak} days)`).join('\n');
+  };
 
-        if (!habitFound) {
-            return `⚠️ Could not find a habit named "${name}".`;
+  // Fix: The onMakeDecision function was not returning a value in all code paths, causing a compilation error.
+  // It is now wrapped in a Promise that resolves with the decision string.
+  const onMakeDecision = (options?: string[]): Promise<string> => {
+    return new Promise(resolve => {
+        const opts = options && options.length > 0 ? options : decisionOptions;
+        if (opts.length === 0) {
+            resolve("There are no options to choose from.");
+            return;
+        }
+        if (opts.length === 1) {
+            resolve(`The only option is ${opts[0]}.`);
+            return;
         }
 
-        const updatedHabit = updatedHabits.find(h => h.name.toLowerCase() === name.toLowerCase());
-        if (updatedHabit?.alreadyCompleted) {
-            return `👍 You've already completed the habit "${name}" today!`;
-        }
-        
-        setHabits(updatedHabits.map(({ alreadyCompleted, ...rest }) => rest)); // remove the temporary flag
-        return `🎉 Great job! You've completed "${name}" for today. Current streak: ${updatedHabit!.streak} days.`;
-    };
-
-    const handleDeleteHabit = (name: string) => {
-        const habitExists = habits.some(h => h.name.toLowerCase() === name.toLowerCase());
-        if (!habitExists) {
-            return `⚠️ Could not find a habit named "${name}".`;
-        }
-        setHabits(habits.filter(h => h.name.toLowerCase() !== name.toLowerCase()));
-        return `🗑️ Habit "${name}" has been deleted.`;
-    };
-
-    const handleListHabits = () => {
-        if (habits.length === 0) return "You are not tracking any habits yet.";
-        return "Your current habits:\n" + habits.map(h => `- ${h.name} (Streak: ${h.streak} days)`).join('\n');
-    };
-
-    // Pomodoro Handlers from Chatbot
-    const handleStartPomodoro = () => {
-        if (pomodoroActive) return "⏰ The Pomodoro timer is already running.";
-        setPomodoroActive(true);
-        return "🍅 Pomodoro started! Time to focus for 25 minutes.";
-    };
-    const handlePausePomodoro = () => {
-        if (!pomodoroActive) return "⏰ The Pomodoro timer is not running.";
-        setPomodoroActive(false);
-        return "⏸️ Pomodoro paused.";
-    };
-    const handleResetPomodoro = () => {
-        setPomodoroActive(false);
-        setPomodoroTime(25 * 60);
-        return "🔄 Pomodoro timer has been reset.";
-    };
-
-    // Decision Maker Handlers
-    const handleAddDecisionOption = (option: string) => {
-        if (decisionOptions.includes(option)) return `🤔 The option "${option}" is already on the list.`;
-        setDecisionOptions(prev => [...prev, option]);
-        return `✅ Option "${option}" added.`;
-    };
-    const handleAddDecisionOptions = (options: string[]) => {
-        setDecisionOptions(prev => [...new Set([...prev, ...options])]);
-        return `✅ Added ${options.length} new options to the decision maker.`;
-    };
-    const handleClearDecisionOptions = () => {
-        setDecisionOptions([]);
-        setDecisionResult('');
-        return `🗑️ All decision options have been cleared.`;
-    };
-    const handleMakeDecision = async (options?: string[]): Promise<string> => {
-        const optionsToUse = options && options.length > 0 ? options : decisionOptions;
-        if (optionsToUse.length < 2) return "⚠️ I need at least two options to make a decision.";
-        
+        // Visual spinning effect
         setIsDecisionSpinning(true);
         setDecisionResult('');
+        let spins = 0;
+        const maxSpins = 20 + Math.floor(Math.random() * 10);
+        const spinInterval = setInterval(() => {
+            const randomIndex = Math.floor(Math.random() * opts.length);
+            setCurrentDecisionSpin(opts[randomIndex]);
+            spins++;
+            if (spins >= maxSpins) {
+                clearInterval(spinInterval);
+                const finalChoice = opts[Math.floor(Math.random() * opts.length)];
+                setDecisionResult(finalChoice);
+                setIsDecisionSpinning(false);
+                setCurrentDecisionSpin('');
+                resolve(`The decision is: ${finalChoice}`);
+            }
+        }, 100);
+    });
+  };
 
-        return new Promise(resolve => {
-            let spins = 0;
-            const maxSpins = 20 + Math.floor(Math.random() * 15);
-            const spinInterval = setInterval(() => {
-                const randomIndex = Math.floor(Math.random() * optionsToUse.length);
-                setCurrentDecisionSpin(optionsToUse[randomIndex]);
-                spins++;
-                if (spins >= maxSpins) {
-                    clearInterval(spinInterval);
-                    setTimeout(() => {
-                        const finalChoice = optionsToUse[Math.floor(Math.random() * optionsToUse.length)];
-                        setDecisionResult(finalChoice);
-                        setIsDecisionSpinning(false);
-                        setCurrentDecisionSpin('');
-                        resolve(`🎯 After careful consideration, I choose: **${finalChoice}**`);
-                    }, 500);
-                }
-            }, 100);
-        });
-    };
-    
-    // Journal Handlers
-    const handleAddJournalEntry = (content: string, date?: string) => {
-        const targetDate = date ? date : new Date().toISOString().split('T')[0];
-        const existingEntryIndex = journalEntries.findIndex(e => e.date === targetDate);
+  const onPlanAndCreateNote = async (topic: string): Promise<string> => {
+    if (!geminiAI) return "AI features are disabled.";
+    try {
+      const prompt = `Create a structured plan for the following topic: "${topic}". The plan should be a well-organized list of steps, phases, or key areas. Format it clearly so it can be used as a project outline or study guide.`;
+      const response = await geminiAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+      });
+      const plan = response.text.replace(/\n/g, '<br/>');
+      handleNewPage(`Plan for: ${topic}`, plan);
+      return `✅ Successfully created a new note with a plan for "${topic}".`;
+    } catch (err) {
+      console.error(err);
+      return "❌ Failed to generate a plan.";
+    }
+  };
 
-        if (existingEntryIndex > -1) {
-            // Update existing entry
-            const updatedEntries = [...journalEntries];
-            updatedEntries[existingEntryIndex].content = updatedEntries[existingEntryIndex].content + "\n\n" + content;
-            setJournalEntries(updatedEntries);
-            return `✍️ Added more thoughts to your journal entry for ${targetDate}.`;
-        } else {
-            // Create new entry
-            const newEntry: JournalEntry = { id: crypto.randomUUID(), date: targetDate, content, createdAt: new Date() };
-            setJournalEntries(prev => [newEntry, ...prev]);
-             return `📖 Your journal entry for ${targetDate} has been saved.`;
-        }
-    };
-    
-    // Personal Suite Handlers
-    const handleAddGoal = (text: string) => {
-        setGoals(prev => [...prev, { id: crypto.randomUUID(), text, completed: false }]);
-        return `🏆 New goal set: "${text}"`;
-    };
-    
-    const handleLogMood = (mood: string) => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const newEntry: MoodEntry = { id: crypto.randomUUID(), mood, date: todayStr };
-        setMoodEntries(prev => [...prev.filter(e => e.date !== todayStr), newEntry]);
-        return `😊 Mood logged for today: ${mood}.`;
-    };
-    
-    const handleAddExpense = (description: string, amount: number, category: string = 'General') => {
-        const newExpense: Expense = { id: crypto.randomUUID(), description, amount, category, date: new Date().toISOString() };
-        setExpenses(prev => [newExpense, ...prev]);
-        return `💸 Expense logged: $${amount} for "${description}".`;
-    };
-    
-    const handleAddPersonalQuote = (text: string) => {
-        setPersonalQuotes(prev => [...prev, { id: crypto.randomUUID(), text }]);
-        return `✨ Quote added to your collection.`;
-    };
+  const onWireframeAndCreateNote = async (description: string): Promise<string> => {
+    if (!geminiAI) return "AI features are disabled.";
+    try {
+      const prompt = `Create a textual wireframe for a user interface based on this description: "${description}". Use simple text and indentation to represent the layout of components like headers, buttons, input fields, and content areas. For example:
+[Header: App Name]
+  [Navigation: Home | Profile | Settings]
+[Main Content Area]
+  [Image: Product Photo]
+  [Text: Product Title]
+  [Button: Add to Cart]`;
+      const response = await geminiAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt
+      });
+      const wireframe = `<pre><code>${response.text}</code></pre>`;
+      handleNewPage(`Wireframe: ${description}`, wireframe);
+      return `✅ Successfully created a new note with a wireframe for "${description}".`;
+    } catch (err) {
+      console.error(err);
+      return "❌ Failed to generate a wireframe.";
+    }
+  };
+  
+  const onAddJournalEntry = (content: string, date?: string): string => {
+    const entryDate = date || new Date().toISOString().split('T')[0];
+    onUpdateJournal(entryDate, content);
+    return `✅ Journal entry for ${entryDate} has been saved.`;
+  };
+  
+  const onAddGoal = (text: string): string => {
+    setGoals(prev => [...prev, {id: crypto.randomUUID(), text, completed: false}]);
+    return `🎯 New goal set: "${text}"`;
+  };
+  
+  const onLogMood = (mood: string): string => {
+    const today = new Date().toISOString().split('T')[0];
+    const newEntry = { id: crypto.randomUUID(), mood, date: today };
+    setMoodEntries(prev => [...prev.filter(e => e.date !== today), newEntry]);
+    return `😊 Mood logged for today: ${mood}`;
+  };
+  
+  const onAddExpense = (description: string, amount: number, category: string): string => {
+    const newExpense = { id: crypto.randomUUID(), description, amount, category: category || 'General', date: new Date().toISOString() };
+    setExpenses(prev => [...prev, newExpense]);
+    return `💸 Expense logged: $${amount.toFixed(2)} for ${description}.`;
+  };
+  
+  const onAddPersonalQuote = (text: string): string => {
+    setPersonalQuotes(prev => [...prev, {id: crypto.randomUUID(), text}]);
+    return `❝ Quote added to your collection.`;
+  };
 
-    // MamDesk -> Attendance Handlers
-    const handleAddClass = (name: string) => {
-        const newClass: Class = { id: crypto.randomUUID(), name };
+  // Pomodoro Handlers
+  const onTogglePomodoro = () => setPomodoroActive(prev => !prev);
+  const onResetPomodoro = () => {
+    setPomodoroActive(false);
+    setPomodoroTime(25 * 60);
+  };
+  
+  // Decision Maker Handlers
+  const onAddDecisionOption = (option: string) => {
+    if (option.trim() && !decisionOptions.includes(option.trim())) {
+      setDecisionOptions(prev => [...prev, option.trim()]);
+      return `Added option: "${option}".`;
+    }
+    return `Could not add option: "${option}". It might be empty or a duplicate.`;
+  };
+   const onAddDecisionOptions = (options: string[]) => {
+    const uniqueNewOptions = options.filter(opt => opt.trim() && !decisionOptions.includes(opt.trim()));
+    if(uniqueNewOptions.length > 0) {
+      setDecisionOptions(prev => [...prev, ...uniqueNewOptions]);
+      return `Added ${uniqueNewOptions.length} new options.`;
+    }
+    return "No new unique options were added.";
+  };
+  const onClearDecisionOptions = () => {
+    setDecisionOptions([]);
+    return "All decision options have been cleared.";
+  };
+  
+  // Attendance Manager Handlers
+  const onAddClass = (name: string) => {
+    if (name.trim()) {
+        const newClass: Class = { id: crypto.randomUUID(), name: name.trim() };
         setClasses(prev => [...prev, newClass]);
-    };
+    }
+  };
 
-    const handleDeleteClass = (id: string) => {
-        setClasses(prev => prev.filter(c => c.id !== id));
-        // Also delete associated students and attendance
-        const studentIdsToDelete = students.filter(s => s.classId === id).map(s => s.id);
-        setStudents(prev => prev.filter(s => s.classId !== id));
-        const newAttendance = { ...attendance };
-        Object.keys(newAttendance).forEach(date => {
-            studentIdsToDelete.forEach(studentId => {
-                delete newAttendance[date][studentId];
-            });
+  const onDeleteClass = (id: string) => {
+    // Also delete students and attendance records associated with this class
+    const studentIdsToDelete = students.filter(s => s.classId === id).map(s => s.id);
+    setStudents(prev => prev.filter(s => s.classId !== id));
+    setAttendance(prev => {
+        const newAttendance: Attendance = {};
+        for (const date in prev) {
+            newAttendance[date] = {};
+            for (const studentId in prev[date]) {
+                if (!studentIdsToDelete.includes(studentId)) {
+                    newAttendance[date][studentId] = prev[date][studentId];
+                }
+            }
             if (Object.keys(newAttendance[date]).length === 0) {
                 delete newAttendance[date];
             }
-        });
-        setAttendance(newAttendance);
-    };
-
-    const handleAddStudent = (name: string, enrollment: string, classId: string) => {
-        if (students.some(s => s.enrollment.trim().toLowerCase() === enrollment.trim().toLowerCase())) {
-          toast.error(`A student with enrollment ID ${enrollment} already exists.`);
-          return;
         }
-        const newStudent: Student = { id: crypto.randomUUID(), name, enrollment, classId };
+        return newAttendance;
+    });
+    setClasses(prev => prev.filter(c => c.id !== id));
+  };
+  
+  const onAddStudent = (name: string, enrollment: string, classId: string) => {
+    if (name.trim() && enrollment.trim() && classId) {
+        const newStudent: Student = { id: crypto.randomUUID(), name: name.trim(), enrollment: enrollment.trim(), classId };
         setStudents(prev => [...prev, newStudent]);
-    };
+    }
+  };
+  
+  const onAddStudentsBatch = (newStudents: { name: string; enrollment: string; classId: string }[]): string => {
+    const existingEnrollments = new Set(students.map(s => s.enrollment.toLowerCase()));
+    let addedCount = 0;
+    let skippedCount = 0;
 
-    const handleDeleteStudent = (id: string) => {
-        setStudents(prev => prev.filter(s => s.id !== id));
-        // Also remove attendance records for this student
-        const newAttendance = { ...attendance };
-        Object.keys(newAttendance).forEach(date => {
-            if (newAttendance[date][id]) {
-                delete newAttendance[date][id];
+    const studentsToAdd: Student[] = [];
+
+    newStudents.forEach(s => {
+        if (!existingEnrollments.has(s.enrollment.toLowerCase())) {
+            studentsToAdd.push({ ...s, id: crypto.randomUUID() });
+            addedCount++;
+        } else {
+            skippedCount++;
+        }
+    });
+    
+    if (studentsToAdd.length > 0) {
+        setStudents(prev => [...prev, ...studentsToAdd]);
+    }
+
+    let message = `Import complete. Added ${addedCount} new students.`;
+    if (skippedCount > 0) {
+        message += ` Skipped ${skippedCount} duplicates.`;
+    }
+    return message;
+  };
+
+  const onDeleteStudent = (id: string) => {
+    setStudents(prev => prev.filter(s => s.id !== id));
+    // Also remove from attendance
+    setAttendance(prev => {
+        const newAttendance: Attendance = {};
+        for (const date in prev) {
+            if (prev[date][id]) {
+                const { [id]: _, ...rest } = prev[date];
+                if (Object.keys(rest).length > 0) {
+                    newAttendance[date] = rest;
+                }
+            } else {
+                newAttendance[date] = prev[date];
             }
-            if (Object.keys(newAttendance[date]).length === 0) {
+        }
+        return newAttendance;
+    });
+  };
+  
+  const onSetAttendance = (date: string, studentId: string, status: 'Present' | 'Absent') => {
+    setAttendance(prev => {
+        const newAttendance = { ...prev };
+        if (!newAttendance[date]) {
+            newAttendance[date] = {};
+        }
+        // If the student is already marked with the same status, unmark them.
+        if (newAttendance[date][studentId] === status) {
+            delete newAttendance[date][studentId];
+             if (Object.keys(newAttendance[date]).length === 0) {
                 delete newAttendance[date];
             }
-        });
-        setAttendance(newAttendance);
-    };
-    
-    const handleAddStudentsBatch = (newStudents: { name: string; enrollment: string; classId: string }[]): string => {
-        const existingEnrollments = new Set(students.filter(s => s.classId === newStudents[0]?.classId).map(s => s.enrollment));
-        const trulyNewStudents = newStudents.filter(s => !existingEnrollments.has(s.enrollment));
-
-        const studentsToAdd: Student[] = trulyNewStudents.map(s => ({
-            ...s,
-            id: crypto.randomUUID(),
-        }));
-
-        if (studentsToAdd.length > 0) {
-            setStudents(prev => [...prev, ...studentsToAdd]);
-        }
-        
-        const addedCount = studentsToAdd.length;
-        const skippedCount = newStudents.length - addedCount;
-        
-        let message = `${addedCount} new student(s) added successfully.`;
-        if (skippedCount > 0) {
-            message += ` ${skippedCount} student(s) with duplicate enrollment numbers were skipped.`;
-        }
-        return message;
-    };
-    
-    const handleSetAttendance = (date: string, studentId: string, status: 'Present' | 'Absent') => {
-        setAttendance(prev => ({
-            ...prev,
-            [date]: {
-                ...prev[date],
-                [studentId]: status
-            }
-        }));
-    };
-    
-    const activePage = pages.find(page => page.id === activePageId);
-
-    const handleJournalUpdate = (date: string, content: string) => {
-        if (!content.trim()) {
-            setJournalEntries(prev => prev.filter(e => e.date !== date));
         } else {
-            const existingEntry = journalEntries.find(e => e.date === date);
-            if (existingEntry) {
-                setJournalEntries(prev => prev.map(e => e.date === date ? { ...e, content } : e));
-            } else {
-                const newEntry: JournalEntry = { id: crypto.randomUUID(), date, content, createdAt: new Date() };
-                setJournalEntries(prev => [newEntry, ...prev]);
+            newAttendance[date][studentId] = status;
+        }
+        return newAttendance;
+    });
+  };
+  
+  // --- SETTINGS PAGE HANDLERS ---
+  const handleSaveSettings = () => {
+    updateApiKey(apiKey);
+    const result = updateSupabaseCredentials(supabaseUrl, supabaseKey);
+    setSupabaseStatus({ configured: result.success, message: result.message });
+    toast.success("Settings saved!");
+    if(result.success) {
+      setTimeout(() => window.location.reload(), 1500);
+    }
+  };
+
+  const handleExportData = () => {
+    const data = {
+        pages,
+        journalEntries,
+        tasks,
+        kanbanColumns,
+        quickNotes,
+        events,
+        habits,
+        personalQuotes,
+        moodEntries,
+        expenses,
+        goals,
+        pomodoroSessions,
+        decisionOptions,
+        theme,
+        isSidebarCollapsed,
+        isChatbotCollapsed,
+        googleAuthToken,
+        workspaceHistory,
+        classes,
+        students,
+        attendance
+    };
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
+    const link = document.createElement("a");
+    link.href = jsonString;
+    link.download = `maven_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    toast.success("Data exported successfully!");
+  };
+
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const text = e.target?.result;
+            if (typeof text !== 'string') throw new Error("File could not be read");
+            const data = JSON.parse(text);
+
+            // Basic validation
+            if (!data.pages || !data.tasks) throw new Error("Invalid backup file format");
+            
+            // This is a destructive action, so a confirmation is good practice
+            if(window.confirm("Are you sure you want to overwrite all current data with this backup? This action cannot be undone.")){
+                setPages(data.pages || []);
+                setJournalEntries(data.journalEntries || []);
+                setTasks(data.tasks || []);
+                setKanbanColumns(data.kanbanColumns || { todo: { name: 'To Do', items: [] }, progress: { name: 'In Progress', items: [] }, done: { name: 'Done', items: [] } });
+                setQuickNotes(data.quickNotes || []);
+                setEvents(data.events || []);
+                setHabits(data.habits || []);
+                setPersonalQuotes(data.personalQuotes || []);
+                setMoodEntries(data.moodEntries || []);
+                setExpenses(data.expenses || []);
+                setGoals(data.goals || []);
+                setPomodoroSessions(data.pomodoroSessions || 0);
+                setDecisionOptions(data.decisionOptions || []);
+                setTheme(data.theme || 'theme-dark');
+                setIsSidebarCollapsed(data.isSidebarCollapsed || false);
+                setIsChatbotCollapsed(data.isChatbotCollapsed || false);
+                setGoogleAuthToken(data.googleAuthToken || null);
+                setWorkspaceHistory(data.workspaceHistory || []);
+                setClasses(data.classes || []);
+                setStudents(data.students || []);
+                setAttendance(data.attendance || {});
+                
+                toast.success("Data imported successfully! The app will now reload.");
+                setTimeout(() => window.location.reload(), 1500);
             }
+        } catch (error: any) {
+            console.error("Import error:", error);
+            toast.error(`Import failed: ${error.message}`);
         }
     };
-    
-    const handleJournalDelete = (date: string) => setJournalEntries(prev => prev.filter(e => e.date !== date));
+    reader.readAsText(file);
+    event.target.value = ''; // Reset input to allow re-uploading the same file
+  };
+  
+  const handleWipeData = () => {
+    if (dataWipeConfirmation.toLowerCase() === 'delete my data') {
+        localStorage.clear();
+        indexedDB.deleteDatabase(DB_NAME); // Also wipe IndexedDB
+        toast.success("All data has been wiped. The application will now reload.");
+        setTimeout(() => window.location.reload(), 1500);
+    } else {
+        toast.error("Confirmation text does not match. Data was not deleted.");
+    }
+  };
 
-    const renderMainContent = () => {
-        switch (view) {
-            case 'notes':
-                return activePage ? (
-                    <Editor
-                        key={activePage.id}
-                        page={activePage}
-                        onUpdatePage={handleUpdatePage}
-                        onDeletePage={handleDeletePage}
-                        onNewPage={handleNewPage}
-                    />
-                ) : (
-                    <WelcomePlaceholder onNewPage={handleNewPage} />
-                );
-            case 'dashboard':
-                return (
-                    <MamDesk
-                        activeTab={activeTab}
-                        tasks={tasks}
-                        onAddTask={handleAddTask}
-                        onToggleTask={handleToggleTask}
-                        onDeleteTask={handleDeleteTask}
-                        kanbanColumns={kanbanColumns}
-                        setKanbanColumns={setKanbanColumns}
-                        onAddKanbanCard={handleAddKanbanCard}
-                        quickNotes={quickNotes}
-                        setQuickNotes={setQuickNotes}
-                        events={events}
-                        onAddEvent={handleAddEvent}
-                        habits={habits}
-                        setHabits={setHabits}
-                        pomodoroTime={pomodoroTime}
-                        pomodoroActive={pomodoroActive}
-                        pomodoroSessions={pomodoroSessions}
-                        onTogglePomodoro={() => setPomodoroActive(!pomodoroActive)}
-                        onResetPomodoro={() => {
-                            setPomodoroActive(false);
-                            setPomodoroTime(25*60);
-                        }}
-                        decisionOptions={decisionOptions}
-                        setDecisionOptions={setDecisionOptions}
-                        decisionResult={decisionResult}
-                        setDecisionResult={setDecisionResult}
-                        isDecisionSpinning={isDecisionSpinning}
-                        setIsDecisionSpinning={setIsDecisionSpinning}
-                        currentDecisionSpin={currentDecisionSpin}
-                        setCurrentDecisionSpin={setCurrentDecisionSpin}
-                        theme={theme}
-                        setTheme={setTheme}
-                        pages={pages}
-                        classes={classes}
-                        students={students}
-                        attendance={attendance}
-                        onAddClass={handleAddClass}
-                        onDeleteClass={handleDeleteClass}
-                        onAddStudent={handleAddStudent}
-                        onDeleteStudent={handleDeleteStudent}
-                        onSetAttendance={handleSetAttendance}
-                        onAddStudentsBatch={handleAddStudentsBatch}
-                        onNewNote={handleNewPage}
-                        personalQuotes={personalQuotes}
-                        setPersonalQuotes={setPersonalQuotes}
-                        moodEntries={moodEntries}
-                        setMoodEntries={setMoodEntries}
-                        expenses={expenses}
-                        setExpenses={setExpenses}
-                        goals={goals}
-                        setGoals={setGoals}
-                    />
-                );
-            case 'journal':
-                return <JournalView entries={journalEntries} onUpdate={handleJournalUpdate} onDelete={handleJournalDelete} />;
-            case 'documind':
-                return <InteractiveMindMap />;
-            case 'workspace':
-                return <GoogleWorkspace authToken={authToken} setAuthToken={setAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
-            case 'academics':
-                return <AcademicView goals={goals} events={events} />;
-            case 'about':
-                return <AboutPage />;
-            case 'settings':
-                return <SettingsPage 
-                            theme={theme} 
-                            setTheme={setTheme} 
-                            onExportData={handleExportData}
-                            onImportData={handleImportData}
-                            onWipeData={handleWipeData}
-                        />;
-            case 'help':
-                return <main className="flex-1 flex flex-col bg-accent/20 overflow-y-auto p-4 sm:p-6 lg:p-8"><HelpPage /></main>;
-            default:
-                return <WelcomePlaceholder onNewPage={handleNewPage} />;
-        }
-    };
+  // --- RENDER LOGIC ---
 
-    return (
-    <div className="h-screen w-screen flex bg-background text-foreground overflow-hidden">
-      <Sidebar
-        pages={pages}
-        activePageId={activePageId}
-        onSelectPage={handleSelectPage}
-        onNewPage={handleNewPage}
-        view={view}
-        setView={setView}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isCollapsed={isSidebarCollapsed}
-        setIsCollapsed={setIsSidebarCollapsed}
-        onToggleSearch={() => setIsSearchOpen(true)}
-        onGoToLandingPage={onGoToLandingPage}
-      />
-      <div className="flex-1 flex flex-col min-w-0">
-        {renderMainContent()}
-      </div>
-      <div className={`transition-all duration-300 ease-in-out flex-shrink-0 ${isChatbotCollapsed ? 'w-16' : 'w-96'}`}>
-        <Chatbot
-            onAddTask={handleAddTask}
-            onAddEvent={handleAddEvent}
+  if (!hasEntered) {
+    return <LandingPage onEnter={handleEnterApp} />;
+  }
+  
+  const renderView = () => {
+    switch(view) {
+      case 'notes':
+        return activePage ? (
+          <Editor
+            key={activePage.id}
+            page={activePage}
+            onUpdatePage={onUpdatePage}
+            onDeletePage={onDeletePage}
             onNewPage={handleNewPage}
-            onGetDailyBriefing={() => {
-                const today = new Date().toISOString().split('T')[0];
-                const todayTasks = tasks.filter(t => !t.completed).map(t => `- ${t.text}`).join('\n');
-                const todayEvents = events.filter(e => e.date === today).map(e => `- ${e.title} at ${e.time}`).join('\n');
-                let briefing = "Here's your daily briefing:\n";
-                briefing += todayTasks ? `\n📝 Tasks:\n${todayTasks}` : "\n👍 No pending tasks today!";
-                briefing += todayEvents ? `\n\n🗓️ Events:\n${todayEvents}` : "\n\n🎉 No events scheduled for today!";
-                return briefing;
+          />
+        ) : <WelcomePlaceholder onNewPage={handleNewPage} />;
+      case 'dashboard':
+        return <MamDesk 
+            activeTab={activeDashboardTab}
+            tasks={tasks} onAddTask={(text) => { onAddTask(text); }} onToggleTask={(id) => setTasks(tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t))} onDeleteTask={(id) => setTasks(tasks.filter(t => t.id !== id))}
+            kanbanColumns={kanbanColumns} setKanbanColumns={setKanbanColumns} onAddKanbanCard={(colId, text) => {
+                const newItem: KanbanItem = { id: crypto.randomUUID(), text };
+                setKanbanColumns(prev => ({ ...prev, [colId]: { ...prev[colId as keyof KanbanState], items: [...prev[colId as keyof KanbanState].items, newItem] } }));
             }}
-            onGenerateCreativeContent={handleGenerateCreativeContent}
-            onCompleteTaskByText={handleCompleteTaskByText}
-            onDeleteTaskByText={handleDeleteTaskByText}
-            onListTasks={handleListTasks}
-            onDeleteNoteByTitle={handleDeleteNoteByTitle}
-            onMoveKanbanCard={handleMoveKanbanCard}
-            onAddQuickNote={handleAddQuickNote}
-            onListQuickNotes={handleListQuickNotes}
-            onAddHabit={handleAddHabit}
-            onCompleteHabit={handleCompleteHabit}
-            onDeleteHabit={handleDeleteHabit}
-            onListHabits={handleListHabits}
-            onStartPomodoro={handleStartPomodoro}
-            onPausePomodoro={handlePausePomodoro}
-            onResetPomodoro={handleResetPomodoro}
-            onAddDecisionOption={handleAddDecisionOption}
-            onAddDecisionOptions={handleAddDecisionOptions}
-            onClearDecisionOptions={handleClearDecisionOptions}
-            onMakeDecision={handleMakeDecision}
-            onPlanAndCreateNote={handlePlanAndCreateNote}
-            onWireframeAndCreateNote={handleWireframeAndCreateNote}
-            onAddJournalEntry={handleAddJournalEntry}
-            onAddGoal={handleAddGoal}
-            onLogMood={handleLogMood}
-            onAddExpense={handleAddExpense}
-            onAddPersonalQuote={handleAddPersonalQuote}
-            isCollapsed={isChatbotCollapsed}
-            setIsCollapsed={setIsChatbotCollapsed}
+            quickNotes={quickNotes} setQuickNotes={setQuickNotes}
+            events={events} onAddEvent={(title, date, time) => { onAddEvent(title, date, time); }}
+            habits={habits} setHabits={setHabits}
+            personalQuotes={personalQuotes} setPersonalQuotes={setPersonalQuotes}
+            moodEntries={moodEntries} setMoodEntries={setMoodEntries}
+            expenses={expenses} setExpenses={setExpenses}
+            goals={goals} setGoals={setGoals}
+            pomodoroTime={pomodoroTime} pomodoroActive={pomodoroActive} pomodoroSessions={pomodoroSessions} onTogglePomodoro={onTogglePomodoro} onResetPomodoro={onResetPomodoro}
+            decisionOptions={decisionOptions} setDecisionOptions={setDecisionOptions} decisionResult={decisionResult} setDecisionResult={setDecisionResult} isDecisionSpinning={isDecisionSpinning} setIsDecisionSpinning={setIsDecisionSpinning} currentDecisionSpin={currentDecisionSpin} setCurrentDecisionSpin={setCurrentDecisionSpin}
+            theme={theme} setTheme={setTheme}
+            pages={pages}
+            classes={classes} students={students} attendance={attendance}
+            onAddClass={onAddClass} onDeleteClass={onDeleteClass} onAddStudent={onAddStudent} onDeleteStudent={onDeleteStudent} onSetAttendance={onSetAttendance} onAddStudentsBatch={onAddStudentsBatch}
+            onNewNote={handleNewPage}
+        />;
+      case 'journal':
+        return <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />;
+      case 'documind':
+        return <InteractiveMindMap />;
+      case 'workspace':
+        return <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
+      case 'academics':
+        return <AcademicView goals={goals} events={events} />;
+      case 'about':
+        return <AboutPage />;
+      case 'help':
+        return <div className="p-8 overflow-y-auto"><HelpPage /></div>;
+      case 'settings':
+         return (
+            <main className="flex-1 p-8 overflow-y-auto">
+                 {isDataWipeModalOpen && (
+                    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-card border border-destructive/50 rounded-xl shadow-2xl w-full max-w-lg p-6">
+                            <div className="text-center">
+                                <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4"/>
+                                <h2 className="text-xl font-bold text-foreground">Irreversible Action</h2>
+                                <p className="text-muted-foreground mt-2">
+                                    You are about to delete all of your data, including notes, tasks, and settings. This cannot be undone. To confirm, please type "<strong className="text-destructive">delete my data</strong>" below.
+                                </p>
+                            </div>
+                            <input
+                                type="text"
+                                value={dataWipeConfirmation}
+                                onChange={(e) => setDataWipeConfirmation(e.target.value)}
+                                className="w-full bg-input border-border rounded-md px-3 py-2 mt-4 text-center"
+                            />
+                            <div className="flex gap-4 mt-6">
+                                <button onClick={() => setIsDataWipeModalOpen(false)} className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-md">Cancel</button>
+                                <button onClick={handleWipeData} className="flex-1 bg-destructive text-destructive-foreground py-2 rounded-md">Confirm Deletion</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                <div className="max-w-4xl mx-auto space-y-8">
+                    <section className="bg-card border border-border rounded-xl p-6">
+                         <h2 className="text-xl font-bold mb-4">API Configuration</h2>
+                         <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-foreground/80 mb-1">Google Gemini API Key</label>
+                                <div className="flex items-center gap-2">
+                                     <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Gemini API Key" className="flex-1 bg-input border-border rounded-md px-3 py-2 text-sm" />
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">Required for all AI features. Your key is stored locally and never sent to our servers.</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Project URL</label>
+                                <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://xyz.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
+                                <div className="relative">
+                                    <input type={showSupabaseKey ? "text" : "password"} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="w-full bg-input border-border rounded-md px-3 py-2 text-sm pr-10" />
+                                    <button onClick={() => setShowSupabaseKey(!showSupabaseKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground">
+                                        {showSupabaseKey ? <EyeOff size={16}/> : <Eye size={16}/>}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">Required for the Student/Teacher Portal feature. Stored locally.</p>
+                                <p className={`text-xs mt-1 ${supabaseStatus.configured ? 'text-green-400' : 'text-amber-400'}`}>{supabaseStatus.message}</p>
+                            </div>
+                         </div>
+                         <div className="mt-6 text-right">
+                             <button onClick={handleSaveSettings} className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-semibold flex items-center gap-2 ml-auto">
+                                <Save size={16}/> Save Configuration
+                            </button>
+                         </div>
+                    </section>
+                     <section className="bg-card border border-border rounded-xl p-6">
+                         <h2 className="text-xl font-bold mb-4">Data Management</h2>
+                         <p className="text-sm text-muted-foreground mb-4">Your data is stored locally in your browser. You can back it up or import it from a file.</p>
+                         <div className="flex flex-wrap gap-4">
+                            <button onClick={handleExportData} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md font-semibold">
+                                <Download size={16}/> Export Data
+                            </button>
+                            <label className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md font-semibold cursor-pointer">
+                                <Upload size={16}/> Import Data
+                                <input type="file" className="hidden" accept=".json" onChange={handleImportData} />
+                            </label>
+                         </div>
+                    </section>
+                    <section className="bg-card border border-destructive/20 rounded-xl p-6">
+                         <h2 className="text-xl font-bold text-destructive mb-2">Danger Zone</h2>
+                         <p className="text-sm text-muted-foreground mb-4">This action is irreversible. It will permanently delete all your notes, tasks, and settings from this browser.</p>
+                         <button onClick={() => setIsDataWipeModalOpen(true)} className="bg-destructive text-destructive-foreground px-4 py-2 rounded-md font-semibold">
+                            Wipe All Local Data
+                        </button>
+                    </section>
+                </div>
+            </main>
+         );
+      default:
+        return <WelcomePlaceholder onNewPage={handleNewPage} />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden font-sans">
+        <Sidebar
+            pages={pages}
+            activePageId={activePageId}
+            onSelectPage={onSelectPage}
+            onNewPage={handleNewPage}
+            view={view}
+            setView={setView}
+            activeTab={activeDashboardTab}
+            setActiveTab={setActiveDashboardTab}
+            isCollapsed={isSidebarCollapsed}
+            setIsCollapsed={setIsSidebarCollapsed}
+            onToggleSearch={() => setIsSearchOpen(true)}
+            onGoToLandingPage={handleGoToLandingPage}
         />
-      </div>
-       <SearchPalette
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        pages={pages}
-        onSelectPage={handleSelectPage}
-      />
+        <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex min-h-0 relative">
+                {renderView()}
+            </div>
+        </div>
+         <aside className={`flex-shrink-0 border-l border-border/50 transition-all duration-300 ease-in-out ${isChatbotCollapsed ? 'w-16' : 'w-96'}`}>
+            <Chatbot 
+                onAddTask={onAddTask} 
+                onAddEvent={onAddEvent} 
+                onNewPage={handleNewPage}
+                onGetDailyBriefing={onGetDailyBriefing}
+                onGenerateCreativeContent={onGenerateCreativeContent}
+                onCompleteTaskByText={onCompleteTaskByText}
+                onDeleteTaskByText={onDeleteTaskByText}
+                onListTasks={onListTasks}
+                onDeleteNoteByTitle={onDeleteNoteByTitle}
+                onMoveKanbanCard={onMoveKanbanCard}
+                onAddQuickNote={onAddQuickNote}
+                onListQuickNotes={onListQuickNotes}
+                onAddHabit={onAddHabit}
+                onCompleteHabit={onCompleteHabit}
+                onDeleteHabit={onDeleteHabit}
+                onListHabits={onListHabits}
+                onStartPomodoro={() => { setPomodoroActive(true); return "Pomodoro timer started."; }}
+                onPausePomodoro={() => { setPomodoroActive(false); return "Pomodoro timer paused."; }}
+                onResetPomodoro={() => { onResetPomodoro(); return "Pomodoro timer reset."; }}
+                onAddDecisionOption={onAddDecisionOption}
+                onAddDecisionOptions={onAddDecisionOptions}
+                onClearDecisionOptions={onClearDecisionOptions}
+                onMakeDecision={onMakeDecision}
+                onPlanAndCreateNote={onPlanAndCreateNote}
+                onWireframeAndCreateNote={onWireframeAndCreateNote}
+                onAddJournalEntry={onAddJournalEntry}
+                onAddGoal={onAddGoal}
+                onLogMood={onLogMood}
+                onAddExpense={onAddExpense}
+                onAddPersonalQuote={onAddPersonalQuote}
+                isCollapsed={isChatbotCollapsed}
+                setIsCollapsed={setIsChatbotCollapsed}
+            />
+        </aside>
+        <SearchPalette 
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+            pages={pages}
+            onSelectPage={onSelectPage}
+        />
     </div>
   );
 };
 
-const App: React.FC = () => {
-  const [appState, setAppState] = useState<'landing' | 'app'>('landing');
+const AppWrapper: React.FC = () => (
+  <ToastProvider>
+    <App />
+  </ToastProvider>
+);
 
-  useEffect(() => {
-    const hasLaunchedBefore = localStorage.getItem('maven-has-launched');
-    if (hasLaunchedBefore) {
-      setAppState('app');
-    }
-  }, []);
-
-  const handleEnterApp = () => {
-    localStorage.setItem('maven-has-launched', 'true');
-    setAppState('app');
-  };
-
-  const handleGoToLandingPage = () => {
-    localStorage.removeItem('maven-has-launched');
-    setAppState('landing');
-  }
-
-  return (
-    <ToastProvider>
-        <div className="h-screen w-screen flex flex-col">
-            {appState === 'landing' && <LandingPage onEnter={handleEnterApp} />}
-            {appState === 'app' && <AppContent onGoToLandingPage={handleGoToLandingPage} />}
-        </div>
-    </ToastProvider>
-  );
-};
-
-export default App;
+export default AppWrapper;

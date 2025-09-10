@@ -1,7 +1,8 @@
 
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, FlaskConical, PencilRuler, Users as UsersIcon } from 'lucide-react';
+import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, FlaskConical, PencilRuler } from 'lucide-react';
 import { supabase, isSupabaseConfigured, Database, initPromise } from './supabase-config';
 import { useToast } from './Toast';
 import { geminiAI } from './gemini';
@@ -71,7 +72,7 @@ const CurriculumCopilotModal: React.FC<CurriculumCopilotModalProps> = ({ isOpen,
     const toast = useToast();
 
     const availableStyles = [
-        { name: 'Interactive', icon: <UsersIcon size={16}/> },
+        { name: 'Interactive', icon: <Users size={16}/> },
         { name: 'Lecture', icon: <UserIcon size={16}/> },
         { name: 'Hands-on', icon: <FlaskConical size={16}/> },
         { name: 'Project-based', icon: <PencilRuler size={16}/> },
@@ -344,10 +345,11 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
     const [startingSession, setStartingSession] = useState(false);
     const [todayCurriculum, setTodayCurriculum] = useState<Curriculum | null>(null);
     const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-    
+    const [topic, setTopic] = useState('');
+    const [activities, setActivities] = useState('');
     const toast = useToast();
 
-    // Fetch active session on mount
+    // Fetch active session and curriculum on mount
     useEffect(() => {
         const fetchActiveSession = async () => {
             const { data, error } = await supabase!
@@ -358,7 +360,22 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
                 .single();
             if (data) setActiveSession(data);
         };
+        const fetchCurriculum = async () => {
+            const date = new Date().toISOString().split('T')[0];
+            const { data, error } = await supabase!
+                .from('portal_curriculum')
+                .select('*')
+                .eq('teacher_id', user.id)
+                .eq('date', date)
+                .single();
+            if (data) {
+                setTodayCurriculum(data);
+                setTopic(data.topic || '');
+                setActivities(data.activities || '');
+            }
+        };
         fetchActiveSession();
+        fetchCurriculum();
     }, [user.id]);
     
     // Generate QR Code when session changes
@@ -370,7 +387,6 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
             });
             // Fetch initial attendance list
             const fetchAttendance = async () => {
-// FIX: The original query `select('*, portal_users(*)')` was ambiguous because portal_attendance has two foreign keys to portal_users (student_id and teacher_id). This fix specifies the join on `student_id`.
                  const { data, error } = await supabase!.from('portal_attendance').select('*, portal_users!student_id(*)').eq('session_id', activeSession.id);
                  if (error) toast.error("Could not fetch attendance");
                  else setLiveAttendance(data as AttendanceRecord[]);
@@ -446,68 +462,158 @@ const TeacherDashboard: React.FC<{ user: Profile }> = ({ user }) => {
         }
     };
     
-    const handleSaveCurriculum = async (topic: string, activities: string) => {
-         const date = new Date().toISOString().split('T')[0];
-         const { error } = await supabase!.from('portal_curriculum').upsert({
-             teacher_id: user.id,
-             date,
-             topic,
-             activities
-         }, { onConflict: 'teacher_id, date' });
-         if (error) toast.error(error.message);
-         else {
-             toast.success("Today's curriculum saved!");
-             setTodayCurriculum({id: todayCurriculum?.id || 0, created_at: todayCurriculum?.created_at || new Date().toISOString(), teacher_id: user.id, date, topic, activities});
-         }
+    const handleSaveCurriculum = async () => {
+        const date = new Date().toISOString().split('T')[0];
+        if (!topic.trim()) {
+            toast.error("Please enter a topic for the curriculum.");
+            return;
+        }
+        const { error } = await supabase!.from('portal_curriculum').upsert({
+            teacher_id: user.id,
+            date,
+            topic,
+            activities
+        }, { onConflict: 'teacher_id, date' });
+        if (error) toast.error(error.message);
+        else {
+            toast.success("Today's curriculum saved!");
+            setTodayCurriculum({id: todayCurriculum?.id || 0, created_at: todayCurriculum?.created_at || new Date().toISOString(), teacher_id: user.id, date, topic, activities});
+        }
     };
+    
+    const navItems = [
+        { id: 'sessions', label: 'Live Session', icon: Smartphone },
+        { id: 'curriculum', label: 'Curriculum', icon: BookOpen },
+        { id: 'students', label: 'Students', icon: Users },
+        { id: 'analytics', label: 'Analytics', icon: BarChart2 },
+    ];
 
     return (
         <div>
-            {/* Session management UI */}
-             <div className="bg-card border border-border rounded-xl p-6">
-                {activeSession ? (
+            <CurriculumCopilotModal
+                isOpen={isCopilotOpen}
+                onClose={() => setIsCopilotOpen(false)}
+                topic={topic}
+                onGeneratePlan={(plan) => setActivities(plan)}
+            />
+
+            <nav className="flex items-center gap-2 bg-secondary p-1.5 rounded-lg mb-6 max-w-max">
+                {navItems.map(item => (
+                    <button
+                        key={item.id}
+                        onClick={() => setView(item.id as any)}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                            view === item.id ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        <item.icon size={16} />
+                        {item.label}
+                    </button>
+                ))}
+            </nav>
+
+            {view === 'sessions' && (
+                <div className="bg-card border border-border rounded-xl p-6">
+                    {activeSession ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <h2 className="text-xl font-bold">Session is Live</h2>
+                                <p className="text-muted-foreground">Session Code:</p>
+                                <div className="flex items-center gap-2 my-2">
+                                    <span className="text-4xl font-bold tracking-widest bg-secondary px-4 py-2 rounded-lg">{activeSession.session_code}</span>
+                                    <button onClick={() => navigator.clipboard.writeText(activeSession.session_code || '')} className="p-2 text-muted-foreground hover:bg-accent rounded-md"><Copy size={20}/></button>
+                                </div>
+                                {qrCodeUrl && <img src={qrCodeUrl} alt="Session QR Code" className="w-48 h-48 rounded-lg" />}
+                                <button onClick={endSession} className="mt-4 bg-destructive text-destructive-foreground px-4 py-2 rounded-md font-semibold w-full">End Session</button>
+                            </div>
+                            <div>
+                                <h3 className="font-bold mb-2">Live Attendance ({liveAttendance.length})</h3>
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {liveAttendance.map(att => (
+                                        <div key={att.id} className="p-2 bg-secondary rounded-md flex justify-between items-center text-sm">
+                                            <span>
+                                                <p className="font-medium">{att.portal_users?.name}</p>
+                                                <p className="text-xs text-muted-foreground">{att.portal_users?.enrollment_id}</p>
+                                            </span>
+                                            <CheckCircle size={16} className="text-green-500"/>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <h2 className="text-xl font-bold mb-4">Start New Attendance Session</h2>
+                            <div className="flex items-center gap-4 mb-4">
+                                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                                     {locationEnforced ? <ToggleRight size={24} className="text-primary"/> : <ToggleLeft size={24}/>}
+                                    Location-Aware (GPS)
+                                </label>
+                                <input type="checkbox" checked={locationEnforced} onChange={e => setLocationEnforced(e.target.checked)} className="hidden"/>
+                            </div>
+                             <button onClick={startSession} disabled={startingSession} className="bg-primary text-primary-foreground px-6 py-3 rounded-lg font-bold w-full max-w-xs flex items-center justify-center disabled:opacity-50">
+                                {startingSession ? <Loader className="animate-spin mr-2"/> : <Smartphone className="mr-2"/>} Start Session
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+            
+            {view === 'curriculum' && (
+                <div className="bg-card border border-border rounded-xl p-6">
+                    <h2 className="text-xl font-bold mb-4">Today's Curriculum Plan</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <h2 className="text-xl font-bold">Session is Live</h2>
-                            <p className="text-muted-foreground">Session Code:</p>
-                            <div className="flex items-center gap-2 my-2">
-                                <span className="text-4xl font-bold tracking-widest bg-secondary px-4 py-2 rounded-lg">{activeSession.session_code}</span>
-                                <button onClick={() => navigator.clipboard.writeText(activeSession.session_code || '')} className="p-2 text-muted-foreground hover:bg-accent rounded-md"><Copy size={20}/></button>
-                            </div>
-                            {qrCodeUrl && <img src={qrCodeUrl} alt="Session QR Code" className="w-48 h-48 rounded-lg" />}
-                            <button onClick={endSession} className="mt-4 bg-destructive text-destructive-foreground px-4 py-2 rounded-md font-semibold w-full">End Session</button>
-                        </div>
-                        <div>
-                            <h3 className="font-bold mb-2">Live Attendance ({liveAttendance.length})</h3>
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                                {liveAttendance.map(att => (
-                                    <div key={att.id} className="p-2 bg-secondary rounded-md flex justify-between items-center text-sm">
-                                        <span>
-                                            <p className="font-medium">{att.portal_users?.name}</p>
-                                            <p className="text-xs text-muted-foreground">{att.portal_users?.enrollment_id}</p>
-                                        </span>
-                                        <CheckCircle size={16} className="text-green-500"/>
-                                    </div>
-                                ))}
+                            <div className="space-y-4">
+                                 <div>
+                                    <label className="text-sm font-medium">Topic</label>
+                                    <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="e.g., Introduction to React Hooks" className="w-full mt-1 bg-input border-border rounded-md p-2 text-sm" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium">Lesson Plan & Activities</label>
+                                    <textarea value={activities} onChange={e => setActivities(e.target.value)} placeholder="- (5 mins) Icebreaker..." className="w-full mt-1 bg-input border-border rounded-md p-2 text-sm min-h-[200px]"></textarea>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ) : (
-                    <div>
-                        <h2 className="text-xl font-bold mb-4">Start New Attendance Session</h2>
-                        <div className="flex items-center gap-4 mb-4">
-                            <label className="flex items-center gap-2 cursor-pointer text-sm">
-                                 {locationEnforced ? <ToggleRight size={24} className="text-primary"/> : <ToggleLeft size={24}/>}
-                                Location-Aware (GPS)
-                            </label>
-                            <input type="checkbox" checked={locationEnforced} onChange={e => setLocationEnforced(e.target.checked)} className="hidden"/>
+                        <div className="flex flex-col">
+                            <div className="bg-secondary/50 rounded-lg p-4 flex-1">
+                                <h3 className="font-semibold mb-2 flex items-center gap-2 text-primary"><Wand2 size={16}/> Curriculum Copilot</h3>
+                                <p className="text-sm text-muted-foreground mb-4">Stuck? Use AI to generate a structured lesson plan for today's topic.</p>
+                                 <button onClick={() => setIsCopilotOpen(true)} disabled={!topic.trim()} className="w-full bg-primary/20 text-primary py-2 rounded-md font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+                                    Launch AI Copilot
+                                </button>
+                            </div>
+                            <button onClick={handleSaveCurriculum} className="mt-4 bg-primary text-primary-foreground py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                                <Save size={16}/> Save Today's Plan
+                            </button>
                         </div>
-                         <button onClick={startSession} disabled={startingSession} className="bg-primary text-primary-foreground px-6 py-3 rounded-lg font-bold w-full max-w-xs flex items-center justify-center disabled:opacity-50">
-                            {startingSession ? <Loader className="animate-spin mr-2"/> : <Smartphone className="mr-2"/>} Start Session
-                        </button>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
+            {view === 'students' && (
+                <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col items-center justify-center text-center">
+                    <Users size={48} className="text-primary mb-4" />
+                    <h2 className="text-2xl font-bold">Student Management</h2>
+                    <p className="text-muted-foreground mt-2 max-w-lg">
+                        This section will allow you to manage your student rosters, assign students to your classes, and view individual profiles.
+                        <br/><br/>
+                        (Feature under construction)
+                    </p>
+                </div>
+            )}
+
+            {view === 'analytics' && (
+                <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col items-center justify-center text-center">
+                    <BarChart2 size={48} className="text-primary mb-4" />
+                    <h2 className="text-2xl font-bold">Attendance Analytics</h2>
+                    <p className="text-muted-foreground mt-2 max-w-lg">
+                        This dashboard will provide powerful insights into class attendance trends, helping to identify at-risk students and improve engagement.
+                        <br/><br/>
+                        (Feature under construction)
+                    </p>
+                </div>
+            )}
         </div>
     );
 };

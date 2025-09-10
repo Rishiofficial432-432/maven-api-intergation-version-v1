@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 // Fix: Removed `Settings` icon import to resolve name conflict with the Settings component.
 // Added `AlertTriangle` icon import for use in the data wipe confirmation modal.
@@ -15,126 +17,19 @@ import {
 } from 'lucide-react';
 import { HelpPage } from './HelpPage';
 import RandomDecisionMaker from './RandomDecisionMaker';
-import { Page } from '../App';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
 // Fix: Corrected useToast import path
 import { useToast } from './Toast';
 import { updateApiKey } from './gemini';
 import { updateSupabaseCredentials, connectionStatus } from './supabase-config';
+import { 
+    Page, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance, 
+    Teacher, Course, Room, TimetableEntry 
+} from '../types';
 
 
 declare const XLSX: any;
-
-// Type Definitions
-export interface Task {
-  id: string;
-  text: string;
-  completed: boolean;
-  createdAt: string;
-}
-
-export interface KanbanItem {
-  id: string;
-  text: string;
-}
-
-export interface KanbanColumn {
-  name: string;
-  items: KanbanItem[];
-}
-
-export interface KanbanState {
-  [key: string]: KanbanColumn;
-}
-
-export interface QuickNote {
-    id: string;
-    text: string;
-    createdAt: string;
-}
-
-export interface CalendarEvent {
-    id: string;
-    title: string;
-    date: string;
-    time: string;
-}
-
-export interface Habit {
-    id: string;
-    name: string;
-    streak: number;
-    lastCompleted: string | null;
-    history: { date: string; completed: boolean }[];
-}
-
-export interface Quote {
-    id: string;
-    text: string;
-}
-
-export interface MoodEntry {
-    id: string;
-    mood: string;
-    date: string;
-}
-export interface Expense {
-    id: string;
-    description: string;
-    amount: number;
-    category: string;
-    date: string;
-}
-export interface Goal {
-    id: string;
-    text: string;
-    completed: boolean;
-    targetDate?: string;
-}
-
-export interface Class {
-    id: string;
-    name: string;
-}
-export interface Student {
-    id: string;
-    name: string;
-    enrollment: string;
-    classId: string;
-}
-export interface Attendance {
-    [date: string]: {
-        [studentId: string]: 'Present' | 'Absent';
-    };
-}
-
-// Types for AI Scheduler
-export interface Teacher {
-    id: string;
-    name: string;
-    availability: string[]; // e.g., ['Monday', 'Wednesday']
-    expertise: string[]; // e.g., ['Computer Science', 'Mathematics']
-}
-export interface Course {
-    id: string;
-    name: string;
-    hoursPerWeek: number;
-    requiredExpertise: string;
-}
-export interface Room {
-    id: string;
-    name: string;
-    capacity: number;
-}
-export interface TimetableEntry {
-    day: string;
-    timeSlot: string; // e.g., "09:00 - 10:00"
-    courseName: string;
-    teacherName: string;
-    roomName: string;
-}
-
 
 // --- AI BRAIN DUMP SUB-COMPONENT ---
 
