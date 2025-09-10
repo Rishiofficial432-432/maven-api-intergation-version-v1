@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import StudentTeacherPortal from './StudentTeacherPortal';
 import { supabase, isSupabaseConfigured } from './supabase-config';
@@ -170,7 +171,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
     const availableNavItems = navItems.filter(item => {
         if (!isSupabaseConfigured || !profile) {
             // If not logged into portal, show portal tab and maybe routine
-             return item.id === 'portal' || item.id === 'routine';
+             return item.id === 'portal' || item.id === 'routine' || item.id === 'scheduler';
         }
         return item.roles.includes(profile.role);
     });
