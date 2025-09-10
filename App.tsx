@@ -982,7 +982,7 @@ const App: React.FC = () => {
                                 <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://xyz.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
                             </div>
                             <div className="mt-4">
-                                <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
+                                <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase API Key (anon public)</label>
                                 <div className="relative">
                                     <input type={showSupabaseKey ? "text" : "password"} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="w-full bg-input border-border rounded-md px-3 py-2 text-sm pr-10" />
                                     <button onClick={() => setShowSupabaseKey(!showSupabaseKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground">

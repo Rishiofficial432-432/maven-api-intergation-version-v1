@@ -94,7 +94,7 @@ export const HelpPage: React.FC = () => {
                     <strong>Required for:</strong> The Student/Teacher Portal feature only.
                 </p>
                 <p>
-                    This feature requires a cloud database to manage users and real-time attendance sessions. If you do not plan to use the portal, you can leave these fields blank. To set it up, you need a Supabase account and a project. You can find your Project URL and Anon Key in your Supabase project's API settings.
+                    This feature requires a cloud database to manage users and real-time attendance sessions. If you do not plan to use the portal, you can leave these fields blank. To set it up, you need a Supabase account and a project. You can find your Project URL and API Key (anon public) in your Supabase project's API settings.
                 </p>
             </Section>
 
