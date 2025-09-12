@@ -1,6 +1,4 @@
 
-
-
 export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration';
 
 export interface Page {
@@ -143,4 +141,30 @@ export interface TimetableEntry {
     subjectName: string;
     teacherName: string;
     roomName: string;
+}
+
+// Types for Local IndexedDB Portal
+export interface PortalUser {
+    id: string;
+    name: string;
+    email: string;
+    password?: string; // Stored locally, but not always needed in memory
+    role: 'teacher' | 'student';
+    enrollmentId?: string;
+}
+
+export interface PortalSession {
+    id: 'active_session';
+    teacherId: string;
+    otp: string;
+    locationEnforced: boolean;
+    location: { latitude: number; longitude: number } | null;
+    radius: number;
+}
+
+export interface PortalAttendanceRecord {
+    id: string;
+    sessionId: string;
+    student: PortalUser;
+    timestamp: string;
 }

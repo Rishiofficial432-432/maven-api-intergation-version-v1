@@ -1,21 +1,13 @@
 
-
-
-
 import React, { useState, useEffect } from 'react';
 import StudentTeacherPortal from './StudentTeacherPortal';
-import { supabase, isSupabaseConfigured } from './supabase-config';
-// FIX: Changed import to address `User` not being an exported member error in older versions.
-import { User as SupabaseUser } from '@supabase/supabase-js';
-import { Database } from './supabase-config';
 import { Goal, CalendarEvent } from '../types';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
 import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock } from 'lucide-react';
 import Scheduler from './Scheduler';
 
-type AcademicViewTab = 'portal' | 'routine' | 'analytics' | 'scheduler';
-type Profile = Database['public']['Tables']['portal_users']['Row'];
+type AcademicViewTab = 'portal' | 'routine' | 'scheduler';
 
 interface AcademicViewProps {
     goals: Goal[];
@@ -128,57 +120,16 @@ Crucial Instruction: The output MUST be plain text only. Do not use any markdown
     );
 };
 
-// Attendance Analytics Component (Teacher View)
-const AttendanceAnalytics = () => {
-    // Placeholder - this would be a complex component
-    return (
-        <div className="bg-card border border-border rounded-xl p-6 h-full flex flex-col items-center justify-center text-center">
-            <BarChart2 size={48} className="text-primary mb-4" />
-            <h2 className="text-2xl font-bold">Attendance Analytics</h2>
-            <p className="text-muted-foreground mt-2 max-w-lg">
-                This dashboard will provide teachers with powerful insights into class attendance trends, helping to identify at-risk students and improve engagement.
-                <br /><br />
-                (Feature under construction)
-            </p>
-        </div>
-    );
-};
-
 
 // Main AcademicView Component
 const AcademicView: React.FC<AcademicViewProps> = (props) => {
     const [activeTab, setActiveTab] = useState<AcademicViewTab>('portal');
-    const [profile, setProfile] = useState<Profile | null>(null);
-
-    // Effect to check user role from Supabase to conditionally show tabs
-    useEffect(() => {
-        const fetchProfile = async () => {
-            if (isSupabaseConfigured) {
-                // FIX: Use async `getSession()` for Supabase JS v2+.
-                const { data: { session } } = await supabase!.auth.getSession();
-                if (session) {
-                    const { data } = await supabase!.from('portal_users').select('*').eq('id', session.user.id).single();
-                    setProfile(data);
-                }
-            }
-        };
-        fetchProfile();
-    }, []);
 
     const navItems = [
-        { id: 'portal', label: 'Portal', icon: ClipboardList, roles: ['student', 'teacher'] },
-        { id: 'routine', label: 'Daily Routine', icon: CalendarCheck, roles: ['student'] },
-        { id: 'scheduler', label: 'Scheduler', icon: Clock, roles: ['teacher'] },
-        { id: 'analytics', label: 'Analytics', icon: BarChart2, roles: ['teacher'] },
+        { id: 'portal', label: 'Portal', icon: ClipboardList },
+        { id: 'routine', label: 'Daily Routine', icon: CalendarCheck },
+        { id: 'scheduler', label: 'Scheduler', icon: Clock },
     ];
-    
-    const availableNavItems = navItems.filter(item => {
-        if (!isSupabaseConfigured || !profile) {
-            // If not logged into portal, show portal tab and maybe routine
-             return item.id === 'portal' || item.id === 'routine' || item.id === 'scheduler';
-        }
-        return item.roles.includes(profile.role);
-    });
 
     const renderContent = () => {
         switch (activeTab) {
@@ -188,8 +139,6 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
                 return <DailyRoutineGenerator {...props} />;
             case 'scheduler':
                 return <Scheduler />;
-            case 'analytics':
-                return <AttendanceAnalytics />;
             default:
                 return <StudentTeacherPortal />;
         }
@@ -201,7 +150,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
                 <div className="flex items-center justify-between">
                      <h1 className="text-2xl font-bold flex items-center gap-3"><GraduationCap /> Academics Hub</h1>
                      <nav className="flex items-center gap-2 bg-secondary p-1.5 rounded-lg">
-                        {availableNavItems.map(item => (
+                        {navItems.map(item => (
                             <button
                                 key={item.id}
                                 onClick={() => setActiveTab(item.id as AcademicViewTab)}
