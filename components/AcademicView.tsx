@@ -1,9 +1,11 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import StudentTeacherPortal from './StudentTeacherPortal';
 import { supabase, isSupabaseConfigured } from './supabase-config';
-import { User as SupabaseUser } from '@supabase/supabase-js';
+// FIX: Changed to a type-only import for User to resolve module export error.
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { Database } from './supabase-config';
 import { Goal, CalendarEvent } from '../types';
 import { geminiAI } from './gemini';
@@ -151,7 +153,8 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
     useEffect(() => {
         const fetchProfile = async () => {
             if (isSupabaseConfigured) {
-                const { data: { session } } = await supabase!.auth.getSession();
+                // FIX: Changed getSession() to session() for compatibility with older Supabase versions.
+                const session = supabase!.auth.session();
                 if (session) {
                     const { data } = await supabase!.from('portal_users').select('*').eq('id', session.user.id).single();
                     setProfile(data);

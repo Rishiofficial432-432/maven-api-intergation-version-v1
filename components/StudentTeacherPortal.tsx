@@ -1,11 +1,13 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, FlaskConical, PencilRuler } from 'lucide-react';
 import { supabase, isSupabaseConfigured, Database, initPromise } from './supabase-config';
 import { useToast } from './Toast';
 import { geminiAI } from './gemini';
 import QRCode from 'qrcode';
-import { User as SupabaseUser } from '@supabase/supabase-js';
+// FIX: Changed to a type-only import for User, which is often required and can solve resolution issues.
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 
 // --- TYPES ---
@@ -218,7 +220,8 @@ const AuthScreen: React.FC = () => {
 
         try {
             if (viewMode === 'login') {
-                const { error } = await supabase!.auth.signInWithPassword({ email, password });
+                // FIX: Changed signInWithPassword to signIn, which is the compatible method in older Supabase versions.
+                const { error } = await supabase!.auth.signIn({ email, password });
                 if (error) throw error;
                 toast.success("Logged in successfully!");
             } else { // signup
@@ -235,14 +238,11 @@ const AuthScreen: React.FC = () => {
                     }
                     signupData.enrollment_id = enrollmentId.trim();
                 }
-
-                const { error } = await supabase!.auth.signUp({ 
-                    email, 
-                    password,
-                    options: {
-                        data: signupData
-                    }
-                });
+                // FIX: Changed signUp to use the compatible v1/early-v2 signature with data as a second argument.
+                const { error } = await supabase!.auth.signUp(
+                    { email, password },
+                    { data: signupData }
+                );
                 if (error) throw error;
                 toast.success("Signed up successfully! Please check your email for verification.");
                 setViewMode('login');
@@ -739,12 +739,14 @@ const StudentTeacherPortal: React.FC = () => {
             }
 
             const fetchSession = async () => {
-                const { data: { session } } = await supabase!.auth.getSession();
-                setSession(session?.user ?? null);
+                // FIX: Changed to use the synchronous session() method which is compatible with older versions.
+                const currentSession = supabase!.auth.session();
+                setSession(currentSession?.user ?? null);
                 setLoading(false);
             };
             fetchSession();
 
+            // FIX: The onAuthStateChange method signature is compatible, so it remains.
             const { data: authListener } = supabase!.auth.onAuthStateChange((_event, session) => {
                 setSession(session?.user ?? null);
                 if (_event === 'SIGNED_OUT') {
@@ -779,6 +781,7 @@ const StudentTeacherPortal: React.FC = () => {
 
     const handleLogout = async () => {
         if (!isSupabaseConfigured) return;
+        // FIX: The signOut method is compatible, so it remains.
         await supabase!.auth.signOut();
         toast.info("You have been logged out.");
     };

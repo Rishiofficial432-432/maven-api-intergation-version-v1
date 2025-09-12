@@ -1,200 +1,94 @@
 import React from 'react';
 import { Section } from './Section';
-import { Table } from './Table';
-import { CodeBlock } from './CodeBlock';
 
 export const HelpPage: React.FC = () => {
+  return (
+    <div className="space-y-8">
+      <h1 className="text-4xl font-bold text-center text-foreground mb-4" style={{ fontFamily: "'Syne', sans-serif" }}>
+        Maven: A Deep Dive
+      </h1>
+      <p className="text-center text-muted-foreground -mt-6 mb-12">Your Intelligent Workspace Explained</p>
 
-    const notesAndContentCommands = [
-        ['`createNewNote`', 'Creates a new, empty note.', '"Create a new note titled \'Weekly Goals\'"'],
-        ['`deleteNote`', 'Deletes a note by its title.', '"Delete the note named \'Project Phoenix\'"'],
-        ['`generateCreativeContent`', 'Appends generated text to your active note.', '"Write a short poem about the rain"'],
-        ['`createPlanAndNote`', 'Generates a structured plan and saves it as a new note.', '"Make a plan for my new website"'],
-        ['`createWireframeAndNote`', 'Creates a textual UI wireframe and saves it as a new note.', '"Create a wireframe for a login screen"'],
-        ['`addQuickNote`', 'Jots down a temporary note on the dashboard.', '"add a quick note: remember to check the oven"'],
-        ['`listQuickNotes`', 'Displays all your current quick notes.', '"what are my quick notes?"'],
-    ];
+      <Section title="1. The Core Philosophy: Your Data, Your Device">
+        <p>
+          Before diving into the features, it's essential to understand what makes Maven different. It is a <strong>local-first</strong> and <strong>privacy-first</strong> application.
+        </p>
+        <ul className="list-disc pl-6 space-y-2 mt-4">
+          <li>
+            <strong>What this means for you:</strong> All your information—every note, task, journal entry, and setting—is stored directly on your computer's hard drive, within your web browser's secure storage. Your data never leaves your device unless you explicitly use an AI feature (which sends only that specific request to Google's servers) or the Google Workspace integration.
+          </li>
+          <li>
+            <strong>The benefits:</strong> You have absolute ownership and privacy. The app works perfectly offline, and there are no accounts or sign-ups required. The one exception to this is the optional Student/Teacher Portal, which requires a cloud database (Supabase) to function, but this is a self-contained module that you control.
+          </li>
+        </ul>
+      </Section>
+      
+      <Section title="2. The Minimum Viable Product (MVP) - The Core of Maven">
+        <p>The core value proposition of Maven is to provide a <strong>private, unified space to capture, organize, and act on your thoughts.</strong> The MVP focuses on delivering this value in the most direct way possible, establishing the foundation upon which all other features are built.</p>
+        <h3 className="text-xl font-bold text-white mt-6 mb-2">Feature 1: The Note-Taking Engine</h3>
+        <p>This is the foundation for capturing ideas. The MVP consists of a clean, capable, and distraction-free editor. A user can create a new note, give it a title, and write content. This content is automatically saved to their browser as they type. They can create multiple notes and switch between them. This feature single-handedly fulfills the "capture" part of the core value proposition, providing a reliable place to store information.</p>
+        
+        <h3 className="text-xl font-bold text-white mt-6 mb-2">Feature 2: The Action-Oriented Dashboard</h3>
+        <p>To fulfill the "organize and act" part of the value proposition, the MVP includes a simple Dashboard view containing a functional to-do list. A user can type a task into an input field and add it to their list. They can then check a box to mark the task as complete, which visually distinguishes it (e.g., with a strikethrough). This demonstrates immediate utility beyond simple note-taking, allowing users to turn thoughts into concrete, actionable items.</p>
+        
+        <h3 className="text-xl font-bold text-white mt-6 mb-2">Feature 3: The Intelligent Command Layer (AI Assistant)</h3>
+        <p>This feature establishes the "intelligent" and "unified" aspects of Maven from day one. The MVP includes the chat interface on the right side of the screen. Its core purpose is to act as a "do-engine." A user can type a command like <em>"add a task to buy milk"</em> or <em>"create a new note about my project ideas."</em> The AI understands the intent and directly performs the action—adding the task to the Task widget or creating a new, empty note—without the user needing to navigate to the respective modules. This showcases the seamless, command-driven workflow that is central to the Maven experience.</p>
 
-    const taskCommands = [
-        ['`listTasks`', 'Shows all your current tasks, sorted by status.', '"What are my tasks?"'],
-        ['`addTask`', 'Creates a new task in your to-do list.', '"Add a task to buy milk"'],
-        ['`completeTask`', 'Marks a task as completed.', '"Mark the task \'finish report\' as done"'],
-        ['`deleteTask`', 'Deletes a task by its name.', '"Delete the \'call mom\' task"'],
-    ];
+        <h3 className="text-xl font-bold text-white mt-6 mb-2">Feature 4: The Power Switch (Settings)</h3>
+        <p>To enable the AI, the user needs to provide their own API key. The MVP includes a basic Settings page with a single input field for the Google Gemini API key. This is a necessary utility to unlock the intelligent aspect of the product. The key is saved securely in the browser's local storage, maintaining the privacy-first principle.</p>
+      </Section>
 
-    const journalCommands = [
-        ['`addJournalEntry`', 'Adds a journal entry. Defaults to today if no date is specified.', '"journal: Today I learned how to use the new feature." or "add a journal entry for 2024-07-20: Went to the beach"'],
-    ];
-    
-    const habitCommands = [
-       ['`addHabit`', 'Adds a new habit to the tracker.', '"add a new habit: drink water"'],
-       ['`completeHabit`', 'Marks a habit as done for today.', '"complete my \'drink water\' habit"'],
-       ['`deleteHabit`', 'Removes a habit from the tracker.', '"delete the water habit"'],
-       ['`listHabits`', 'Shows all your tracked habits and streaks.', '"show me my habits"'],
-    ];
-    
-    const personalSuiteCommands = [
-        ['`addGoal`', 'Sets a new personal goal.', '"Set a goal to run a 5k"'],
-        ['`logMood`', 'Logs your mood for the day.', '"Log my mood as happy" or "I feel productive today"'],
-        ['`addExpense`', 'Adds a new expense to the tracker.', '"Log an expense of $5 for coffee"'],
-        ['`addPersonalQuote`', 'Saves a new quote to your collection.', '"add a quote: The journey of a thousand miles begins with a single step"'],
-    ];
+      <Section title="3. The Full Maven Experience - A Comprehensive Tour">
+        <p>The current version of Maven has evolved far beyond the MVP, integrating over 15 distinct features into a cohesive whole.</p>
 
-    const productivityToolCommands = [
-        ['`startPomodoro`', 'Starts or resumes the Pomodoro timer.', '"start the pomodoro timer"'],
-        ['`pausePomodoro`', 'Pauses the timer.', '"pause pomodoro"'],
-        ['`resetPomodoro`', 'Resets the timer to its initial state.', '"reset the timer"'],
-        ['`makeDecision`', 'Chooses a random option. You can provide options or use saved ones.', '"decide between pizza, burgers, or salad"'],
-        ['`addDecisionOption`', 'Adds a single option to the Decision Maker.', '"add \'go for a walk\' to my decision options"'],
-        ['`addDecisionOptions`', 'Adds multiple options to the Decision Maker at once.', '"add options movie, dinner, and game night"'],
-        ['`clearDecisionOptions`', 'Clears all saved decision options.', '"clear all my decision options"'],
-    ];
+        <h3 className="text-2xl font-bold text-white mt-6 mb-4">The Main Interface: Your Three Control Panels</h3>
+        <p>The application is divided into three distinct vertical sections:</p>
+        <ol className="list-decimal pl-6 space-y-2 mt-4">
+          <li><strong>The Left Sidebar (Navigation):</strong> This is how you move between the major sections of the app: the <strong>Dashboard</strong>, <strong>Academics Hub</strong>, <strong>Notes</strong>, <strong>Journal</strong>, and <strong>DocuMind</strong>, among others.</li>
+          <li><strong>The Center Content Area (Your Workspace):</strong> This is the largest section and is where you do your work.</li>
+          <li><strong>The Right Sidebar (The AI Assistant):</strong> Your intelligent command center for controlling the entire application.</li>
+        </ol>
 
-    const kanbanCommands = [
-        ['`moveKanbanCard`', 'Moves a card on the Kanban board.', '"Move \'design mockups\' to In Progress"'],
-    ];
+        <h3 className="text-2xl font-bold text-white mt-8 mb-4">Module 1: The Dashboard - Your Daily Command Center</h3>
+        <p>The Dashboard is a collection of powerful widgets for managing your day-to-day life.</p>
+        <ul className="list-disc pl-6 space-y-4 mt-4">
+            <li><strong>AI Brain Dump:</strong> Turn chaotic thoughts into organized actions. Paste unstructured text, and the AI will suggest categorized items (tasks, events, notes) that you can approve and add to your workspace with a single click.</li>
+            <li><strong>Tasks & Kanban Board:</strong> Beyond a simple to-do list, the Kanban board lets you visualize your workflow by dragging cards through "To Do," "In Progress," and "Done" columns.</li>
+            <li><strong>Calendar & Quick Notes:</strong> Schedule events and jot down fleeting thoughts that don't need a full note page.</li>
+            <li><strong>Pomodoro Timer & Habit Tracker:</strong> Use the timer for focused work sessions and track daily habits to build streaks and maintain consistency.</li>
+            <li><strong>Decision Maker & Personal Suite:</strong> Get help making choices and track personal goals, mood, expenses, and inspirational quotes.</li>
+        </ul>
 
-    const generalCommands = [
-        ['`addEvent`', 'Schedules an event in your calendar.', '"Schedule a meeting for tomorrow at 2pm about the Q3 report"'],
-        ['`getDailyBriefing`', 'Summarizes your tasks and events for today.', '"Give me a rundown of my day"'],
-    ];
+        <h3 className="text-2xl font-bold text-white mt-8 mb-4">Module 2: The Notes View - Your Knowledge Base</h3>
+        <p>This is your primary space for writing. Create unlimited notes with a rich text editor and personalize each with an image or video banner. Use the AI Command Palette (<code className="bg-secondary text-primary px-2 py-1 rounded-md text-xs font-mono">Cmd+K / Ctrl+K</code>) to instantly summarize, improve, or translate your text.</p>
 
-    return (
-        <div className="space-y-8">
-            <Section title="Welcome to Maven - Your Personal Command Center">
-                <p>
-                    Maven is an all-in-one productivity suite designed to be your intelligent workspace. It combines AI-powered notes, task management, journaling, and planning tools to help you organize your life and amplify your creativity.
-                </p>
-                <p>
-                    This guide provides a comprehensive overview of all features. The most powerful way to interact with Maven is via the <strong>AI Assistant</strong> in the right-hand sidebar, which can control almost every aspect of the app using natural language.
-                </p>
-            </Section>
+        <h3 className="text-2xl font-bold text-white mt-8 mb-4">Module 3: The Journal - Your Private Logbook</h3>
+        <p>A dedicated space for daily reflection. It features a calendar for easy navigation, and dates with entries are marked, giving you a visual overview of your journaling consistency.</p>
+        
+        <h3 className="text-2xl font-bold text-white mt-8 mb-4">Module 4: DocuMind - Your Visual Explorer</h3>
+        <p>This innovative tool turns static documents (PDF, Word, etc.) into dynamic, interactive mind maps. It automatically visualizes the document's structure, and you can click any node to get an AI-powered explanation of that concept based on the document's content.</p>
 
-            <Section title="API Key Configuration">
-                <p>
-                    Maven relies on a couple of external APIs to power its most advanced features. These keys are stored locally in your browser and are required for certain functionalities to work. You can set them in the <strong>Dashboard → Settings</strong> page.
-                </p>
-                <h3 className="text-xl font-bold text-white mt-4 mb-2">Google Gemini API Key</h3>
-                <p>
-                    <strong>Required for:</strong> All AI features.
-                </p>
-                <ul className="list-disc pl-6 space-y-1">
-                    <li>The AI Assistant (chatbot)</li>
-                    <li>AI Brain Dump processing</li>
-                    <li>In-note AI commands (Summarize, Improve, etc.) via `Cmd+K`</li>
-                    <li>Global AI Search via `Cmd+P`</li>
-                    <li>DocuMind AI explanations</li>
-                </ul>
-                <p className="mt-2">
-                    To get your key, visit the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google AI Studio</a>, create a new project, and generate an API key.
-                </p>
+        <h3 className="text-2xl font-bold text-white mt-8 mb-4">Module 5: The Academics Hub - The Educational Core</h3>
+        <p>A central place for all learning-related tools.</p>
+        <ul className="list-disc pl-6 space-y-4 mt-4">
+            <li><strong>The Student/Teacher Portal:</strong> A powerful, real-time attendance system. Teachers can create sessions, generate secure check-in codes, and optionally enforce GPS-based location verification. Students check in instantly, and their attendance appears on the teacher's live dashboard.</li>
+            <li><strong>The AI Timetable Scheduler:</strong> Automates the complex task of creating a school timetable. An administrator uploads an Excel file with teacher, subject, and class data, and the system generates a complete, clash-free schedule.</li>
+            <li><strong>The AI Daily Routine Planner:</strong> For students, this tool analyzes their fixed schedule and long-term goals to generate a personalized plan, suggesting productive tasks for their free periods.</li>
+        </ul>
 
-                <h3 className="text-xl font-bold text-white mt-6 mb-2">Supabase Credentials</h3>
-                <p>
-                    <strong>Required for:</strong> The Student/Teacher Portal feature only.
-                </p>
-                <p>
-                    This feature requires a cloud database to manage users and real-time attendance sessions. If you do not plan to use the portal, you can leave these fields blank. To set it up, you need a Supabase account and a project. You can find your Project URL and API Key (anon public) in your Supabase project's API settings.
-                </p>
-            </Section>
+        <h3 className="text-2xl font-bold text-white mt-8 mb-4">Module 6: Google Workspace & External Connections</h3>
+        <p>Securely connect your Google account to search your Google Drive from within Maven. A single click imports a Google Doc or Sheet as a new, fully-formatted note.</p>
 
-            <Section title="Getting Started: The Maven Interface">
-                <p>The application is divided into three main areas:</p>
-                <ul className="list-disc pl-6 space-y-2">
-                    <li><strong>Main Sidebar (Left):</strong> This is your primary navigation. Switch between the core views: Notes, Dashboard, Journal, and DocuMind. Depending on the view, this sidebar will also show your list of notes or dashboard module navigation.</li>
-                    <li><strong>Main Content Area (Center):</strong> This is where you'll do your work, whether it's writing in the editor, managing your dashboard, or building a mind map.</li>
-                    <li><strong>AI Assistant (Right):</strong> Your command center. Chat with the AI to manage tasks, create content, get daily briefings, and much more. It's the fastest way to get things done.</li>
-                </ul>
-            </Section>
-
-            <Section title="Core Features Breakdown">
-                <h3 className="text-xl font-bold text-white mb-2">1. Notes View</h3>
-                <p>A powerful, rich-text editor for all your thoughts and ideas. You can format text, insert images from your computer, and add beautiful video or image banners to each note for personalization. It's designed for focused, distraction-free writing.</p>
-
-                <h3 className="text-xl font-bold text-white mt-6 mb-2">2. Dashboard View</h3>
-                <p>Your daily control panel. The Dashboard is a collection of widgets designed to give you a complete overview of your life at a glance. It includes:</p>
-                <ul className="list-disc pl-6 mt-2 space-y-2">
-                    <li><strong>Task Management:</strong> A simple and effective to-do list to keep track of your responsibilities.</li>
-                    <li><strong>Kanban Board:</strong> Visualize your workflow with 'To Do', 'In Progress', and 'Done' columns.</li>
-                    <li>
-                        <strong>Attendance Manager:</strong> A complete attendance solution built for educators.
-                        <ul className="list-['-_'] pl-6 mt-2 space-y-1 text-card-foreground/80">
-                            <li><strong>Class Management:</strong> Easily create and manage multiple classes. Deleting a class will also remove all associated students and their attendance records.</li>
-                            <li><strong>Student Management:</strong> Add students to a class individually or bulk-import from an Excel file. The file must contain columns for student names (e.g., 'Name') and enrollment numbers (e.g., 'Enrollment' or 'No').</li>
-                            <li><strong>Daily Tracking:</strong> For any selected day, you can mark each student as 'Present' or 'Absent' with a single click.</li>
-                            <li><strong>Effortless Navigation:</strong> Use the built-in calendar to jump to any date, or use the 'Previous Day', 'Next Day', and 'Today' buttons for quick navigation.</li>
-                            <li><strong>Export to Excel:</strong> Generate and download a complete attendance report for the selected class as an Excel spreadsheet. This report includes all students and their status for every recorded day.</li>
-                        </ul>
-                    </li>
-                    <li><strong>Calendar:</strong> Schedule your events and appointments to keep your day organized.</li>
-                    <li><strong>Quick Notes:</strong> For jotting down fleeting thoughts without creating a full note page.</li>
-                    <li><strong>Pomodoro Timer:</strong> A built-in timer to help you focus using the Pomodoro Technique.</li>
-                    <li><strong>Habit Tracker:</strong> Build good habits and track your streaks over time with a visual 7-day overview.</li>
-                    <li><strong>Decision Maker:</strong> Can't decide? Add your options and let the app choose for you. Comes with helpful templates.</li>
-                    <li><strong>Settings:</strong> Change themes and manage your application data (import/export).</li>
-                </ul>
-
-                <h3 className="text-xl font-bold text-white mt-6 mb-2">3. Journal View</h3>
-                <p>A dedicated space for daily reflection. The Journal features a calendar interface where you can easily navigate between months and days. Days with entries are marked, allowing you to quickly look back on your thoughts over time.</p>
-
-                <h3 className="text-xl font-bold text-white mt-6 mb-2">4. DocuMind View</h3>
-                <p>A dynamic, canvas-based mind mapping tool for visual brainstorming and organizing ideas. Create interconnected nodes to map out projects, study topics, or complex thoughts. The drag-and-drop interface, along with pan and zoom controls, makes it easy to structure and navigate your ideas visually.</p>
-            </Section>
-
-            <Section title="The AI Assistant: Your Power Tool">
-                <p className="mb-6">
-                    The AI Assistant is the heart of Maven's intelligent experience. It understands conversational commands to execute functions across the app. Below is a complete list of its capabilities.
-                </p>
-
-                <h3 className="text-xl font-bold text-white mt-6 mb-4">Notes &amp; Content Creation</h3>
-                <Table headers={['Function', 'Description', 'Example Command']} rows={notesAndContentCommands} />
-
-                <h3 className="text-xl font-bold text-white mt-8 mb-4">Task Management</h3>
-                <Table headers={['Function', 'Description', 'Example Command']} rows={taskCommands} />
-
-                <h3 className="text-xl font-bold text-white mt-8 mb-4">Journaling</h3>
-                <Table headers={['Function', 'Description', 'Example Command']} rows={journalCommands} />
-                
-                <h3 className="text-xl font-bold text-white mt-8 mb-4">Habit Tracking</h3>
-                <Table headers={['Function', 'Description', 'Example Command']} rows={habitCommands} />
-                
-                <h3 className="text-xl font-bold text-white mt-8 mb-4">Personal Suite</h3>
-                <Table headers={['Function', 'Description', 'Example Command']} rows={personalSuiteCommands} />
-
-                <h3 className="text-xl font-bold text-white mt-8 mb-4">Productivity Tools (Pomodoro &amp; Decision Maker)</h3>
-                <Table headers={['Function', 'Description', 'Example Command']} rows={productivityToolCommands} />
-
-                <h3 className="text-xl font-bold text-white mt-8 mb-4">Kanban Board</h3>
-                <Table headers={['Function', 'Description', 'Example Command']} rows={kanbanCommands} />
-
-                <h3 className="text-xl font-bold text-white mt-8 mb-4">General &amp; Daily Planning</h3>
-                <Table headers={['Function', 'Description', 'Example Command']} rows={generalCommands} />
-            </Section>
-
-            <Section title="Keyboard Shortcuts">
-                <p>Use these shortcuts to speed up your workflow.</p>
-                <CodeBlock 
-                    language="Keyboard Shortcut"
-                    code="Cmd + P (or Ctrl + P): Opens the global AI Search. Find anything across all your notes in an instant."
-                />
-                 <CodeBlock 
-                    language="Keyboard Shortcut"
-                    code="Cmd + K (or Ctrl + K): Opens the AI Command Palette within an active note. This allows you to quickly run AI actions like 'Summarize' or 'Improve Writing' on your note's content."
-                />
-            </Section>
-
-             <Section title="Data Management &amp; Privacy">
-                <p>
-                    Your privacy is paramount. All your data—notes, tasks, events, etc.—is stored <strong>100% locally</strong> in your browser's IndexedDB and localStorage. It never leaves your device.
-                </p>
-                <p>
-                    To back up your data, navigate to the <strong>Dashboard</strong> view, then click <strong>Settings</strong> in the sidebar. You can export all your data to a single JSON file. You can also import this file back into Maven on any device.
-                </p>
-                 <CodeBlock 
-                    language="info"
-                    code="Tip: Regularly export your data for peace of mind!"
-                />
-            </Section>
-        </div>
-    );
+        <h3 className="text-2xl font-bold text-white mt-8 mb-4">Global Intelligence: Features That Work Everywhere</h3>
+        <ul className="list-disc pl-6 space-y-4 mt-4">
+            <li><strong>The AI Assistant (Right Sidebar):</strong> Your universal command center. Use natural language for any task, from "add a habit to exercise daily" to "schedule a meeting for Friday."</li>
+            <li><strong>The Global AI Search (<code className="bg-secondary text-primary px-2 py-1 rounded-md text-xs font-mono">Cmd+P / Ctrl+P</code>):</strong> Your personal search engine. Ask a question like "what were my takeaways from the Project Phoenix meetings?" and the AI will search all your notes, synthesize a direct answer, and link to the sources.</li>
+        </ul>
+      </Section>
+      
+      <Section title="4. Conclusion: The Maven Philosophy in Practice">
+        <p>Maven brings together over a dozen powerful tools into a single, cohesive application. By starting with a core of capturing and organizing thoughts, and then layering on intelligent, action-oriented features, it creates a workspace that is both powerful and deeply personal. Its unwavering commitment to local-first data ensures that this powerful space is also completely private and secure.</p>
+      </Section>
+    </div>
+  );
 };

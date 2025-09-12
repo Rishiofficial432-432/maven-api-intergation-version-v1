@@ -301,8 +301,8 @@ let supabase: SupabaseClient<Database> | null = null;
 let isSupabaseConfigured = false;
 let connectionStatus = { configured: false, message: "Supabase credentials not configured." };
 
-const SUPABASE_URL_FALLBACK = "https://irhrmniafoesixenonzs.supabase.co";
-const SUPABASE_ANON_KEY_FALLBACK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlyaHJtbmlhZm9lc2l4ZW5vbnpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc1NDAzODksImV4cCI6MjA3MzExNjM4OX0.l5PYy1c9pSa6F1uqXj2mTHb-_nTWsz2QoeW4wND1i2g";
+const SUPABASE_URL_FALLBACK = "https://djgnzprigxgbloruuayw.supabase.co";
+const SUPABASE_ANON_KEY_FALLBACK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZ256cHJpZ3hnYmxvcnV1YXl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MTk5MDgsImV4cCI6MjA3MjE5NTkwOH0.sbFsHtBPNhi-4-ZJ90w-4SYl49lesWhzXKHuwTRz2hc";
 
 const initializeSupabaseClient = () => {
     // Prioritize localStorage to allow user overrides from settings
