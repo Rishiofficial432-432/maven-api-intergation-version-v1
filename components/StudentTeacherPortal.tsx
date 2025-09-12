@@ -317,12 +317,20 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
         e.preventDefault();
         setCheckingIn(true);
         try {
-            if (!activeSession) throw new Error("No active session found.");
-            if (activeSession.otp !== code) throw new Error("Invalid session code.");
+            // Re-fetch session data on submit to ensure it's not stale.
+            const currentSession = await getActiveSession();
 
-            const attendance = await logAttendance({ sessionId: activeSession.id, student: user, timestamp: new Date().toISOString() });
+            if (!currentSession) {
+                throw new Error("Check-in failed: No active session found.");
+            }
+
+            if (currentSession.otp !== code) {
+                throw new Error("Invalid session code. Please double-check and try again.");
+            }
+            
+            const attendance = await logAttendance({ sessionId: currentSession.id, student: user, timestamp: new Date().toISOString() });
             toast.success("Checked in successfully!");
-            channel.current.postMessage({ type: 'NEW_ATTENDANCE', student: user, sessionId: activeSession.id });
+            channel.current.postMessage({ type: 'NEW_ATTENDANCE', student: user, sessionId: currentSession.id });
             setCode('');
         } catch (error: any) {
             toast.error(error.toString());
