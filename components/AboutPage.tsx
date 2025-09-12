@@ -59,7 +59,7 @@ const AboutPage: React.FC = () => {
                 <Section title="Unique Selling Propositions (USPs)">
                     <ul className="list-disc pl-6 space-y-2">
                         <li><strong>True All-in-One Integration:</strong> Maven uniquely combines over 15 tools into a single, cohesive interface, eliminating the need for multiple apps and subscriptions.</li>
-                        <li><strong>Privacy-First Architecture:</strong> By storing all data locally, Maven offers a level of privacy that cloud services cannot, making it ideal for sensitive information.</li>
+                        <li><strong>Privacy-First Architecture:</strong> By storing all data locally, Maven offers a level of privacy that cloud services cannot match, making it ideal for sensitive information.</li>
                         <li><strong>Function-Driven AI Command Center:</strong> The AI is a "do-engine," reliably executing commands across the app, making you significantly more efficient.</li>
                         <li><strong>Innovative DocuMind Visualizer:</strong> Turns static documents into active tools for thought, a feature unique to Maven.</li>
                     </ul>

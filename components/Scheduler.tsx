@@ -119,9 +119,10 @@ const Scheduler: React.FC = () => {
         setTimetable(null);
     
         try {
-            // FIX: Instantiating the worker with a direct path is more robust than constructing a full URL object,
-            // which can fail in sandboxed environments where `window.location.origin` is not a standard URL.
-            const worker = new Worker('/workers/timetable.worker.ts', { type: 'module' });
+            // FIX: Explicitly construct the worker URL from the window's origin to prevent cross-origin errors
+            // in sandboxed environments where relative paths might resolve incorrectly.
+            const workerUrl = new URL('/workers/timetable.worker.ts', window.location.origin);
+            const worker = new Worker(workerUrl.href, { type: 'module' });
         
             worker.onmessage = (event) => {
                 const { success, schedule, error } = event.data;
