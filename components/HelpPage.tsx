@@ -71,8 +71,8 @@ export const HelpPage: React.FC = () => {
         <h3 className="text-2xl font-bold text-white mt-8 mb-4">Module 5: The Academics Hub - The Educational Core</h3>
         <p>A central place for all learning-related tools.</p>
         <ul className="list-disc pl-6 space-y-4 mt-4">
-            <li><strong>The Student/Teacher Portal:</strong> A powerful, real-time attendance system. Teachers can create sessions, generate secure check-in codes, and optionally enforce GPS-based location verification. Students check in instantly, and their attendance appears on the teacher's live dashboard.</li>
-            <li><strong>The AI Timetable Scheduler:</strong> Automates the complex task of creating a school timetable. An administrator uploads an Excel file with teacher, subject, and class data, and the system generates a complete, clash-free schedule.</li>
+            <li><strong>The Student/Teacher Portal:</strong> Solves critical problems in classroom management. It replaces outdated manual processes with a streamlined, secure, and integrated digital solution. Teachers can create sessions, generate secure check-in codes, and optionally enforce GPS-based location verification to ensure academic integrity. Students check in instantly, and their attendance appears on the teacher's live dashboard.</li>
+            <li><strong>The AI Timetable Scheduler:</strong> Automates the complex task of creating a school timetable. An administrator uploads an Excel file with teacher, subject, and class data, and the system's deterministic algorithm generates a complete, clash-free schedule, preventing conflicts for teachers, classes, and rooms.</li>
             <li><strong>The AI Daily Routine Planner:</strong> For students, this tool analyzes their fixed schedule and long-term goals to generate a personalized plan, suggesting productive tasks for their free periods.</li>
         </ul>
 

@@ -64,9 +64,6 @@ const AuthScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                     email,
                     password,
                     options: {
-                        // FIX: Removed the deprecated and invalid 'email_confirm' property from the Supabase signUp options.
-                        // Email confirmation is now a project-level setting in the Supabase dashboard and cannot be
-                        // controlled per-call from the client-side library.
                         data: {
                             name,
                             role,
@@ -131,7 +128,37 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
     const [locationEnforced, setLocationEnforced] = useState(false);
     const [radius, setRadius] = useState(100);
     const [startingSession, setStartingSession] = useState(false);
+    const [teacherLocation, setTeacherLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [isFetchingLocation, setIsFetchingLocation] = useState(false);
     const toast = useToast();
+
+    useEffect(() => {
+        let isMounted = true;
+        if (locationEnforced) {
+            setIsFetchingLocation(true);
+            setTeacherLocation(null);
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    if (isMounted) {
+                        setTeacherLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+                        setIsFetchingLocation(false);
+                    }
+                },
+                (error) => {
+                    if (isMounted) {
+                        toast.error(getGeolocationErrorMessage(error));
+                        setLocationEnforced(false); // Disable if permission denied/failed
+                        setIsFetchingLocation(false);
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+        } else {
+            setTeacherLocation(null);
+        }
+        return () => { isMounted = false; };
+    }, [locationEnforced, toast]);
+
 
     const fetchAttendance = async (sessionId: string) => {
         const { data, error } = await supabase!.from('portal_attendance').select(`*, portal_users(*)`).eq('session_id', sessionId).order('created_at', { ascending: true });
@@ -155,19 +182,18 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
 
     const startSession = async () => {
         setStartingSession(true);
-        let location: { latitude: number; longitude: number } | null = null;
+        let locationData: { latitude: number; longitude: number } | null = null;
         if (locationEnforced) {
-            try {
-                const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true }));
-                location = { latitude: position.coords.latitude, longitude: position.coords.longitude };
-            } catch (error: any) {
-                toast.error(getGeolocationErrorMessage(error));
-                setStartingSession(false); return;
+            if (!teacherLocation) {
+                toast.error("Location has not been captured yet. Please wait or try toggling location enforcement again.");
+                setStartingSession(false);
+                return;
             }
+            locationData = { latitude: teacherLocation.latitude, longitude: teacherLocation.longitude };
         }
         const session_code = Math.floor(100000 + Math.random() * 900000).toString();
         const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins
-        const { data, error } = await supabase!.from('portal_sessions').insert({ teacher_id: user.id, session_code, expires_at, location_enforced: locationEnforced, radius, location }).select().single();
+        const { data, error } = await supabase!.from('portal_sessions').insert({ teacher_id: user.id, session_code, expires_at, location_enforced: locationEnforced, radius, location: locationData }).select().single();
         if (error) { toast.error(error.message); } else { setActiveSession(data); toast.success("Session started!"); }
         setStartingSession(false);
     };
@@ -201,9 +227,17 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                             <h3 className="text-xl font-bold mb-4">Live Attendance ({liveAttendance.length})</h3>
                             <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto pr-2">
                                 {liveAttendance.length === 0 ? <p className="text-muted-foreground text-center pt-8">Waiting for students to check in...</p> : liveAttendance.map(att => (
-                                    <div key={att.id} className="p-3 bg-secondary rounded-md flex justify-between items-center text-sm animate-fade-in-up">
-                                        <div className="flex items-center gap-3"><UserIcon size={16} className="text-primary"/><div><p className="font-medium">{att.portal_users.name}</p><p className="text-xs text-muted-foreground">{att.portal_users.enrollment_id}</p></div></div>
-                                        <div className="flex items-center gap-2 text-muted-foreground text-xs"><Clock size={12}/><span>{new Date(att.created_at).toLocaleTimeString()}</span><CheckCircle size={16} className="text-green-500 ml-2"/></div>
+                                    <div key={att.id} className="p-3 bg-secondary rounded-lg flex justify-between items-center text-sm animate-fade-in-up transition-colors hover:bg-secondary/80">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
+                                                {att.portal_users.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold">{att.portal_users.name}</p>
+                                                <p className="text-xs text-muted-foreground font-mono">{att.portal_users.enrollment_id}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-muted-foreground text-xs"><Clock size={12}/><span>{new Date(att.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><CheckCircle size={16} className="text-green-500 ml-2"/></div>
                                     </div>
                                 ))}
                             </div>
@@ -212,7 +246,21 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                 ) : (
                     <div className="bg-card border border-border rounded-xl p-6 max-w-lg mx-auto"><h2 className="text-2xl font-bold mb-6 text-center">Start New Session</h2><div className="space-y-6">
                         <div className="flex items-center justify-between p-4 bg-secondary rounded-lg"><label htmlFor="loc-check" className="font-semibold flex items-center gap-2 cursor-pointer"><ShieldCheck className="text-primary"/> Enforce Location Verification</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={locationEnforced} onChange={e => setLocationEnforced(e.target.checked)} id="loc-check" className="sr-only peer" /><div className="w-11 h-6 bg-input peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div></label></div>
-                        {locationEnforced && (<div className="p-4 bg-secondary rounded-lg animate-fade-in-up"><label htmlFor="radius-input" className="font-semibold flex items-center gap-2 mb-2"><MapPin/> Valid Radius (meters)</label><input id="radius-input" type="number" value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full bg-input p-2 rounded-md"/><p className="text-xs text-muted-foreground mt-2">Students must be within this distance of your current location to check in.</p></div>)}
+                        {locationEnforced && (
+                            <div className="p-4 bg-secondary rounded-lg animate-fade-in-up">
+                                <label htmlFor="radius-input" className="font-semibold flex items-center gap-2 mb-2"><MapPin/> Valid Radius (meters)</label>
+                                <input id="radius-input" type="number" value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full bg-input p-2 rounded-md"/>
+                                <div className="text-xs text-muted-foreground mt-2">
+                                    {isFetchingLocation ? (
+                                        <div className="flex items-center gap-2"><Loader size={12} className="animate-spin"/> Fetching your location...</div>
+                                    ) : teacherLocation ? (
+                                        <div className="flex items-center gap-2 text-green-400"><CheckCircle size={12}/> Session location captured: {teacherLocation.latitude.toFixed(4)}, {teacherLocation.longitude.toFixed(4)}</div>
+                                    ) : (
+                                        <div className="flex items-center gap-2 text-amber-400"><AlertTriangle size={12}/> Could not get your location. Please ensure permissions are granted.</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         <button onClick={startSession} disabled={startingSession} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-primary/90 transition-colors text-lg">{startingSession ? <Loader className="animate-spin"/> : <><Smartphone/> Start Session</>}</button>
                     </div></div>
                 )}
@@ -224,8 +272,6 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
 const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = ({ user, onLogout }) => {
     const [code, setCode] = useState('');
     const [checkingIn, setCheckingIn] = useState(false);
-    const [locationStatus, setLocationStatus] = useState<'idle' | 'checking' | 'verified' | 'error'>('idle');
-    const [locationMessage, setLocationMessage] = useState('');
     const toast = useToast();
 
     const handleCheckIn = async (e: React.FormEvent) => {
@@ -314,7 +360,7 @@ const StudentTeacherPortal: React.FC = () => {
         return <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
             <AlertTriangle className="w-12 h-12 text-amber-400 mb-4"/>
             <h2 className="text-xl font-bold">Portal Not Configured</h2>
-            <p className="text-muted-foreground max-w-md">The Student/Teacher Portal requires a Supabase backend. Please go to the <strong>Settings</strong> page, enter your Supabase Project URL and Anon Key, and run the provided SQL script in your project.</p>
+            <p className="text-muted-foreground max-w-md">The Student/Teacher Portal requires a Supabase backend. If you haven't configured your own, the app will use a default instance. If you still see this message, please check your internet connection or configure your own credentials in <strong>Settings</strong>.</p>
         </div>;
     }
 

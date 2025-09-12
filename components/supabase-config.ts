@@ -1,4 +1,5 @@
 
+
 /*
 -- =================================================================
 -- MANDATORY SUPABASE PORTAL SCHEMA SETUP
@@ -6,10 +7,16 @@
 -- Instructions:
 -- 1. Create a new project on Supabase.io.
 -- 2. Go to your project's dashboard.
--- 3. Navigate to the "SQL Editor" in the left sidebar.
--- 4. Click "+ New query".
--- 5. Copy the ENTIRE script below and paste it into the editor.
--- 6. Click "RUN".
+-- 3. **IMPORTANT: Disable Email Confirmation.**
+--    - Go to Authentication -> Providers.
+--    - Find the "Email" provider and click to expand it.
+--    - Turn OFF the toggle for "Confirm email".
+--    - Click Save.
+--    - (This prevents the "Invalid login credentials" error for new users).
+-- 4. Navigate to the "SQL Editor" in the left sidebar.
+-- 5. Click "+ New query".
+-- 6. Copy the ENTIRE script below and paste it into the editor.
+-- 7. Click "RUN".
 --
 -- This script will create all the necessary tables and functions
 -- for the Student/Teacher Portal to work correctly.
@@ -268,22 +275,23 @@ export interface Database {
 }
 
 // --- Supabase Configuration using localStorage ---
+const DEFAULT_SUPABASE_URL = "https://ytnvbxtblwcwrcqdbjjd.supabase.co";
+const DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0bnZieHRibHdjd3JjcWRiampkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTY4NzkxMTcsImV4cCI6MjAzMjQ1NTExN30.2g6g2K7g15s3sN46o5m_3I3F5qMsoS_N15_34H21t4s";
+
+
 export let supabase: SupabaseClient<Database> | null = null;
 export let isSupabaseConfigured = false;
 export let connectionStatus = { configured: false, message: "Supabase credentials not configured. Please add them in Settings." };
 
-const createSupabaseClient = (url?: string, key?: string): SupabaseClient<Database> | null => {
-    const storedUrl = url || localStorage.getItem('supabase-url');
-    const storedKey = key || localStorage.getItem('supabase-anon-key');
-
-    if (!storedUrl || !storedUrl.trim() || !storedKey || !storedKey.trim()) {
+const createSupabaseClient = (url: string, key: string): SupabaseClient<Database> | null => {
+    if (!url || !url.trim() || !key || !key.trim()) {
         isSupabaseConfigured = false;
-        connectionStatus = { configured: false, message: "Supabase credentials not configured. Please add them in Settings." };
+        connectionStatus = { configured: false, message: "Supabase credentials cannot be empty." };
         return null;
     }
 
     try {
-        const client = createClient<Database>(storedUrl, storedKey);
+        const client = createClient<Database>(url, key);
         isSupabaseConfigured = true;
         return client;
     } catch (e) {
@@ -319,24 +327,34 @@ export const updateSupabaseCredentials = async (url: string, key: string): Promi
         return { success: false, message: connectionStatus.message };
     }
 
-    const { error } = await tempClient.from('portal_users').select('id', { count: 'exact', head: true });
+    try {
+        const { error } = await tempClient.from('portal_users').select('id', { count: 'exact', head: true });
 
-    if (error && error.code !== '42P01') { // 42P01 means table doesn't exist.
-        console.error("Supabase connection test failed:", error);
-        connectionStatus = { configured: false, message: `Connection failed: ${error.message}. Check URL, Key, and RLS policies.` };
+        if (error && error.code !== '42P01') { // 42P01 means table doesn't exist.
+            console.error("Supabase connection test failed:", error);
+            connectionStatus = { configured: false, message: `Connection failed: ${error.message}. Check URL, Key, and RLS policies.` };
+            supabase = null;
+            isSupabaseConfigured = false;
+            return { success: false, message: connectionStatus.message };
+        }
+        
+        supabase = tempClient;
+        isSupabaseConfigured = true;
+        const successMessage = error?.code === '42P01'
+            ? "Connection successful, but 'portal_users' table not found. Please run the setup script in the Supabase SQL editor."
+            : "Connection successful and credentials saved.";
+
+        connectionStatus = { configured: true, message: successMessage };
+        return { success: true, message: successMessage };
+
+    } catch (e: any) {
+        console.error("A critical error occurred during Supabase connection test:", e);
+        const errorMessage = e.message || 'An unknown network error occurred. Check your internet connection and CORS settings in Supabase.';
+        connectionStatus = { configured: false, message: `Connection failed: ${errorMessage}` };
         supabase = null;
         isSupabaseConfigured = false;
         return { success: false, message: connectionStatus.message };
     }
-    
-    supabase = tempClient;
-    isSupabaseConfigured = true;
-    const successMessage = error?.code === '42P01'
-        ? "Connection successful, but 'portal_users' table not found. Please run the setup script in the Supabase SQL editor."
-        : "Connection successful and credentials saved.";
-
-    connectionStatus = { configured: true, message: successMessage };
-    return { success: true, message: successMessage };
 };
 
 export const getSupabaseCredentials = (): { url: string; key: string } => {
@@ -346,8 +364,19 @@ export const getSupabaseCredentials = (): { url: string; key: string } => {
 };
 
 // Initial load
-supabase = createSupabaseClient();
-if (supabase) {
-    // Perform a silent check on load to update initial status
-    updateSupabaseCredentials(getSupabaseCredentials().url, getSupabaseCredentials().key);
-}
+const initializeSupabase = () => {
+    let { url, key } = getSupabaseCredentials();
+
+    if (!url || !key) {
+        console.log("Using default Supabase credentials.");
+        url = DEFAULT_SUPABASE_URL;
+        key = DEFAULT_SUPABASE_KEY;
+    }
+
+    supabase = createSupabaseClient(url, key);
+    if (supabase) {
+        updateSupabaseCredentials(url, key);
+    }
+};
+
+initializeSupabase();
