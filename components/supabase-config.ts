@@ -35,8 +35,7 @@ ALTER TABLE public.portal_users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow individual read access" ON public.portal_users FOR SELECT USING (auth.uid() = id);
 -- Allow users to update their own profile.
 CREATE POLICY "Allow individual update access" ON public.portal_users FOR UPDATE USING (auth.uid() = id);
--- Allow teachers to view the profiles of their students (more complex, for future enhancement).
--- For now, we keep it simple. Authenticated users can see other users for portal functionality.
+-- Allow authenticated users to see other users for portal functionality.
 CREATE POLICY "Allow authenticated users to read user data" ON public.portal_users FOR SELECT TO authenticated USING (true);
 
 
@@ -75,7 +74,6 @@ CREATE TABLE IF NOT EXISTS public.portal_sessions (
     is_active boolean DEFAULT true NOT NULL,
     session_code text UNIQUE,
     location_enforced boolean default false,
-    -- FIX: Added radius column for location-based attendance.
     radius integer DEFAULT 100,
     location jsonb
 );
@@ -86,7 +84,7 @@ ALTER TABLE public.portal_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Policies for portal_sessions
 -- Teachers can create sessions for themselves.
-CREATE POLICY "Allow teachers to create sessions" ON public.portal_sessions FOR INSERT TO authenticated WITH CHECK (role = 'teacher' AND auth.uid() = teacher_id);
+CREATE POLICY "Allow teachers to create sessions" ON public.portal_sessions FOR INSERT TO authenticated WITH CHECK (auth.uid() = teacher_id);
 -- Any authenticated user can view active sessions (needed for students to check in).
 CREATE POLICY "Allow authenticated users to view active sessions" ON public.portal_sessions FOR SELECT TO authenticated USING (is_active = true);
 -- Teachers can update their own sessions (e.g., to end them).
@@ -191,7 +189,6 @@ export interface Database {
           is_active: boolean
           location: Json | null
           location_enforced: boolean
-          // FIX: Added radius property to match schema and code usage.
           radius: number | null
           session_code: string | null
           teacher_id: string
@@ -203,7 +200,6 @@ export interface Database {
           is_active?: boolean
           location?: Json | null
           location_enforced?: boolean
-          // FIX: Added radius property to match schema and code usage.
           radius?: number | null
           session_code?: string | null
           teacher_id: string
@@ -215,7 +211,6 @@ export interface Database {
           is_active?: boolean
           location?: Json | null
           location_enforced?: boolean
-          // FIX: Added radius property to match schema and code usage.
           radius?: number | null
           session_code?: string | null
           teacher_id?: string
@@ -273,7 +268,6 @@ export interface Database {
 }
 
 // --- Supabase Configuration using localStorage ---
-// FIX: Exported supabase client to be accessible by other modules.
 export let supabase: SupabaseClient<Database> | null = null;
 export let isSupabaseConfigured = false;
 export let connectionStatus = { configured: false, message: "Supabase credentials not configured. Please add them in Settings." };
@@ -289,10 +283,8 @@ const createSupabaseClient = (url?: string, key?: string): SupabaseClient<Databa
     }
 
     try {
-        // Create a temporary client to test with the new credentials
         const client = createClient<Database>(storedUrl, storedKey);
         isSupabaseConfigured = true;
-        // Don't set the main connection status message yet, that happens after testing
         return client;
     } catch (e) {
         console.error("Critical error creating Supabase client:", e);
@@ -318,7 +310,6 @@ export const updateSupabaseCredentials = async (url: string, key: string): Promi
     localStorage.setItem('supabase-url', trimmedUrl);
     localStorage.setItem('supabase-anon-key', trimmedKey);
     
-    // Create a temporary client to test the new credentials
     const tempClient = createSupabaseClient(trimmedUrl, trimmedKey);
     
     if (!tempClient) {
@@ -328,18 +319,16 @@ export const updateSupabaseCredentials = async (url: string, key: string): Promi
         return { success: false, message: connectionStatus.message };
     }
 
-    // Perform a simple test query to verify connection and permissions
     const { error } = await tempClient.from('portal_users').select('id', { count: 'exact', head: true });
 
-    if (error && error.code !== '42P01') { // 42P01 means table doesn't exist, which is a setup issue, not a connection one.
+    if (error && error.code !== '42P01') { // 42P01 means table doesn't exist.
         console.error("Supabase connection test failed:", error);
-        connectionStatus = { configured: false, message: `Connection failed: ${error.message}. Please check your URL, Anon Key, and RLS policies.` };
+        connectionStatus = { configured: false, message: `Connection failed: ${error.message}. Check URL, Key, and RLS policies.` };
         supabase = null;
         isSupabaseConfigured = false;
         return { success: false, message: connectionStatus.message };
     }
     
-    // If the test passes, assign the new client to be the main one
     supabase = tempClient;
     isSupabaseConfigured = true;
     const successMessage = error?.code === '42P01'
@@ -358,3 +347,7 @@ export const getSupabaseCredentials = (): { url: string; key: string } => {
 
 // Initial load
 supabase = createSupabaseClient();
+if (supabase) {
+    // Perform a silent check on load to update initial status
+    updateSupabaseCredentials(getSupabaseCredentials().url, getSupabaseCredentials().key);
+}

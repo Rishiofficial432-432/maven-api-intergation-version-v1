@@ -1,5 +1,6 @@
 
 
+
 export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration';
 
 export interface Page {
@@ -144,31 +145,30 @@ export interface TimetableEntry {
     roomName: string;
 }
 
-// FIX: Added types for local-first (IndexedDB) portal implementation.
+// FIX: Updated types for Supabase-based portal implementation.
 export interface PortalUser {
   id: string;
   name: string;
-  email: string;
-  password?: string;
+  email: string | null;
   role: 'student' | 'teacher';
-  enrollment_id?: string;
+  enrollment_id?: string | null;
 }
 
 export interface PortalSession {
   id: string;
   teacher_id: string;
-  session_code: string;
+  session_code: string | null;
   expires_at: string;
   is_active: boolean;
   location_enforced?: boolean;
-  radius?: number;
-  location?: { latitude: number; longitude: number };
+  radius?: number | null;
+  location?: { latitude: number; longitude: number } | any; // Using `any` for Supabase jsonb flexibility
 }
 
 export interface PortalAttendanceRecord {
-  id: string;
-  sessionId: string;
+  id: number;
+  session_id: string;
   student_id: string;
-  student_name?: string;
-  enrollment_id?: string;
+  created_at: string;
+  portal_users: PortalUser; // For joined queries
 }

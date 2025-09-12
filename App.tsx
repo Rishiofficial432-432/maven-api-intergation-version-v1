@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
-// FIX: Changed to a named import for Editor to resolve a circular dependency.
 import { Editor } from './components/Editor';
-// FIX: Changed to named import for MamDesk to resolve circular dependency.
 import { MamDesk } from './components/MamDesk';
 import { WelcomePlaceholder } from './components/WelcomePlaceholder';
 import { Chatbot } from './components/Chatbot';
@@ -23,7 +21,6 @@ import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
   MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance
 } from './types';
-// FIX: Added 'setBannerData' to the import to resolve a 'Cannot find name' error.
 import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
 
 
@@ -477,8 +474,6 @@ const App: React.FC = () => {
     return "Your current habits:\n" + habits.map(h => `- ${h.name} (Streak: ${h.streak} days)`).join('\n');
   };
 
-  // Fix: The onMakeDecision function was not returning a value in all code paths, causing a compilation error.
-  // It is now wrapped in a Promise that resolves with the decision string.
   const onMakeDecision = (options?: string[]): Promise<string> => {
     return new Promise(resolve => {
         const opts = options && options.length > 0 ? options : decisionOptions;
@@ -718,10 +713,11 @@ const App: React.FC = () => {
     const result = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
     setSupabaseStatus({ configured: result.success, message: result.message });
     
-    if (result.success) {
-        toast.success("Settings saved and connection successful!");
+    // Use toasts for more visible feedback
+    if (result.success && !result.message.includes("table not found")) {
+        toast.success("Settings saved and Supabase connection is successful!");
     } else {
-        toast.error("Settings saved, but Supabase connection failed.");
+        toast.info("Settings have been saved. Check the status message for connection details.");
     }
     setIsSavingSettings(false);
   };
@@ -983,7 +979,7 @@ const App: React.FC = () => {
                         </div>
                         
                         <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors">
-                            {isSavingSettings ? <><Loader className="animate-spin" size={20}/> Saving...</> : <><Save size={16} /> Save Credentials</>}
+                            {isSavingSettings ? <><Loader className="animate-spin" size={20}/> Testing & Saving...</> : <><Save size={16} /> Save Credentials</>}
                         </button>
                     </section>
 

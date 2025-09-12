@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase-config';
 import { Database } from './supabase-config';
@@ -76,7 +77,11 @@ const AuthScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                 setViewMode('login');
             }
         } catch (error: any) {
-            toast.error(error.message);
+            if (error.message.includes('Failed to fetch')) {
+                toast.error("Login failed. Check your internet connection and Supabase settings.");
+            } else {
+                toast.error(error.message);
+            }
         } finally {
             setLoading(false);
         }
@@ -231,7 +236,6 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
             if (session.location_enforced) {
                 const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true }));
                 const { latitude, longitude } = position.coords;
-                // FIX: Added type assertion to safely access properties on the 'location' jsonb column.
                 const sessionLocation = session.location as { latitude: number, longitude: number };
                 const dist = getDistance(latitude, longitude, sessionLocation.latitude, sessionLocation.longitude);
                 if (dist > (session.radius || 100)) throw new Error(`Location check failed. You are too far (${Math.round(dist)}m).`);
@@ -288,8 +292,18 @@ const StudentTeacherPortal: React.FC = () => {
         };
         checkUser();
         const { data: authListener } = supabase?.auth?.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null);
-            if (session?.user) checkUser(); else setProfile(null);
+            const currentUser = session?.user ?? null;
+            setUser(currentUser);
+            if (currentUser) {
+                // Fetch profile only if user exists
+                const fetchProfile = async () => {
+                    const { data } = await supabase!.from('portal_users').select('*').eq('id', currentUser.id).single();
+                    setProfile(data);
+                };
+                fetchProfile();
+            } else {
+                setProfile(null);
+            }
         }) || {};
         return () => { authListener?.subscription.unsubscribe() };
     }, []);

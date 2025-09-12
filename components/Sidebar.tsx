@@ -6,7 +6,7 @@ import { Page, View } from '../types';
 import { PlusIcon, FileTextIcon, BookIcon, LayoutGridIcon } from './Icons';
 import { 
   Home, CheckSquare, List, Calendar, Timer, Target, BarChart3, User, Settings, HelpCircleIcon, FileText, Dice6, BookText, Clipboard, FileSearch,
-  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap, Clock, Heart
+  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap, Clock, Heart, ClipboardList
 } from 'lucide-react';
 
 
@@ -30,7 +30,7 @@ const navItems = [
     { id: 'braindump', icon: BrainCircuit, label: 'AI Brain Dump' },
     { id: 'tasks', icon: CheckSquare, label: 'Tasks' },
     { id: 'kanban', icon: List, label: 'Kanban Board' },
-    { id: 'attendance', icon: Clipboard, label: 'Attendance' },
+    { id: 'attendance', icon: ClipboardList, label: 'Attendance' },
     { id: 'calendar', icon: Calendar, label: 'Calendar' },
     { id: 'timer', icon: Timer, label: 'Pomodoro' },
     { id: 'decision', icon: Dice6, label: 'Decision Maker' },
