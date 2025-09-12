@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 // FIX: Changed to a named import for Editor to resolve a circular dependency.
@@ -21,7 +23,7 @@ import LandingPage from './components/LandingPage';
 import AboutPage from './components/AboutPage';
 import { HelpPage } from './components/HelpPage';
 import InspirationPage from './components/InspirationPage';
-import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon } from 'lucide-react';
+import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon, ImageIcon, Trash2 } from 'lucide-react';
 import { updateSupabaseCredentials, getSupabaseCredentials, connectionStatus as supabaseConnectionStatus } from './components/supabase-config';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
@@ -212,6 +214,8 @@ const App: React.FC = () => {
   const [supabaseKey, setSupabaseKey] = useState(getSupabaseCredentials().key);
   const [supabaseStatus, setSupabaseStatus] = useState(supabaseConnectionStatus);
   const [showSupabaseKey, setShowSupabaseKey] = useState(false);
+  const [inspirationImageId, setInspirationImageId] = usePersistentState<string | null>('maven-inspiration-image-id', null);
+  const [inspirationImagePreview, setInspirationImagePreview] = useState<string | null>(null);
 
   // --- LIFECYCLE & INITIALIZATION ---
 
@@ -270,6 +274,33 @@ const App: React.FC = () => {
     setHasEntered(false);
     sessionStorage.removeItem('maven-has-entered');
   };
+  
+    // Effect to load the preview for settings page
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    const loadPreview = async () => {
+        if (inspirationImageId) {
+            try {
+              const blob = await getBannerData(inspirationImageId);
+              if (blob) {
+                  objectUrl = URL.createObjectURL(blob);
+                  setInspirationImagePreview(objectUrl);
+              } else {
+                setInspirationImagePreview(null);
+              }
+            } catch (e) {
+                console.error("Failed to load inspiration preview", e);
+                setInspirationImagePreview(null);
+            }
+        } else {
+            setInspirationImagePreview(null); // No image set
+        }
+    };
+    loadPreview();
+    return () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+    }
+}, [inspirationImageId]);
 
   // --- PAGE & CONTENT MANAGEMENT ---
   const activePage = pages.find(p => p.id === activePageId);
@@ -802,7 +833,8 @@ const App: React.FC = () => {
         workspaceHistory,
         classes,
         students,
-        attendance
+        attendance,
+        inspirationImageId,
     };
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
     const link = document.createElement("a");
@@ -849,6 +881,7 @@ const App: React.FC = () => {
                 setClasses(data.classes || []);
                 setStudents(data.students || []);
                 setAttendance(data.attendance || {});
+                setInspirationImageId(data.inspirationImageId || null);
                 
                 toast.success("Data imported successfully! The app will now reload.");
                 setTimeout(() => window.location.reload(), 1500);
@@ -870,6 +903,40 @@ const App: React.FC = () => {
         setTimeout(() => window.location.reload(), 1500);
     } else {
         toast.error("Confirmation text does not match. Data was not deleted.");
+    }
+  };
+  
+  const handleInspirationImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+        // Delete old image if it exists
+        if (inspirationImageId) {
+            await deleteBannerData(inspirationImageId);
+        }
+        
+        const newImageId = `inspiration-${crypto.randomUUID()}`;
+        await setBannerData(newImageId, file);
+        setInspirationImageId(newImageId);
+        toast.success("Inspiration image updated!");
+    } catch (error) {
+        toast.error("Failed to update image.");
+        console.error(error);
+    }
+    event.target.value = '';
+  };
+
+  const handleRemoveInspirationImage = async () => {
+    if (inspirationImageId) {
+        try {
+            await deleteBannerData(inspirationImageId);
+            setInspirationImageId(null);
+            toast.info("Inspiration image removed.");
+        } catch (error) {
+            toast.error("Failed to remove image.");
+            console.error(error);
+        }
     }
   };
 
@@ -927,7 +994,7 @@ const App: React.FC = () => {
       case 'help':
         return <div className="p-8 overflow-y-auto"><HelpPage /></div>;
       case 'inspiration':
-        return <InspirationPage />;
+        return <InspirationPage inspirationImageId={inspirationImageId} />;
       case 'settings':
          return (
             <main className="flex-1 p-8 overflow-y-auto">
@@ -1015,6 +1082,31 @@ const App: React.FC = () => {
                             <button onClick={handleSaveSettings} className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-semibold flex items-center gap-2 ml-auto">
                                 <Save size={16}/> Save All Configurations
                            </button>
+                        </div>
+                    </section>
+                     <section className="bg-card border border-border rounded-xl p-6">
+                        <h2 className="text-xl font-bold mb-4">Personalization</h2>
+                        <h3 className="text-lg font-semibold mb-2">Inspiration Page Image</h3>
+                        <p className="text-sm text-muted-foreground mb-4">Upload a custom image to display on the 'Inspiration' page.</p>
+                        <div className="flex items-center gap-6">
+                            {inspirationImagePreview ? (
+                                <img src={inspirationImagePreview} alt="Inspiration preview" className="w-24 h-24 rounded-lg object-cover"/>
+                            ) : (
+                                <div className="w-24 h-24 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground">
+                                    <ImageIcon size={32} />
+                                </div>
+                            )}
+                            <div className="flex flex-col gap-2">
+                                <label className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md font-semibold cursor-pointer hover:bg-secondary/80 transition-colors">
+                                    <Upload size={16}/> Change Image
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleInspirationImageUpload} />
+                                </label>
+                                {inspirationImageId && (
+                                    <button onClick={handleRemoveInspirationImage} className="flex items-center gap-2 px-4 py-2 bg-destructive/20 text-destructive rounded-md font-semibold hover:bg-destructive/30 transition-colors">
+                                        <Trash2 size={16}/> Remove Image
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </section>
                      <section className="bg-card border border-border rounded-xl p-6">

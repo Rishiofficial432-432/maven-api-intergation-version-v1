@@ -1,14 +1,53 @@
 
-import React from 'react';
-import { Heart } from 'lucide-react';
 
-const InspirationPage: React.FC = () => {
+import React, { useState, useEffect } from 'react';
+import { Heart } from 'lucide-react';
+import { getBannerData } from '../App';
+
+interface InspirationPageProps {
+  inspirationImageId: string | null;
+}
+
+const InspirationPage: React.FC<InspirationPageProps> = ({ inspirationImageId }) => {
+  const [imageUrl, setImageUrl] = useState<string>('/assets/mother.jpg'); // Default
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+
+    const loadImage = async () => {
+      if (inspirationImageId) {
+        try {
+          const fileBlob = await getBannerData(inspirationImageId);
+          if (fileBlob) {
+            objectUrl = URL.createObjectURL(fileBlob);
+            setImageUrl(objectUrl);
+          } else {
+            setImageUrl('/assets/mother.jpg');
+          }
+        } catch (error) {
+          console.error("Failed to load inspiration image:", error);
+          setImageUrl('/assets/mother.jpg');
+        }
+      } else {
+        setImageUrl('/assets/mother.jpg');
+      }
+    };
+
+    loadImage();
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [inspirationImageId]);
+
   return (
     <main className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 via-transparent to-rose-500/10 animate-gradient-shift z-0"></div>
       <div className="z-10 animate-fade-in-up">
         <img 
-          src="/assets/mother.jpg" 
+          src={imageUrl} 
           alt="Inspiration" 
           className="w-48 h-48 rounded-full object-cover mx-auto mb-6 shadow-2xl ring-4 ring-primary/20"
         />
