@@ -1,11 +1,12 @@
 
 
+
 import React from 'react';
 import { Page, View } from '../types';
 import { PlusIcon, FileTextIcon, BookIcon, LayoutGridIcon } from './Icons';
 import { 
   Home, CheckSquare, List, Calendar, Timer, Target, BarChart3, User, Settings, HelpCircleIcon, FileText, Dice6, BookText, Clipboard, FileSearch,
-  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap, Clock
+  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap, Clock, Heart
 } from 'lucide-react';
 
 
@@ -129,6 +130,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <Info className="w-5 h-5 flex-shrink-0" />
                 {!isCollapsed && <span>About</span>}
             </button>
+            <button
+                onClick={() => setView('inspiration')}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'inspiration' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+                title="Inspiration"
+            >
+                <Heart className="w-5 h-5 flex-shrink-0 text-pink-400" />
+                {!isCollapsed && <span>Inspiration</span>}
+            </button>
         </nav>
       </div>
       
@@ -189,6 +198,7 @@ const Sidebar: React.FC<SidebarProps> = ({
              {view === 'workspace' && <Briefcase className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'academics' && <GraduationCap className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'about' && <Info className="w-8 h-8 mx-auto mb-2"/>}
+             {view === 'inspiration' && <Heart className="w-8 h-8 mx-auto mb-2 text-pink-400"/>}
              {view === 'settings' && <Settings className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'help' && <HelpCircleIcon className="w-8 h-8 mx-auto mb-2"/>}
             {!isCollapsed && <p className="capitalize">{view}</p>}

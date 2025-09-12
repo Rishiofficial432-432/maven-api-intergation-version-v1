@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 // FIX: Changed to a named import for Editor to resolve a circular dependency.
@@ -18,6 +20,7 @@ import SearchPalette from './components/SearchPalette';
 import LandingPage from './components/LandingPage';
 import AboutPage from './components/AboutPage';
 import { HelpPage } from './components/HelpPage';
+import InspirationPage from './components/InspirationPage';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon } from 'lucide-react';
 import { updateSupabaseCredentials, getSupabaseCredentials, connectionStatus as supabaseConnectionStatus } from './components/supabase-config';
 import {
@@ -923,6 +926,8 @@ const App: React.FC = () => {
         return <AboutPage />;
       case 'help':
         return <div className="p-8 overflow-y-auto"><HelpPage /></div>;
+      case 'inspiration':
+        return <InspirationPage />;
       case 'settings':
          return (
             <main className="flex-1 p-8 overflow-y-auto">

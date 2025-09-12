@@ -1,6 +1,7 @@
 
 
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help';
+
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration';
 
 export interface Page {
   id: string;
