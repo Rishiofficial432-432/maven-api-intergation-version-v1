@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, ToggleLeft, ToggleRight, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, FlaskConical, PencilRuler } from 'lucide-react';
 import { supabase, isSupabaseConfigured, Database, initPromise } from './supabase-config';
@@ -7,7 +8,8 @@ import { useToast } from './Toast';
 import { geminiAI } from './gemini';
 import QRCode from 'qrcode';
 // FIX: Changed to a type-only import for User, which is often required and can solve resolution issues.
-import type { User as SupabaseUser } from '@supabase/supabase-js';
+// Further fix: Modified import to address 'User' not being an exported member, likely due to older version.
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 
 // --- TYPES ---
@@ -220,6 +222,7 @@ const AuthScreen: React.FC = () => {
 
         try {
             if (viewMode === 'login') {
+                // FIX: Use `signInWithPassword` which is the correct method for Supabase JS v2+.
                 const { error } = await supabase!.auth.signInWithPassword({ email, password });
                 if (error) throw error;
                 toast.success("Logged in successfully!");
@@ -237,7 +240,7 @@ const AuthScreen: React.FC = () => {
                     }
                     signupData.enrollment_id = enrollmentId.trim();
                 }
-                // FIX: The signUp method expects a single object. The user metadata (`data`) should be nested inside an `options` property.
+                // FIX: Use v2 `signUp` signature which takes a single object argument.
                 const { error } = await supabase!.auth.signUp({
                     email,
                     password,
@@ -741,13 +744,15 @@ const StudentTeacherPortal: React.FC = () => {
             }
 
             const fetchSession = async () => {
+                // FIX: Use async `getSession()` for Supabase JS v2+. The sync `session()` is from v1.
                 const { data: { session } } = await supabase!.auth.getSession();
                 setSession(session?.user ?? null);
                 setLoading(false);
             };
             fetchSession();
 
-            const { data: authListener } = supabase!.auth.onAuthStateChange((_event, session) => {
+            // FIX: Use `onAuthStateChange` which is compatible with v2.
+            const { data: { subscription } } = supabase!.auth.onAuthStateChange((_event, session) => {
                 setSession(session?.user ?? null);
                 if (_event === 'SIGNED_OUT') {
                     setProfile(null);
@@ -755,7 +760,7 @@ const StudentTeacherPortal: React.FC = () => {
             });
 
             return () => {
-                authListener.subscription.unsubscribe();
+                subscription?.unsubscribe();
             };
         });
     }, []);
@@ -781,6 +786,7 @@ const StudentTeacherPortal: React.FC = () => {
 
     const handleLogout = async () => {
         if (!isSupabaseConfigured) return;
+        // FIX: `signOut` is compatible with v2.
         await supabase!.auth.signOut();
         toast.info("You have been logged out.");
     };

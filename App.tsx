@@ -1,9 +1,3 @@
-
-
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 // FIX: Changed to a named import for Editor to resolve a circular dependency.
@@ -29,94 +23,9 @@ import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
   MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance
 } from './types';
+// FIX: Added 'setBannerData' to the import to resolve a 'Cannot find name' error.
+import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
 
-
-// --- IndexedDB Utility for Banners ---
-const DB_NAME = 'MavenDB';
-const DB_VERSION = 1; // Downgraded: Portal no longer uses IndexedDB
-const STORE_NAME = 'files';
-
-let db: IDBDatabase;
-
-
-const initDB = (): Promise<boolean> => {
-  return new Promise((resolve, reject) => {
-    if (db) return resolve(true);
-
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = (event) => {
-      const dbInstance = request.result;
-      if (!dbInstance.objectStoreNames.contains(STORE_NAME)) {
-        dbInstance.createObjectStore(STORE_NAME);
-      }
-    };
-
-    request.onsuccess = () => {
-      db = request.result;
-      resolve(true);
-    };
-
-    request.onerror = () => {
-      console.error('IndexedDB error:', request.error);
-      reject(false);
-    };
-  });
-};
-
-export const setBannerData = (key: string, value: Blob): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-      reject('DB not initialized');
-      return;
-    }
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put(value, key);
-    
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => {
-      console.error('Transaction error:', transaction.error);
-      reject(transaction.error);
-    };
-  });
-};
-
-export const getBannerData = (key: string): Promise<Blob | null> => {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-        reject('DB not initialized');
-        return;
-    }
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(key);
-
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => {
-      console.error('Transaction error:', request.error);
-      reject(request.error);
-    };
-  });
-};
-
-export const deleteBannerData = (key: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-        if (!db) {
-            reject('DB not initialized');
-            return;
-        }
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.delete(key);
-
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => {
-            console.error('Transaction error:', transaction.error);
-            reject(transaction.error);
-        };
-    });
-};
 
 // Custom hook for persisting state to localStorage, moved here for centralization
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
@@ -209,13 +118,15 @@ const App: React.FC = () => {
   const [dataWipeConfirmation, setDataWipeConfirmation] = useState('');
   
   // Settings page state
-  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini-api-key') || 'AIzaSyCPdOt5TakRkdDSv1V3IIBeB9HyId60ZIo');
+  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini-api-key') || '');
   const [supabaseUrl, setSupabaseUrl] = useState(getSupabaseCredentials().url);
   const [supabaseKey, setSupabaseKey] = useState(getSupabaseCredentials().key);
   const [supabaseStatus, setSupabaseStatus] = useState(supabaseConnectionStatus);
   const [showSupabaseKey, setShowSupabaseKey] = useState(false);
   const [inspirationImageId, setInspirationImageId] = usePersistentState<string | null>('maven-inspiration-image-id', null);
   const [inspirationImagePreview, setInspirationImagePreview] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
 
   // --- LIFECYCLE & INITIALIZATION ---
 
@@ -801,14 +712,18 @@ const App: React.FC = () => {
   };
   
   // --- SETTINGS PAGE HANDLERS ---
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
     updateApiKey(apiKey);
-    const result = updateSupabaseCredentials(supabaseUrl, supabaseKey);
+    const result = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
     setSupabaseStatus({ configured: result.success, message: result.message });
-    toast.success("Settings saved!");
-    if(result.success) {
-      setTimeout(() => window.location.reload(), 1500);
+    
+    if (result.success) {
+        toast.success("Settings saved and connection successful!");
+    } else {
+        toast.error("Settings saved, but Supabase connection failed.");
     }
+    setIsSavingSettings(false);
   };
 
   const handleExportData = () => {
@@ -898,7 +813,7 @@ const App: React.FC = () => {
   const handleWipeData = () => {
     if (dataWipeConfirmation.toLowerCase() === 'delete my data') {
         localStorage.clear();
-        indexedDB.deleteDatabase(DB_NAME); // Also wipe IndexedDB
+        indexedDB.deleteDatabase('MavenDB'); // Also wipe IndexedDB
         toast.success("All data has been wiped. The application will now reload.");
         setTimeout(() => window.location.reload(), 1500);
     } else {
@@ -1037,177 +952,179 @@ const App: React.FC = () => {
                             </div>
                             
                             <details className="mt-3 text-sm">
-                                <summary className="cursor-pointer text-primary hover:underline">How to get your API key</summary>
-                                <ol className="list-decimal list-inside mt-2 space-y-1 text-muted-foreground text-xs">
-                                    <li>Go to the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary/90 underline">Google AI Studio</a>.</li>
-                                    <li>Log in with your Google account.</li>
-                                    <li>Click on the "Get API key" button.</li>
-                                    <li>Create a new API key in your project.</li>
-                                    <li>Copy the generated key and paste it into the field above.</li>
-                                </ol>
+                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Where can I find my API key?</summary>
+                                <p className="mt-2 text-foreground/80">You can create and manage your API keys from the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google AI Studio</a>. Remember to keep your key confidential.</p>
                             </details>
                         </div>
 
                         {/* Supabase Configuration */}
                         <div className="p-4 border border-border rounded-lg">
-                            <h3 className="text-lg font-semibold flex items-center gap-2"><UsersIcon size={20} /> Supabase (Student/Teacher Portal)</h3>
-                            <p className="text-sm text-muted-foreground mt-1 mb-4">Required *only* for the real-time Student/Teacher Portal feature. If you don't need the portal, you can leave this blank.</p>
-                            <div>
-                                <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Project URL</label>
-                                <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://xyz.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
-                            </div>
-                            <div className="mt-4">
-                                <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase API Key (anon public)</label>
-                                <div className="relative">
-                                    <input type={showSupabaseKey ? "text" : "password"} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." className="w-full bg-input border-border rounded-md px-3 py-2 text-sm pr-10" />
-                                    <button onClick={() => setShowSupabaseKey(!showSupabaseKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground">
-                                        {showSupabaseKey ? <EyeOff size={16}/> : <Eye size={16}/>}
-                                    </button>
-                                </div>
-                            </div>
-                            <p className={`text-xs mt-2 ${supabaseStatus.configured ? 'text-green-400' : 'text-amber-400'}`}>{supabaseStatus.message}</p>
-                            <details className="mt-3 text-sm">
-                                <summary className="cursor-pointer text-primary hover:underline">How to get Supabase credentials</summary>
-                                <ol className="list-decimal list-inside mt-2 space-y-1 text-muted-foreground text-xs">
-                                    <li>Go to your project on <a href="https://supabase.com/" target="_blank" rel="noopener noreferrer" className="text-primary/90 underline">Supabase</a>.</li>
-                                    <li>Navigate to Project Settings (the gear icon).</li>
-                                    <li>Click on the "API" section in the sidebar.</li>
-                                    <li>You will find your Project URL and the `anon` public key there.</li>
-                                    <li>Copy and paste them into the fields above.</li>
-                                </ol>
-                            </details>
+                             <h3 className="text-lg font-semibold flex items-center gap-2"><UsersIcon size={20} /> Student/Teacher Portal (Supabase)</h3>
+                             <p className="text-sm text-muted-foreground mt-1 mb-4">Optional. Required only for the real-time Student/Teacher Portal. You will need to create a free Supabase project and run the provided SQL setup script.</p>
+                             
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                                 <div>
+                                    <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Project URL</label>
+                                    <input value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://your-project-id.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                                 </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
+                                    <div className="relative">
+                                      <input type={showSupabaseKey ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="Enter your Supabase anon (public) key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm pr-10" />
+                                      <button type="button" onClick={() => setShowSupabaseKey(!showSupabaseKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground">
+                                        {showSupabaseKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                      </button>
+                                    </div>
+                                  </div>
+                             </div>
+                             <div className={`text-xs p-2 rounded-md ${supabaseStatus.configured ? 'bg-green-500/20 text-green-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                                <strong>Status:</strong> {supabaseStatus.message}
+                             </div>
                         </div>
                         
-                        <div className="mt-6 text-right">
-                            <button onClick={handleSaveSettings} className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-semibold flex items-center gap-2 ml-auto">
-                                <Save size={16}/> Save All Configurations
-                           </button>
+                        <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                            {isSavingSettings ? <><Loader className="animate-spin" size={20}/> Saving...</> : <><Save size={16} /> Save Credentials</>}
+                        </button>
+                    </section>
+
+                     <section className="bg-card border border-border rounded-xl p-6">
+                        <h2 className="text-2xl font-bold mb-4">Appearance</h2>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                            {(['theme-dark', 'theme-light', 'theme-jetblack', 'theme-midlight', 'theme-midnight'] as const).map(t => (
+                                <button key={t} onClick={() => setTheme(t)} className={`h-20 rounded-lg border-2 ${theme === t ? 'border-primary' : 'border-border'}`}>
+                                    <div className={`w-full h-full p-2 ${t} rounded-md`}>
+                                        <div className="w-full h-full bg-background rounded-sm flex flex-col items-center justify-center">
+                                            <p className="text-xs font-semibold capitalize text-foreground">{t.split('-')[1]}</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
                         </div>
                     </section>
+                    
                      <section className="bg-card border border-border rounded-xl p-6">
-                        <h2 className="text-xl font-bold mb-4">Personalization</h2>
-                        <h3 className="text-lg font-semibold mb-2">Inspiration Page Image</h3>
-                        <p className="text-sm text-muted-foreground mb-4">Upload a custom image to display on the 'Inspiration' page.</p>
-                        <div className="flex items-center gap-6">
-                            {inspirationImagePreview ? (
-                                <img src={inspirationImagePreview} alt="Inspiration preview" className="w-24 h-24 rounded-lg object-cover"/>
-                            ) : (
-                                <div className="w-24 h-24 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground">
-                                    <ImageIcon size={32} />
-                                </div>
-                            )}
-                            <div className="flex flex-col gap-2">
-                                <label className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md font-semibold cursor-pointer hover:bg-secondary/80 transition-colors">
-                                    <Upload size={16}/> Change Image
-                                    <input type="file" className="hidden" accept="image/*" onChange={handleInspirationImageUpload} />
-                                </label>
-                                {inspirationImageId && (
-                                    <button onClick={handleRemoveInspirationImage} className="flex items-center gap-2 px-4 py-2 bg-destructive/20 text-destructive rounded-md font-semibold hover:bg-destructive/30 transition-colors">
-                                        <Trash2 size={16}/> Remove Image
-                                    </button>
+                        <h2 className="text-2xl font-bold mb-4">Inspiration Image</h2>
+                         <p className="text-muted-foreground mb-4">Set a custom image for the "Inspiration" page to personalize your workspace.</p>
+                        <div className="flex items-center gap-4">
+                            <div className="w-24 h-24 rounded-lg bg-secondary flex items-center justify-center">
+                                {inspirationImagePreview ? (
+                                    <img src={inspirationImagePreview} alt="Inspiration preview" className="w-full h-full object-cover rounded-lg"/>
+                                ) : (
+                                    <ImageIcon className="w-8 h-8 text-muted-foreground"/>
                                 )}
+                            </div>
+                            <div className="flex-1 space-y-2">
+                                <label className="w-full text-center cursor-pointer bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold block">
+                                    <input type="file" onChange={handleInspirationImageUpload} accept="image/*" className="hidden"/>
+                                    Upload New Image
+                                </label>
+                                 <button onClick={handleRemoveInspirationImage} disabled={!inspirationImageId} className="w-full bg-secondary disabled:opacity-50 px-4 py-2 rounded-md text-sm font-semibold">
+                                    Remove Image
+                                </button>
                             </div>
                         </div>
                     </section>
-                     <section className="bg-card border border-border rounded-xl p-6">
-                         <h2 className="text-xl font-bold mb-4">Data Management</h2>
-                         <p className="text-sm text-muted-foreground mb-4">Your data is stored locally in your browser. You can back it up or import it from a file.</p>
-                         <div className="flex flex-wrap gap-4">
-                            <button onClick={handleExportData} className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md font-semibold">
-                                <Download size={16}/> Export Data
-                            </button>
-                            <label className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md font-semibold cursor-pointer">
-                                <Upload size={16}/> Import Data
-                                <input type="file" className="hidden" accept=".json" onChange={handleImportData} />
-                            </label>
-                         </div>
-                    </section>
+
                     <section className="bg-card border border-destructive/20 rounded-xl p-6">
-                         <h2 className="text-xl font-bold text-destructive mb-2">Danger Zone</h2>
-                         <p className="text-sm text-muted-foreground mb-4">This action is irreversible. It will permanently delete all your notes, tasks, and settings from this browser.</p>
-                         <button onClick={() => setIsDataWipeModalOpen(true)} className="bg-destructive text-destructive-foreground px-4 py-2 rounded-md font-semibold">
-                            Wipe All Local Data
-                        </button>
+                        <h2 className="text-2xl font-bold text-destructive mb-4">Danger Zone</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="p-4 bg-secondary rounded-lg">
+                                <h3 className="font-semibold">Export Data</h3>
+                                <p className="text-xs text-muted-foreground mb-2">Download a JSON backup of all your local data.</p>
+                                <button onClick={handleExportData} className="w-full bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold">Export</button>
+                            </div>
+                            <div className="p-4 bg-secondary rounded-lg">
+                                <h3 className="font-semibold">Import Data</h3>
+                                <p className="text-xs text-muted-foreground mb-2">Import a backup file. This will overwrite all current data.</p>
+                                <label className="w-full block cursor-pointer bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold text-center">
+                                    <input type="file" onChange={handleImportData} accept=".json" className="hidden"/>
+                                    Import
+                                </label>
+                            </div>
+                             <div className="p-4 bg-secondary rounded-lg">
+                                <h3 className="font-semibold text-destructive">Wipe All Data</h3>
+                                <p className="text-xs text-muted-foreground mb-2">Permanently delete all data from this browser.</p>
+                                <button onClick={() => setIsDataWipeModalOpen(true)} className="w-full bg-destructive/20 hover:bg-destructive/30 text-destructive px-3 py-1.5 rounded-md text-sm font-semibold">Wipe Data</button>
+                            </div>
+                        </div>
                     </section>
                 </div>
             </main>
-         );
+        );
       default:
         return <WelcomePlaceholder onNewPage={handleNewPage} />;
     }
-  };
+  }
 
   return (
-    <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden font-sans">
-        <Sidebar
-            pages={pages}
-            activePageId={activePageId}
-            onSelectPage={onSelectPage}
+    <div className={`flex h-screen w-screen overflow-hidden ${theme}`}>
+      <Sidebar
+        pages={pages}
+        activePageId={activePageId}
+        onSelectPage={onSelectPage}
+        onNewPage={handleNewPage}
+        view={view}
+        setView={setView}
+        activeTab={activeDashboardTab}
+        setActiveTab={setActiveDashboardTab}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
+        onToggleSearch={() => setIsSearchOpen(true)}
+        onGoToLandingPage={handleGoToLandingPage}
+      />
+      <div className="flex-1 flex flex-col min-w-0">
+        {renderView()}
+      </div>
+      <aside className={`bg-card/80 backdrop-blur-xl flex-shrink-0 border-l border-border/50 flex flex-col transition-all duration-300 ease-in-out ${isChatbotCollapsed ? 'w-20' : 'w-96'}`}>
+        <Chatbot
+            isCollapsed={isChatbotCollapsed}
+            setIsCollapsed={setIsChatbotCollapsed}
+            onAddTask={onAddTask}
+            onAddEvent={onAddEvent}
             onNewPage={handleNewPage}
-            view={view}
-            setView={setView}
-            activeTab={activeDashboardTab}
-            setActiveTab={setActiveDashboardTab}
-            isCollapsed={isSidebarCollapsed}
-            setIsCollapsed={setIsSidebarCollapsed}
-            onToggleSearch={() => setIsSearchOpen(true)}
-            onGoToLandingPage={handleGoToLandingPage}
+            onGetDailyBriefing={onGetDailyBriefing}
+            onGenerateCreativeContent={onGenerateCreativeContent}
+            onCompleteTaskByText={onCompleteTaskByText}
+            onDeleteTaskByText={onDeleteTaskByText}
+            onListTasks={onListTasks}
+            onDeleteNoteByTitle={onDeleteNoteByTitle}
+            onMoveKanbanCard={onMoveKanbanCard}
+            onAddQuickNote={onAddQuickNote}
+            onListQuickNotes={onListQuickNotes}
+            onAddHabit={onAddHabit}
+            onCompleteHabit={onCompleteHabit}
+            onDeleteHabit={onDeleteHabit}
+            onListHabits={onListHabits}
+            onStartPomodoro={() => { setPomodoroActive(true); return "Pomodoro timer started!"; }}
+            onPausePomodoro={() => { setPomodoroActive(false); return "Pomodoro timer paused."; }}
+            onResetPomodoro={() => { onResetPomodoro(); return "Pomodoro timer reset."; }}
+            onAddDecisionOption={onAddDecisionOption}
+            onAddDecisionOptions={onAddDecisionOptions}
+            onClearDecisionOptions={onClearDecisionOptions}
+            onMakeDecision={onMakeDecision}
+            onPlanAndCreateNote={onPlanAndCreateNote}
+            onWireframeAndCreateNote={onWireframeAndCreateNote}
+            onAddJournalEntry={onAddJournalEntry}
+            onAddGoal={onAddGoal}
+            onLogMood={onLogMood}
+            onAddExpense={onAddExpense}
+            onAddPersonalQuote={onAddPersonalQuote}
         />
-        <div className="flex-1 flex flex-col min-w-0">
-            <div className="flex-1 flex min-h-0 relative">
-                {renderView()}
-            </div>
-        </div>
-         <aside className={`flex-shrink-0 border-l border-border/50 transition-all duration-300 ease-in-out ${isChatbotCollapsed ? 'w-16' : 'w-96'}`}>
-            <Chatbot 
-                onAddTask={onAddTask} 
-                onAddEvent={onAddEvent} 
-                onNewPage={handleNewPage}
-                onGetDailyBriefing={onGetDailyBriefing}
-                onGenerateCreativeContent={onGenerateCreativeContent}
-                onCompleteTaskByText={onCompleteTaskByText}
-                onDeleteTaskByText={onDeleteTaskByText}
-                onListTasks={onListTasks}
-                onDeleteNoteByTitle={onDeleteNoteByTitle}
-                onMoveKanbanCard={onMoveKanbanCard}
-                onAddQuickNote={onAddQuickNote}
-                onListQuickNotes={onListQuickNotes}
-                onAddHabit={onAddHabit}
-                onCompleteHabit={onCompleteHabit}
-                onDeleteHabit={onDeleteHabit}
-                onListHabits={onListHabits}
-                onStartPomodoro={() => { setPomodoroActive(true); return "Pomodoro timer started."; }}
-                onPausePomodoro={() => { setPomodoroActive(false); return "Pomodoro timer paused."; }}
-                onResetPomodoro={() => { onResetPomodoro(); return "Pomodoro timer reset."; }}
-                onAddDecisionOption={onAddDecisionOption}
-                onAddDecisionOptions={onAddDecisionOptions}
-                onClearDecisionOptions={onClearDecisionOptions}
-                onMakeDecision={onMakeDecision}
-                onPlanAndCreateNote={onPlanAndCreateNote}
-                onWireframeAndCreateNote={onWireframeAndCreateNote}
-                onAddJournalEntry={onAddJournalEntry}
-                onAddGoal={onAddGoal}
-                onLogMood={onLogMood}
-                onAddExpense={onAddExpense}
-                onAddPersonalQuote={onAddPersonalQuote}
-                isCollapsed={isChatbotCollapsed}
-                setIsCollapsed={setIsChatbotCollapsed}
-            />
-        </aside>
-        <SearchPalette 
-            isOpen={isSearchOpen}
-            onClose={() => setIsSearchOpen(false)}
-            pages={pages}
-            onSelectPage={onSelectPage}
-        />
+      </aside>
+       <SearchPalette
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        pages={pages}
+        onSelectPage={onSelectPage}
+      />
     </div>
   );
 };
 
-const AppWrapper: React.FC = () => (
-  <ToastProvider>
-    <App />
-  </ToastProvider>
+const AppWithProviders: React.FC = () => (
+    <ToastProvider>
+        <App />
+    </ToastProvider>
 );
 
-export default AppWrapper;
+export default AppWithProviders;

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Page } from '../types';
 import CommandPalette from './AiToolbar';
@@ -6,7 +5,7 @@ import { TrashIcon, ImageIcon, Wand2Icon } from './Icons';
 import { 
     Mail, Music, Facebook, Instagram, Twitter, Pin, BrainCircuit, Search, MessageSquare, Zap, Sparkles
 } from 'lucide-react';
-import { getBannerData, setBannerData } from '../App';
+import { getBannerData, setBannerData } from './db';
 
 interface EditorProps {
   page: Page;

@@ -1,5 +1,9 @@
 
 
+
+
+
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /*
@@ -301,90 +305,89 @@ export interface Database {
 // --- Supabase Configuration using localStorage ---
 let supabase: SupabaseClient<Database> | null = null;
 let isSupabaseConfigured = false;
-let connectionStatus = { configured: false, message: "Supabase credentials not configured." };
+let connectionStatus = { configured: false, message: "Supabase credentials not configured. Please add them in Settings." };
 
-const SUPABASE_URL_FALLBACK = "https://djgnzprigxgbloruuayw.supabase.co";
-const SUPABASE_ANON_KEY_FALLBACK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZ256cHJpZ3hnYmxvcnV1YXl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MTk5MDgsImV4cCI6MjA3MjE5NTkwOH0.sbFsHtBPNhi-4-ZJ90w-4SYl49lesWhzXKHuwTRz2hc";
+const createSupabaseClient = (url?: string, key?: string): SupabaseClient<Database> | null => {
+    const storedUrl = url || localStorage.getItem('supabase-url');
+    const storedKey = key || localStorage.getItem('supabase-anon-key');
 
-
-const createSupabaseClient = (): SupabaseClient<Database> | null => {
-    const storedUrl = localStorage.getItem('supabase-url');
-    const storedKey = localStorage.getItem('supabase-anon-key');
-
-    let finalUrl = SUPABASE_URL_FALLBACK;
-    let finalKey = SUPABASE_ANON_KEY_FALLBACK;
-    let usingFallback = true;
-
-    // Attempt to use stored credentials only if they seem valid
-    if (storedUrl && storedUrl.trim() && storedKey && storedKey.trim()) {
-        try {
-            // Strong validation: must be a valid URL object.
-            new URL(storedUrl.trim());
-            finalUrl = storedUrl.trim();
-            finalKey = storedKey.trim();
-            usingFallback = false;
-        } catch (e) {
-            console.warn("Invalid Supabase URL in localStorage, using fallback.", storedUrl);
-        }
+    if (!storedUrl || !storedUrl.trim() || !storedKey || !storedKey.trim()) {
+        isSupabaseConfigured = false;
+        connectionStatus = { configured: false, message: "Supabase credentials not configured. Please add them in Settings." };
+        return null;
     }
-    
-    // Now, try to create the client. This is the only place it happens.
+
     try {
-        const client = createClient<Database>(finalUrl, finalKey);
+        // Create a temporary client to test with the new credentials
+        const client = createClient<Database>(storedUrl, storedKey);
         isSupabaseConfigured = true;
-        connectionStatus = { 
-            configured: true, 
-            message: `Connected to Supabase${usingFallback ? ' (using fallback credentials)' : ''}.`
-        };
-        console.log("Supabase client initialized.");
+        // Don't set the main connection status message yet, that happens after testing
         return client;
     } catch (e) {
         console.error("Critical error creating Supabase client:", e);
         isSupabaseConfigured = false;
-        connectionStatus = { configured: false, message: "Error: Could not create Supabase client." };
+        connectionStatus = { configured: false, message: "Error: Could not create Supabase client. The URL might be invalid." };
         return null;
     }
 };
 
-const updateSupabaseCredentials = (url: string, key: string): { success: boolean; message: string } => {
+const updateSupabaseCredentials = async (url: string, key: string): Promise<{ success: boolean; message: string }> => {
     const trimmedUrl = url.trim();
     const trimmedKey = key.trim();
+
+    if (!trimmedUrl || !trimmedKey) {
+        localStorage.removeItem('supabase-url');
+        localStorage.removeItem('supabase-anon-key');
+        supabase = null;
+        isSupabaseConfigured = false;
+        connectionStatus = { configured: false, message: "Credentials cleared. Portal is disabled." };
+        return { success: false, message: connectionStatus.message };
+    }
 
     localStorage.setItem('supabase-url', trimmedUrl);
     localStorage.setItem('supabase-anon-key', trimmedKey);
     
-    // Attempt to re-initialize with the new credentials
-    supabase = createSupabaseClient();
+    // Create a temporary client to test the new credentials
+    const tempClient = createSupabaseClient(trimmedUrl, trimmedKey);
     
-    const usedFallback = connectionStatus.message.includes('fallback');
-
-    if (isSupabaseConfigured && !usedFallback) {
-        // Success! The new credentials worked.
-        return { success: true, message: "Supabase credentials saved. The app will reload to apply them." };
-    } else {
-        // The new credentials failed, and the client fell back to default.
-        // We should clear the invalid credentials from storage.
-        localStorage.removeItem('supabase-url');
-        localStorage.removeItem('supabase-anon-key');
-        
-        // Re-initialize again with the now-cleared storage, which guarantees using the fallback.
-        supabase = createSupabaseClient();
-        
-        return { success: false, message: "Invalid credentials. Please check your URL and Key. Reverted to default." };
+    if (!tempClient) {
+        connectionStatus = { configured: false, message: "Connection failed: The provided URL or Key is invalid." };
+        supabase = null;
+        isSupabaseConfigured = false;
+        return { success: false, message: connectionStatus.message };
     }
+
+    // Perform a simple test query to verify connection and permissions
+    const { error } = await tempClient.from('portal_users').select('id', { count: 'exact', head: true });
+
+    if (error && error.code !== '42P01') { // 42P01 means table doesn't exist, which is a setup issue, not a connection one.
+        console.error("Supabase connection test failed:", error);
+        connectionStatus = { configured: false, message: `Connection failed: ${error.message}. Please check your URL and Anon Key.` };
+        supabase = null;
+        isSupabaseConfigured = false;
+        return { success: false, message: connectionStatus.message };
+    }
+    
+    // If the test passes, assign the new client to be the main one
+    supabase = tempClient;
+    isSupabaseConfigured = true;
+    const successMessage = error?.code === '42P01'
+        ? "Connection successful, but 'portal_users' table not found. Please run the setup script in the Supabase SQL editor."
+        : "Connection successful and credentials saved.";
+
+    connectionStatus = { configured: true, message: successMessage };
+    return { success: true, message: successMessage };
 };
 
 const getSupabaseCredentials = (): { url: string; key: string } => {
-    const url = localStorage.getItem('supabase-url') || SUPABASE_URL_FALLBACK;
-    const key = localStorage.getItem('supabase-anon-key') || SUPABASE_ANON_KEY_FALLBACK;
+    const url = localStorage.getItem('supabase-url') || '';
+    const key = localStorage.getItem('supabase-anon-key') || '';
     return { url, key };
 };
 
 // Initial load
 supabase = createSupabaseClient();
 
-// Since initialization is now synchronous, we can resolve this promise immediately.
-// This maintains compatibility with components that were using it.
 const initPromise = Promise.resolve(true);
 
 export { 
