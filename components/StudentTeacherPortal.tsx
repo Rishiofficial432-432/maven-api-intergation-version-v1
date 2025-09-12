@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase-config';
 import { Database } from './supabase-config';
@@ -65,6 +64,9 @@ const AuthScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                     email,
                     password,
                     options: {
+                        // FIX: Removed the deprecated and invalid 'email_confirm' property from the Supabase signUp options.
+                        // Email confirmation is now a project-level setting in the Supabase dashboard and cannot be
+                        // controlled per-call from the client-side library.
                         data: {
                             name,
                             role,
@@ -73,7 +75,7 @@ const AuthScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
                     },
                 });
                 if (error) throw error;
-                toast.success("Signed up successfully! Please check your email for verification before logging in.");
+                toast.success("Signed up successfully! You can now log in.");
                 setViewMode('login');
             }
         } catch (error: any) {
