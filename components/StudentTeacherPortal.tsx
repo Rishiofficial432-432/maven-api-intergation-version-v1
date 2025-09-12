@@ -220,8 +220,7 @@ const AuthScreen: React.FC = () => {
 
         try {
             if (viewMode === 'login') {
-                // FIX: Changed signInWithPassword to signIn, which is the compatible method in older Supabase versions.
-                const { error } = await supabase!.auth.signIn({ email, password });
+                const { error } = await supabase!.auth.signInWithPassword({ email, password });
                 if (error) throw error;
                 toast.success("Logged in successfully!");
             } else { // signup
@@ -238,11 +237,14 @@ const AuthScreen: React.FC = () => {
                     }
                     signupData.enrollment_id = enrollmentId.trim();
                 }
-                // FIX: Changed signUp to use the compatible v1/early-v2 signature with data as a second argument.
-                const { error } = await supabase!.auth.signUp(
-                    { email, password },
-                    { data: signupData }
-                );
+                // FIX: The signUp method expects a single object. The user metadata (`data`) should be nested inside an `options` property.
+                const { error } = await supabase!.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: signupData,
+                    },
+                });
                 if (error) throw error;
                 toast.success("Signed up successfully! Please check your email for verification.");
                 setViewMode('login');
@@ -739,14 +741,12 @@ const StudentTeacherPortal: React.FC = () => {
             }
 
             const fetchSession = async () => {
-                // FIX: Changed to use the synchronous session() method which is compatible with older versions.
-                const currentSession = supabase!.auth.session();
-                setSession(currentSession?.user ?? null);
+                const { data: { session } } = await supabase!.auth.getSession();
+                setSession(session?.user ?? null);
                 setLoading(false);
             };
             fetchSession();
 
-            // FIX: The onAuthStateChange method signature is compatible, so it remains.
             const { data: authListener } = supabase!.auth.onAuthStateChange((_event, session) => {
                 setSession(session?.user ?? null);
                 if (_event === 'SIGNED_OUT') {
@@ -781,7 +781,6 @@ const StudentTeacherPortal: React.FC = () => {
 
     const handleLogout = async () => {
         if (!isSupabaseConfigured) return;
-        // FIX: The signOut method is compatible, so it remains.
         await supabase!.auth.signOut();
         toast.info("You have been logged out.");
     };

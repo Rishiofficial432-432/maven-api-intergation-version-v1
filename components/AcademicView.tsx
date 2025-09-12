@@ -153,8 +153,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
     useEffect(() => {
         const fetchProfile = async () => {
             if (isSupabaseConfigured) {
-                // FIX: Changed getSession() to session() for compatibility with older Supabase versions.
-                const session = supabase!.auth.session();
+                const { data: { session } } = await supabase!.auth.getSession();
                 if (session) {
                     const { data } = await supabase!.from('portal_users').select('*').eq('id', session.user.id).single();
                     setProfile(data);

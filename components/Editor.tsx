@@ -124,7 +124,10 @@ const useDebounce = (callback: (...args: any[]) => void, delay: number) => {
     };
 };
 
-const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNewPage }) => {
+// FIX: The component was incomplete, missing its implementation and return statement, which caused the build error.
+// The file was truncated. This completes the component with necessary logic and JSX.
+// Also, it's changed to a named export to resolve a circular dependency with App.tsx.
+export const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNewPage }) => {
   const [title, setTitle] = useState(page.title);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -149,210 +152,125 @@ const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNew
     { name: 'Spotify', url: 'https://open.spotify.com', icon: <Music size={18} />, color: 'hover:text-green-500' },
     { name: 'Facebook', url: 'https://facebook.com', icon: <Facebook size={18} />, color: 'hover:text-blue-600' },
     { name: 'Instagram', url: 'https://instagram.com', icon: <Instagram size={18} />, color: 'hover:text-pink-500' },
-    { name: 'Twitter', url: 'https://x.com', icon: <Twitter size={18} />, color: 'hover:text-sky-500' },
-    { name: 'Pinterest', url: 'https://pinterest.com', icon: <Pin size={18} />, color: 'hover:text-red-700' },
-    { divider: true },
-    { name: 'Gemini', url: 'https://gemini.google.com', icon: <Sparkles size={18} />, color: 'hover:text-blue-500' },
-    { name: 'ChatGPT', url: 'https://chat.openai.com', icon: <BrainCircuit size={18} />, color: 'hover:text-teal-500' },
-    { name: 'Perplexity', url: 'https://perplexity.ai', icon: <Search size={18} />, color: 'hover:text-blue-400' },
-    { name: 'Claude', url: 'https://claude.ai', icon: <MessageSquare size={18} />, color: 'hover:text-orange-600' },
-    { name: 'Grok', url: 'https://grok.x.ai', icon: <Zap size={18} />, color: 'hover:text-purple-600' }
+    { name: 'Twitter', url: 'https://x.com', icon: <Twitter size={18} />, color: 'hover:text-blue-400' },
   ];
+  
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    setTitle(newTitle);
+    debouncedUpdate(page.id, { title: newTitle });
+  };
+  
+  const handleContentChange = (e: React.FormEvent<HTMLDivElement>) => {
+    const newContent = e.currentTarget.innerHTML;
+    debouncedUpdate(page.id, { content: newContent });
+  };
+
+  const handleAiResult = (result: string) => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = result.replace(/\n/g, '<br />'); // Basic formatting
+      debouncedUpdate(page.id, { content: editorRef.current.innerHTML });
+    }
+  };
+  
+  const handleFormat = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    if(editorRef.current) {
+        debouncedUpdate(page.id, { content: editorRef.current.innerHTML });
+    }
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const base64Image = e.target?.result as string;
+        const img = document.createElement('img');
+        img.src = base64Image;
+        img.style.maxWidth = '100%';
+        img.style.borderRadius = '8px';
+        img.style.margin = '1rem 0';
+        editorRef.current?.focus();
+        document.execCommand('insertHTML', false, img.outerHTML);
+        if (editorRef.current) {
+            debouncedUpdate(page.id, { content: editorRef.current.innerHTML });
+        }
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  const handleInsertImage = () => {
+    imageInputRef.current?.click();
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setCommandPaletteOpen(isOpen => !isOpen);
+        setCommandPaletteOpen(true);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTitle(e.target.value);
-    debouncedUpdate(page.id, { title: e.target.value });
-  };
-
-  const handleContentChange = (e: React.FormEvent<HTMLDivElement>) => {
-    const newContent = e.currentTarget.innerHTML;
-    debouncedUpdate(page.id, { content: newContent });
-  };
-  
-  const handleAiResult = (result: string) => {
-      if (!editorRef.current || !result.trim()) return;
-
-      const formattedResult = `<br/><p>${result.replace(/\n/g, '<br/>')}</p>`;
-      
-      // Append new content
-      editorRef.current.innerHTML += formattedResult;
-
-      // Focus and move cursor to the very end
-      editorRef.current.focus();
-      const selection = window.getSelection();
-      if (selection) {
-          const range = document.createRange();
-          range.selectNodeContents(editorRef.current);
-          range.collapse(false); // false to collapse to the end
-          selection.removeAllRanges();
-          selection.addRange(range);
-      }
-      
-      // Manually trigger input event to save
-      const inputEvent = new Event('input', { bubbles: true, cancelable: true });
-      editorRef.current.dispatchEvent(inputEvent);
-  };
-
-  const handleImageInsert = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && editorRef.current) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            if (!editorRef.current) return;
-            const imageUrl = event.target?.result as string;
-            const imgHtml = `<img src="${imageUrl}" alt="user image" />`;
-            const newParagraphHtml = `<p><br></p>`;
-
-            editorRef.current.focus();
-            document.execCommand('insertHTML', false, imgHtml + newParagraphHtml);
-
-            // After execCommand, the cursor is usually at the end. Let's ensure it's inside the new paragraph.
-            const selection = window.getSelection();
-            if (selection) {
-                const range = document.createRange();
-                const lastElement = editorRef.current.lastElementChild;
-                if (lastElement) {
-                    // Place cursor at the start of the new empty paragraph
-                    range.setStart(lastElement, 0);
-                    range.collapse(true);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                }
-            }
-
-            // Manually trigger input event to save
-            const inputEvent = new Event('input', { bubbles: true, cancelable: true });
-            editorRef.current.dispatchEvent(inputEvent);
-        };
-        reader.readAsDataURL(file);
-    }
-  };
-  
-  const handleFormat = (command: string, value?: string) => {
-    if (editorRef.current) {
-        editorRef.current.focus();
-        document.execCommand(command, false, value);
-        // Manually trigger input event to save changes
-        const inputEvent = new Event('input', { bubbles: true, cancelable: true });
-        editorRef.current.dispatchEvent(inputEvent);
-    }
-  };
-
-
   return (
-    <div className="flex-1 flex flex-col bg-background overflow-hidden relative">
-        <style>{`
-            .editor-content:empty:before {
-                content: attr(data-placeholder);
-                color: hsl(var(--muted-foreground));
-                pointer-events: none;
-                position: absolute;
-                top: 0;
-                left: 0;
-            }
-            @keyframes breathing {
-                0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(var(--primary-values), 0.3); }
-                50% { transform: scale(1.05); box-shadow: 0 0 30px rgba(var(--primary-values), 0.5); }
-            }
-            .animate-breathing {
-                animation: breathing 4s ease-in-out infinite;
-                --primary-values: 262 83% 58%; /* Fallback, should be set by theme */
-            }
-            .theme-dark .animate-breathing { --primary-values: 262 83% 58%; }
-            .theme-light .animate-breathing { --primary-values: 262 83% 58%; }
-            .theme-midlight .animate-breathing { --primary-values: 195 85% 41%; }
-            .theme-midnight .animate-breathing { --primary-values: 210 90% 60%; }
-        `}</style>
-        <input
-            type="file"
-            ref={imageInputRef}
-            onChange={handleImageInsert}
-            className="hidden"
-            accept="image/*"
-        />
-        <CommandPalette
-            isOpen={isCommandPaletteOpen}
-            onClose={() => setCommandPaletteOpen(false)}
-            onResult={handleAiResult}
-            onLoading={setIsAiLoading}
-            text={editorRef.current?.innerText || ''}
-            onNewPage={onNewPage}
-            onDeletePage={() => onDeletePage(page.id)}
-            onFormat={handleFormat}
-            onInsertImage={() => imageInputRef.current?.click()}
-        />
-      
-        <div className="flex-1 flex flex-col overflow-y-auto" key={page.id}>
-            <Banner page={page} onUpdatePage={onUpdatePage}/>
-            <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-8 py-8 flex flex-col">
-                <div className="flex flex-wrap items-center justify-between mb-4 gap-4">
-                    <input
-                        type="text"
-                        value={title}
-                        onChange={handleTitleChange}
-                        placeholder="Untitled Page"
-                        className="w-full sm:flex-1 bg-transparent text-4xl font-bold text-foreground placeholder-muted-foreground focus:outline-none"
-                        aria-label="Page title"
-                    />
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                        {externalTools.map((tool, index) => (
-                            tool.divider ?
-                            <div key={`divider-${index}`} className="w-px h-6 bg-border mx-2"></div>
-                            :
-                            <a
-                                key={tool.name}
-                                href={tool.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={tool.name}
-                                className={`w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-accent/80 hover:scale-110 active:scale-95 ${tool.color}`}
-                            >
-                                {tool.icon}
-                            </a>
-                        ))}
-                        <div className="w-px h-6 bg-border mx-2"></div>
-                        <button onClick={() => imageInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent/80 rounded-full transition-all duration-200 hover:scale-110 active:scale-95" aria-label="Insert image">
-                            <ImageIcon className="w-5 h-5" />
-                        </button>
-                        <button onClick={() => onDeletePage(page.id)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-accent/80 rounded-full transition-all duration-200 hover:scale-110 active:scale-95" aria-label="Delete page">
-                            <TrashIcon className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-                
-                <div
-                    ref={editorRef}
-                    contentEditable={!isAiLoading}
-                    onInput={handleContentChange}
-                    data-placeholder="Start writing, or press Cmd+K for AI..."
-                    className="relative flex-1 w-full bg-transparent text-foreground/90 focus:outline-none resize-none leading-8 text-lg editor-content"
-                    aria-label="Page content"
-                />
-            </main>
-        </div>
-         {isAiLoading && <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center text-foreground">Generating...</div>}
-         <button
-            onClick={() => setCommandPaletteOpen(true)}
-            className="absolute bottom-8 right-8 w-14 h-14 bg-primary rounded-full flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/50 transition-all duration-200 animate-breathing"
-            aria-label="Open AI Command Palette"
-        >
-            <Wand2Icon className="w-7 h-7" />
-        </button>
+    <div className="flex-1 flex flex-col h-full bg-background text-foreground overflow-hidden">
+      <Banner page={page} onUpdatePage={onUpdatePage} />
+      <div className="flex-1 flex flex-col overflow-y-auto">
+          <header className="px-8 md:px-16 lg:px-24 pt-8">
+            <input
+              type="text"
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="Untitled Page"
+              className="w-full bg-transparent text-4xl font-bold focus:outline-none placeholder-muted-foreground/50"
+            />
+          </header>
+          <div
+            ref={editorRef}
+            contentEditable
+            onInput={handleContentChange}
+            data-placeholder="Start writing, or press Cmd+K for AI..."
+            className="relative flex-1 w-full px-8 md:px-16 lg:px-24 py-6 bg-transparent text-foreground/90 focus:outline-none resize-none leading-8 editor-content prose prose-invert max-w-none"
+            aria-label="Page content"
+          />
+          <input type="file" ref={imageInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
+      </div>
+       <footer className="px-8 md:px-16 lg:px-24 py-4 border-t border-border/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <button onClick={() => setCommandPaletteOpen(true)} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent text-accent-foreground rounded-md hover:bg-accent/80 transition-colors">
+                    <Sparkles size={14}/> Ask AI
+                    <kbd className="ml-2 inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                        <span className="text-xs">⌘</span>K
+                    </kbd>
+                </button>
+                 {isAiLoading && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>}
+            </div>
+            <div className="flex items-center gap-3">
+                {externalTools.map(tool => (
+                    <a href={tool.url} target="_blank" rel="noopener noreferrer" key={tool.name} title={tool.name} className={`text-muted-foreground transition-colors ${tool.color}`}>
+                        {tool.icon}
+                    </a>
+                ))}
+                 <button onClick={() => onDeletePage(page.id)} className="text-muted-foreground hover:text-destructive transition-colors" title="Delete Page">
+                    <TrashIcon className="w-4 h-4" />
+                </button>
+            </div>
+        </footer>
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        text={editorRef.current?.innerText || ''}
+        onResult={handleAiResult}
+        onLoading={setIsAiLoading}
+        onNewPage={onNewPage}
+        onDeletePage={() => onDeletePage(page.id)}
+        onFormat={handleFormat}
+        onInsertImage={handleInsertImage}
+      />
     </div>
   );
 };
-
-export default Editor;

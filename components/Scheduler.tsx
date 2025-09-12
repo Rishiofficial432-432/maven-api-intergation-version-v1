@@ -1,9 +1,10 @@
 
-
 import React, { useState } from 'react';
 import { Teacher, Subject, ClassInfo, Room, TimetableEntry } from '../types';
 import { Plus, Trash2, Wand2, Loader, Users, BookOpen, Building, UploadCloud, Download } from 'lucide-react';
 import { useToast } from './Toast';
+import { geminiAI } from './gemini';
+import { Type } from '@google/genai';
 
 declare const XLSX: any;
 
@@ -47,7 +48,7 @@ const Scheduler: React.FC = () => {
                 setTeachers(teachersData.map(t => ({
                     name: t.TeacherName,
                     subjects: (t.SubjectsTaught || '').split(',').map((s: string) => s.trim()).filter(Boolean),
-                    availableDays: (t.AvailableDays || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+                    availableDays: (t.AvailableDays || 'Monday,Tuesday,Wednesday,Thursday,Friday').split(',').map((s: string) => s.trim()).filter(Boolean),
                 })));
 
                 // Subjects
@@ -117,29 +118,114 @@ const Scheduler: React.FC = () => {
         setIsLoading(true);
         setTimetable(null);
     
-        const worker = new Worker(new URL('../workers/timetable.worker.ts', import.meta.url), { type: 'module' });
-    
-        worker.onmessage = (event) => {
-            const { success, schedule, error } = event.data;
-            if (success) {
-                setTimetable(schedule);
-                toast.success("Timetable generated successfully!");
-            } else {
-                toast.error(error || "An unknown error occurred during timetable generation.");
-            }
+        try {
+            // FIX: Instantiating the worker with a direct path is more robust than constructing a full URL object,
+            // which can fail in sandboxed environments where `window.location.origin` is not a standard URL.
+            const worker = new Worker('/workers/timetable.worker.ts', { type: 'module' });
+        
+            worker.onmessage = (event) => {
+                const { success, schedule, error } = event.data;
+                if (success) {
+                    setTimetable(schedule);
+                    toast.success("Timetable generated successfully!");
+                } else {
+                    toast.error(error || "An unknown error occurred during timetable generation.");
+                }
+                setIsLoading(false);
+                worker.terminate();
+            };
+        
+            worker.onerror = (error) => {
+                console.error('Worker error:', error);
+                toast.error("A critical worker error occurred. See console for details.");
+                setIsLoading(false);
+                worker.terminate();
+            };
+        
+            worker.postMessage({ teachers, subjects, classes, rooms });
+
+        } catch (error) {
+            console.error("Failed to create or start timetable worker:", error);
+            toast.error("Could not start the timetable generation process.");
             setIsLoading(false);
-            worker.terminate();
-        };
-    
-        worker.onerror = (error) => {
-            console.error('Worker error:', error);
-            toast.error("A critical worker error occurred. See console for details.");
-            setIsLoading(false);
-            worker.terminate();
-        };
-    
-        worker.postMessage({ teachers, subjects, classes, rooms });
+        }
     };
+    
+    const handleGenerateWithAI = async () => {
+        if (!geminiAI) {
+            toast.error("AI features are disabled. Please configure your API key in settings.");
+            return;
+        }
+        if (teachers.length === 0 || subjects.length === 0 || classes.length === 0 || rooms.length === 0) {
+            toast.error("Please add rooms and upload a valid configuration file before generating.");
+            return;
+        }
+    
+        setIsLoading(true);
+        setTimetable(null);
+
+        const prompt = `You are a university registrar responsible for creating a weekly class schedule. Given the following constraints, generate a complete, conflict-free timetable.
+
+Constraints:
+1.  **Schedule:** Monday to Friday.
+2.  **Time Slots:** "09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00".
+3.  **Rules:**
+    - A teacher can only teach one class at a time.
+    - A class can only have one subject at a time.
+    - A room can only host one class at a time.
+    - A class must be assigned to a room with sufficient capacity.
+    - Each subject must be scheduled for its required number of hours per week for each class.
+    - A teacher must be assigned to a subject they are qualified to teach.
+
+Data:
+- Teachers: ${JSON.stringify(teachers)}
+- Subjects: ${JSON.stringify(subjects)}
+- Classes: ${JSON.stringify(classes)}
+- Rooms: ${JSON.stringify(rooms)}
+
+Your response must be a JSON object containing a single key "schedule", which is an array of timetable entry objects.
+`;
+        const schema = {
+            type: Type.OBJECT,
+            properties: {
+                schedule: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            day: { type: Type.STRING },
+                            timeSlot: { type: Type.STRING },
+                            className: { type: Type.STRING },
+                            subjectName: { type: Type.STRING },
+                            teacherName: { type: Type.STRING },
+                            roomName: { type: Type.STRING },
+                        }
+                    }
+                }
+            }
+        };
+
+        try {
+            const response = await geminiAI.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { responseMimeType: "application/json", responseSchema: schema }
+            });
+            const jsonStr = response.text.trim();
+            const parsedResult = JSON.parse(jsonStr);
+            if (!parsedResult.schedule) throw new Error("AI did not return a valid schedule array.");
+            
+            setTimetable(parsedResult.schedule);
+            toast.success("AI generated the timetable successfully!");
+
+        } catch (error: any) {
+            console.error("AI Generation Error:", error);
+            toast.error(`AI failed to generate a schedule: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
 
     const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const timeSlots = Array.from(new Set(timetable?.map(t => t.timeSlot) || [])).sort();
@@ -201,13 +287,22 @@ const Scheduler: React.FC = () => {
                         <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold">{subjects.length}</p><p className="text-sm text-muted-foreground">Subjects</p></div>
                         <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold">{classes.length}</p><p className="text-sm text-muted-foreground">Classes</p></div>
                     </div>
-                    <button
-                        onClick={handleGenerateTimetable}
-                        disabled={isLoading}
-                        className="mt-6 px-8 py-4 bg-primary text-primary-foreground rounded-lg font-semibold text-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 flex items-center gap-2 mx-auto"
-                    >
-                        {isLoading ? <><Loader className="animate-spin" /> Generating...</> : <><Wand2 /> Generate Timetable</>}
-                    </button>
+                    <div className="mt-6 flex flex-col items-center gap-4">
+                        <button
+                            onClick={handleGenerateTimetable}
+                            disabled={isLoading}
+                            className="w-full max-w-sm px-8 py-3 bg-primary text-primary-foreground rounded-lg font-semibold text-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
+                        >
+                            {isLoading ? <><Loader className="animate-spin" /> Generating...</> : <>Generate Timetable</>}
+                        </button>
+                        <button
+                            onClick={handleGenerateWithAI}
+                            disabled={isLoading}
+                            className="w-full max-w-sm px-8 py-2 bg-primary/20 text-primary rounded-lg font-semibold text-base hover:bg-primary/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-2"
+                        >
+                            {isLoading ? <><Loader className="animate-spin" /> Please wait...</> : <><Wand2 /> Generate with AI (Experimental)</>}
+                        </button>
+                    </div>
                 </div>
             </div>
 

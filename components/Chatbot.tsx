@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Tool, Part, Type, Chat } from '@google/genai';
 import { geminiAI } from './gemini';
@@ -292,7 +293,7 @@ const tools: Tool[] = [{
     ]
 }];
 
-const Chatbot: React.FC<ChatbotProps> = (props) => {
+export const Chatbot: React.FC<ChatbotProps> = (props) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -581,5 +582,3 @@ const Chatbot: React.FC<ChatbotProps> = (props) => {
         </div>
     );
 };
-
-export default Chatbot;

@@ -1,4 +1,5 @@
 
+
 # Maven: A Deep Dive into Your Intelligent Workspace
 
 This document provides a comprehensive, top-to-bottom explanation of the Maven application. It covers the core philosophy, the application's features, and detailed walkthroughs of each workflow, from creating a simple note to generating a complex academic timetable.

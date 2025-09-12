@@ -1,3 +1,5 @@
+
+
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /*
@@ -304,58 +306,71 @@ let connectionStatus = { configured: false, message: "Supabase credentials not c
 const SUPABASE_URL_FALLBACK = "https://djgnzprigxgbloruuayw.supabase.co";
 const SUPABASE_ANON_KEY_FALLBACK = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZ256cHJpZ3hnYmxvcnV1YXl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MTk5MDgsImV4cCI6MjA3MjE5NTkwOH0.sbFsHtBPNhi-4-ZJ90w-4SYl49lesWhzXKHuwTRz2hc";
 
-const initializeSupabaseClient = () => {
-    // Prioritize localStorage to allow user overrides from settings
-    let supabaseUrl = localStorage.getItem('supabase-url');
-    let supabaseAnonKey = localStorage.getItem('supabase-anon-key');
 
-    // If localStorage is empty, use the provided fallback credentials
-    if (!supabaseUrl || !supabaseAnonKey) {
-        supabaseUrl = SUPABASE_URL_FALLBACK;
-        supabaseAnonKey = SUPABASE_ANON_KEY_FALLBACK;
-    }
+const createSupabaseClient = (): SupabaseClient<Database> | null => {
+    const storedUrl = localStorage.getItem('supabase-url');
+    const storedKey = localStorage.getItem('supabase-anon-key');
 
-    if (supabaseUrl && supabaseAnonKey) {
+    let finalUrl = SUPABASE_URL_FALLBACK;
+    let finalKey = SUPABASE_ANON_KEY_FALLBACK;
+    let usingFallback = true;
+
+    // Attempt to use stored credentials only if they seem valid
+    if (storedUrl && storedUrl.trim() && storedKey && storedKey.trim()) {
         try {
-            supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
-            isSupabaseConfigured = true;
-            connectionStatus = { configured: true, message: "Connected to Supabase." };
-            console.log("Supabase client initialized.");
+            // Strong validation: must be a valid URL object.
+            new URL(storedUrl.trim());
+            finalUrl = storedUrl.trim();
+            finalKey = storedKey.trim();
+            usingFallback = false;
         } catch (e) {
-            console.error("Supabase initialization error:", e);
-            supabase = null;
-            isSupabaseConfigured = false;
-            connectionStatus = { configured: false, message: "Error initializing Supabase client." };
+            console.warn("Invalid Supabase URL in localStorage, using fallback.", storedUrl);
         }
-    } else {
-        supabase = null;
+    }
+    
+    // Now, try to create the client. This is the only place it happens.
+    try {
+        const client = createClient<Database>(finalUrl, finalKey);
+        isSupabaseConfigured = true;
+        connectionStatus = { 
+            configured: true, 
+            message: `Connected to Supabase${usingFallback ? ' (using fallback credentials)' : ''}.`
+        };
+        console.log("Supabase client initialized.");
+        return client;
+    } catch (e) {
+        console.error("Critical error creating Supabase client:", e);
         isSupabaseConfigured = false;
-        connectionStatus = { configured: false, message: "Supabase credentials not configured." };
+        connectionStatus = { configured: false, message: "Error: Could not create Supabase client." };
+        return null;
     }
 };
 
 const updateSupabaseCredentials = (url: string, key: string): { success: boolean; message: string } => {
-    if (url.trim()) {
-        localStorage.setItem('supabase-url', url.trim());
-    } else {
-        localStorage.removeItem('supabase-url');
-    }
-    if (key.trim()) {
-        localStorage.setItem('supabase-anon-key', key.trim());
-    } else {
-        localStorage.removeItem('supabase-anon-key');
-    }
+    const trimmedUrl = url.trim();
+    const trimmedKey = key.trim();
+
+    localStorage.setItem('supabase-url', trimmedUrl);
+    localStorage.setItem('supabase-anon-key', trimmedKey);
     
-    initializeSupabaseClient();
+    // Attempt to re-initialize with the new credentials
+    supabase = createSupabaseClient();
     
-    if (isSupabaseConfigured) {
+    const usedFallback = connectionStatus.message.includes('fallback');
+
+    if (isSupabaseConfigured && !usedFallback) {
+        // Success! The new credentials worked.
         return { success: true, message: "Supabase credentials saved. The app will reload to apply them." };
     } else {
-        // Clear bad keys if initialization fails
+        // The new credentials failed, and the client fell back to default.
+        // We should clear the invalid credentials from storage.
         localStorage.removeItem('supabase-url');
         localStorage.removeItem('supabase-anon-key');
-        initializeSupabaseClient(); // re-init with fallback
-        return { success: false, message: "Failed to initialize with new credentials. Please check them." };
+        
+        // Re-initialize again with the now-cleared storage, which guarantees using the fallback.
+        supabase = createSupabaseClient();
+        
+        return { success: false, message: "Invalid credentials. Please check your URL and Key. Reverted to default." };
     }
 };
 
@@ -366,7 +381,7 @@ const getSupabaseCredentials = (): { url: string; key: string } => {
 };
 
 // Initial load
-initializeSupabaseClient();
+supabase = createSupabaseClient();
 
 // Since initialization is now synchronous, we can resolve this promise immediately.
 // This maintains compatibility with components that were using it.

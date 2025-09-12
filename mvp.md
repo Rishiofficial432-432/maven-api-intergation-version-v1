@@ -46,7 +46,7 @@ The core value proposition of Maven is to provide a **private, unified space to 
 
 4.  **Basic Data & Settings Management:**
     *   **What:** A settings page allowing a user to input and save their Google Gemini API key.
-    *   **Why it's MVP:** The AI features are a key differentiator and require an API key to function. This is a necessary utility to unlock the intelligent aspect of the product.
+    -   **Why it's MVP:** The AI features are a key differentiator and require an API key to function. This is a necessary utility to unlock the intelligent aspect of the product.
 
 ### What the MVP Intentionally Excludes:
 

@@ -1,10 +1,13 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
-import Editor from './components/Editor';
+// FIX: Changed to a named import for Editor to resolve a circular dependency.
+import { Editor } from './components/Editor';
 // FIX: Changed to named import for MamDesk to resolve circular dependency.
 import { MamDesk } from './components/MamDesk';
 import { WelcomePlaceholder } from './components/WelcomePlaceholder';
-import Chatbot from './components/Chatbot';
+import { Chatbot } from './components/Chatbot';
 import JournalView from './components/JournalView';
 import InteractiveMindMap from './components/InteractiveMindMap';
 import GoogleWorkspace from './components/GoogleWorkspace';

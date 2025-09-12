@@ -2,9 +2,7 @@
 
 ## Introduction
 
-Maven is your intelligent workspace, an all-in-one productivity suite combining AI-powered notes, task management, and planning tools to organize your life and amplify your creativity. It is designed from the ground up to be a single, unified hub for all your personal and professional productivity needs, eliminating the clutter and inefficiency of switching between multiple applications.
-
-At its core, Maven operates on a **privacy-first, local-first** principle. All your data is stored securely on your own device, ensuring that you have complete ownership and control over your information.
+Maven is your intelligent workspace, an all-in-one productivity suite combining AI-powered notes, task management, and planning tools to organize your life and amplify your creativity. It is designed from the ground up to be a single, unified hub for all your personal and professional productivity needs, operating on a **privacy-first, local-first** principle. All your data is stored securely on your own device, ensuring that you have complete ownership and control over your information.
 
 ---
 
