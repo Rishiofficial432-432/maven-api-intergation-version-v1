@@ -839,7 +839,7 @@ const App: React.FC = () => {
         onToggleSearch={() => setIsSearchOpen(true)}
         onGoToLandingPage={handleGoToLandingPage}
       />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {renderView()}
       </div>
       <aside className={`bg-card/80 backdrop-blur-xl flex-shrink-0 border-l border-border/50 flex flex-col transition-all duration-300 ease-in-out ${isChatbotCollapsed ? 'w-20' : 'w-96'}`}>
