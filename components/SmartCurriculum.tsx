@@ -1,171 +1,213 @@
-import React, { useState, useMemo } from 'react';
-import { CalendarEvent } from '../types';
-import { ChevronLeft, ChevronRight, Wand2, Loader, BookCopy, CalendarDays, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { GeneratedCurriculum, CurriculumWeek } from '../types';
+import { Wand2, Loader, UploadCloud, FileText, BookOpen, Lightbulb } from 'lucide-react';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
+import { Type } from '@google/genai';
 
-interface CurriculumViewProps {
-    events: CalendarEvent[];
-    onAddCalendarItem: (item: Omit<CalendarEvent, 'id'>) => void;
-}
-
-const formatDateToYYYYMMDD = (date: Date): string => {
-    return date.toISOString().split('T')[0];
+// Make the simulation more generic
+const simulateFileExtraction = async (file: File): Promise<string> => {
+    // In a real app, this would involve a library like PDF.js or a PPTX parser.
+    // For this client-side simulation, we'll return a generic summary based on the file name.
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing time
+    return `The document, "${file.name}", is assumed to be a comprehensive course material (textbook, presentation, etc.). The content covers various topics as outlined in the provided index. It likely includes detailed explanations, examples, and exercises related to the subject matter.`;
 };
 
-const AcademicCalendar: React.FC<CurriculumViewProps> = ({ events, onAddCalendarItem }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [title, setTitle] = useState('');
-    const [type, setType] = useState<'event' | 'exam' | 'holiday'>('event');
 
-    const eventsByDate = useMemo(() => {
-        return events.reduce((acc, event) => {
-            (acc[event.date] = acc[event.date] || []).push(event);
-            return acc;
-        }, {} as Record<string, CalendarEvent[]>);
-    }, [events]);
-
-    const handleAddEvent = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!title.trim() || !selectedDate) return;
-        onAddCalendarItem({ title, date: formatDateToYYYYMMDD(selectedDate), time: '00:00', type });
-        setTitle('');
-    };
-    
-    const generateCalendar = () => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const firstDayOfMonth = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        
-        const blanks = Array(firstDayOfMonth).fill(null);
-        const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-        return [...blanks, ...days].map((day, index) => {
-            if (!day) return <div key={`blank-${index}`} className="border border-border/50 h-24"></div>;
-            
-            const dayDate = new Date(year, month, day);
-            const dayString = formatDateToYYYYMMDD(dayDate);
-            const dayEvents = eventsByDate[dayString] || [];
-
-            return (
-                <div key={day} onClick={() => setSelectedDate(dayDate)} className={`p-2 border border-border/50 h-24 flex flex-col cursor-pointer ${selectedDate && formatDateToYYYYMMDD(selectedDate) === dayString ? 'bg-primary/10' : 'hover:bg-accent/50'}`}>
-                    <span className="font-semibold">{day}</span>
-                    <div className="text-xs space-y-1 mt-1 overflow-y-auto">
-                        {dayEvents.map(e => <div key={e.id} className="p-1 rounded bg-secondary truncate">{e.title}</div>)}
-                    </div>
-                </div>
-            );
-        });
-    };
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-            <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
-                 <div className="flex items-center justify-between mb-4">
-                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-2 rounded-md hover:bg-accent"><ChevronLeft/></button>
-                    <h3 className="text-xl font-bold">{currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h3>
-                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-2 rounded-md hover:bg-accent"><ChevronRight/></button>
-                </div>
-                <div className="grid grid-cols-7 text-center font-semibold text-muted-foreground border-t border-l border-border/50"><div className="py-2 border-r border-b border-border/50">Sun</div><div className="py-2 border-r border-b border-border/50">Mon</div><div className="py-2 border-r border-b border-border/50">Tue</div><div className="py-2 border-r border-b border-border/50">Wed</div><div className="py-2 border-r border-b border-border/50">Thu</div><div className="py-2 border-r border-b border-border/50">Fri</div><div className="py-2 border-b border-border/50">Sat</div></div>
-                <div className="grid grid-cols-7 border-l border-b border-border/50">{generateCalendar()}</div>
-            </div>
-            <div className="bg-card border border-border rounded-xl p-6">
-                <h3 className="text-xl font-bold mb-4">Add to Calendar</h3>
-                {selectedDate ? <>
-                    <p className="text-muted-foreground mb-4">Adding event for: <span className="text-primary font-semibold">{selectedDate.toLocaleDateString()}</span></p>
-                    <form onSubmit={handleAddEvent} className="space-y-4">
-                        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Event Title" className="w-full bg-input p-2 rounded-md"/>
-                        <select value={type} onChange={e => setType(e.target.value as any)} className="w-full bg-input p-2 rounded-md"><option value="event">Event</option><option value="exam">Exam</option><option value="holiday">Holiday</option></select>
-                        <button type="submit" className="w-full bg-primary text-primary-foreground py-2 rounded-md font-semibold flex items-center justify-center gap-2"><Plus/> Add Event</button>
-                    </form>
-                </> : <p className="text-muted-foreground">Select a date on the calendar to add an event.</p>}
-            </div>
-        </div>
-    );
-};
-
-const AISyllabusSequencer: React.FC = () => {
-    const [syllabusText, setSyllabusText] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [sequence, setSequence] = useState('');
+const AICurriculumGenerator: React.FC = () => {
+    // Rename state to be more generic
+    const [courseFile, setCourseFile] = useState<File | null>(null);
+    const [indexText, setIndexText] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [curriculum, setCurriculum] = useState<GeneratedCurriculum | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
     const toast = useToast();
 
+    // Update file handling to accept more types
+    const handleFileChange = (files: FileList | null) => {
+        if (files && files[0]) {
+            const file = files[0];
+            const acceptedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'];
+            if (acceptedTypes.includes(file.type) || file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt')) {
+                setCourseFile(file);
+            } else {
+                toast.error("Please upload a valid PDF or PowerPoint file.");
+            }
+        }
+    };
+
     const handleGenerate = async () => {
-        if (!syllabusText.trim()) {
-            toast.error("Please paste the syllabus content first.");
+        if (!courseFile || !indexText.trim()) {
+            toast.error("Please upload a document and provide the index/table of contents.");
             return;
         }
         if (!geminiAI) {
-            toast.error("AI features are disabled. Please configure API key in settings.");
+            toast.error("AI features are disabled. Please configure your API key in settings.");
             return;
         }
-        setIsLoading(true);
-        setSequence('');
-        
-        const prompt = `
-You are an expert instructional designer. Your task is to analyze the following course syllabus and recommend the optimal learning sequence for the topics listed.
-Consider pedagogical principles like scaffolding (building from simpler to more complex concepts) and identifying foundational topics that must be mastered first.
-Present the output as a numbered list with a brief justification for the placement of each major topic or unit.
 
-Syllabus Content:
----
-${syllabusText}
----
-`;
+        setIsGenerating(true);
+        setCurriculum(null);
+
         try {
-            const response = await geminiAI.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-            setSequence(response.text);
-            toast.success("Optimal learning sequence generated!");
+            // Use the generic simulation function
+            const simulatedFileContent = await simulateFileExtraction(courseFile);
+
+            // Make the prompt more generic
+            const prompt = `You are an expert curriculum designer for a university. Your task is to create a detailed, 12-week semester curriculum based on a course document.
+
+CONTEXT:
+- Document Name: ${courseFile.name}
+- Document Summary: ${simulatedFileContent}
+- Document Index/Table of Contents:
+---
+${indexText}
+---
+
+INSTRUCTIONS:
+Based on all the provided context, generate a comprehensive 12-week curriculum. The curriculum should be logically sequenced, starting with foundational concepts and progressing to more advanced topics.
+Your response MUST be a single JSON object that adheres to the provided schema. Do not include any text outside of the JSON object.
+`;
+            
+            // Schema remains the same
+            const schema = {
+                type: Type.OBJECT,
+                properties: {
+                    courseTitle: { type: Type.STRING, description: "A suitable title for the course based on the document." },
+                    courseDescription: { type: Type.STRING, description: "A brief, engaging description of the course." },
+                    learningObjectives: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A list of 3-5 key learning objectives for students." },
+                    weeklyBreakdown: {
+                        type: Type.ARRAY,
+                        description: "A breakdown of the 12-week semester.",
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                week: { type: Type.NUMBER },
+                                topic: { type: Type.STRING, description: "The main topic for the week." },
+                                keyConcepts: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A list of key concepts to be covered." },
+                                reading: { type: Type.STRING, description: "The assigned reading from the document (e.g., 'Chapters 1-2' or 'Slides 1-50')." },
+                                assignment: { type: Type.STRING, description: "A relevant assignment or activity for the week." },
+                            }
+                        }
+                    }
+                }
+            };
+
+            const response = await geminiAI.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { responseMimeType: "application/json", responseSchema: schema }
+            });
+
+            const jsonStr = response.text.trim();
+            const parsedResult: GeneratedCurriculum = JSON.parse(jsonStr);
+            setCurriculum(parsedResult);
+            toast.success("Curriculum generated successfully!");
+
         } catch (error: any) {
-            toast.error(`AI generation failed: ${error.message}`);
+            console.error("Curriculum generation failed:", error);
+            toast.error(`Failed to generate curriculum: ${error.message}`);
         } finally {
-            setIsLoading(false);
+            setIsGenerating(false);
         }
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+        <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Input Column */}
             <div className="bg-card border border-border rounded-xl p-6 flex flex-col">
-                <h3 className="text-xl font-bold mb-4">Syllabus Input</h3>
-                <textarea
-                    value={syllabusText}
-                    onChange={e => setSyllabusText(e.target.value)}
-                    placeholder="Paste your course syllabus here..."
-                    className="w-full flex-1 bg-input p-3 rounded-md resize-none"
-                />
-                <button onClick={handleGenerate} disabled={isLoading} className="mt-4 w-full bg-primary text-primary-foreground py-2 rounded-md font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
-                    {isLoading ? <Loader className="animate-spin"/> : <Wand2/>} Suggest Learning Sequence
+                <h2 className="text-2xl font-bold mb-4 flex items-center gap-3"><Lightbulb /> AI Curriculum Generator</h2>
+                <div className="space-y-6 flex-1 flex flex-col">
+                    {/* File Upload - Updated */}
+                    <div>
+                        <label className="font-semibold text-muted-foreground flex items-center gap-2 mb-2"><FileText size={18}/> 1. Upload Subject Document</label>
+                        <div
+                            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); handleFileChange(e.dataTransfer.files); }}
+                            className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
+                            onClick={() => document.getElementById('file-upload')?.click()}
+                        >
+                             <input type="file" id="file-upload" className="hidden" accept=".pdf,.pptx,.ppt" onChange={(e) => handleFileChange(e.target.files)} />
+                             <UploadCloud size={32} className="text-muted-foreground mb-2"/>
+                             {courseFile ? (
+                                <p className="text-sm font-semibold text-primary">{courseFile.name}</p>
+                             ) : (
+                                <p className="text-sm text-muted-foreground">Drop a PDF or PPTX here, or click to select</p>
+                             )}
+                        </div>
+                    </div>
+                    {/* Index Input */}
+                    <div className="flex-1 flex flex-col">
+                        <label className="font-semibold text-muted-foreground flex items-center gap-2 mb-2"><BookOpen size={18}/> 2. Paste Index / Table of Contents</label>
+                        <textarea
+                            value={indexText}
+                            onChange={(e) => setIndexText(e.target.value)}
+                            placeholder="Chapter 1: Introduction..."
+                            className="w-full flex-1 bg-input p-3 rounded-md resize-none border-border"
+                        />
+                    </div>
+                </div>
+                 <button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !courseFile || !indexText.trim()}
+                    className="mt-6 w-full bg-primary text-primary-foreground py-3 rounded-md font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"
+                >
+                    {isGenerating ? <Loader className="animate-spin" /> : <Wand2 />}
+                    Generate Full Curriculum
                 </button>
             </div>
-             <div className="bg-card border border-border rounded-xl p-6">
-                <h3 className="text-xl font-bold mb-4">AI Recommended Sequence</h3>
-                <div className="overflow-y-auto h-[calc(100vh-270px)]">
-                    {isLoading ? <div className="flex items-center justify-center h-full"><Loader className="animate-spin"/></div> : sequence ? <pre className="whitespace-pre-wrap font-sans text-foreground/90">{sequence}</pre> : <div className="text-muted-foreground text-center pt-10">The suggested learning path will appear here.</div>}
-                </div>
+            {/* Output Column */}
+            <div className="bg-card border border-border rounded-xl p-6 overflow-y-auto">
+                 {isGenerating ? (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                        <Loader className="w-12 h-12 animate-spin text-primary mb-4" />
+                        <p className="text-lg font-semibold">Generating your curriculum...</p>
+                        <p>This may take a moment.</p>
+                    </div>
+                ) : curriculum ? (
+                    <div className="animate-fade-in-up space-y-6">
+                        <h2 className="text-3xl font-bold text-primary">{curriculum.courseTitle}</h2>
+                        <p className="text-muted-foreground">{curriculum.courseDescription}</p>
+                        <div>
+                            <h3 className="text-xl font-semibold mb-2">Learning Objectives</h3>
+                            <ul className="list-disc pl-5 space-y-1 text-foreground/90">
+                                {curriculum.learningObjectives.map((obj, i) => <li key={i}>{obj}</li>)}
+                            </ul>
+                        </div>
+                        <div>
+                             <h3 className="text-xl font-semibold mb-4">Weekly Breakdown</h3>
+                             <div className="space-y-4">
+                                {curriculum.weeklyBreakdown.map(week => (
+                                    <div key={week.week} className="p-4 bg-secondary/50 rounded-lg border border-border/50">
+                                        <h4 className="font-bold text-primary">Week {week.week}: {week.topic}</h4>
+                                        <p className="text-sm font-semibold mt-2">Key Concepts:</p>
+                                        <p className="text-sm text-muted-foreground">{week.keyConcepts.join(', ')}</p>
+                                        <p className="text-sm font-semibold mt-2">Reading:</p>
+                                        <p className="text-sm text-muted-foreground">{week.reading}</p>
+                                         <p className="text-sm font-semibold mt-2">Assignment:</p>
+                                        <p className="text-sm text-muted-foreground">{week.assignment}</p>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    </div>
+                ) : (
+                     <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                        <Lightbulb size={48} className="text-primary mb-4"/>
+                        <h3 className="text-xl font-bold">Your Generated Curriculum Will Appear Here</h3>
+                        <p className="mt-2 max-w-sm">Provide a document (PDF/PPTX) and its index, and the AI will craft a complete, week-by-week course plan for you.</p>
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
 
-const CurriculumView: React.FC<CurriculumViewProps> = (props) => {
-    const [activeView, setActiveView] = useState<'calendar' | 'sequencer'>('calendar');
-
-    return (
-        <div className="h-full flex flex-col">
-            <div className="flex justify-center p-2">
-                 <div className="flex items-center gap-2 bg-card border border-border p-1.5 rounded-lg">
-                    <button onClick={() => setActiveView('calendar')} className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md ${activeView === 'calendar' ? 'bg-primary text-primary-foreground shadow' : 'hover:bg-accent'}`}><CalendarDays size={16}/> Academic Calendar</button>
-                    <button onClick={() => setActiveView('sequencer')} className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md ${activeView === 'sequencer' ? 'bg-primary text-primary-foreground shadow' : 'hover:bg-accent'}`}><BookCopy size={16}/> AI Syllabus Sequencer</button>
-                </div>
-            </div>
-            <div className="flex-grow mt-4">
-                {activeView === 'calendar' ? <AcademicCalendar {...props} /> : <AISyllabusSequencer />}
-            </div>
-        </div>
-    );
+const CurriculumView: React.FC = () => {
+    return <AICurriculumGenerator />;
 };
 
 export default CurriculumView;

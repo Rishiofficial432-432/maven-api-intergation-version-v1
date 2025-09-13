@@ -143,7 +143,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
             case 'scheduler':
                 return <Scheduler />;
             case 'curriculum':
-                return <CurriculumView events={props.events} onAddCalendarItem={props.onAddCalendarItem} />;
+                return <CurriculumView />;
             default:
                 return <StudentTeacherPortal />;
         }

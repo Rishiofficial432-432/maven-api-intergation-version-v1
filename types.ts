@@ -168,3 +168,19 @@ export interface CurriculumFile {
   fileType: string;
   createdAt: string;
 }
+
+// Types for AI Curriculum Generator
+export interface CurriculumWeek {
+    week: number;
+    topic: string;
+    keyConcepts: string[];
+    reading: string;
+    assignment: string;
+}
+
+export interface GeneratedCurriculum {
+    courseTitle: string;
+    courseDescription: string;
+    learningObjectives: string[];
+    weeklyBreakdown: CurriculumWeek[];
+}
