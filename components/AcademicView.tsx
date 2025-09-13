@@ -5,7 +5,7 @@ import { geminiAI } from './gemini';
 import { useToast } from './Toast';
 import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb } from 'lucide-react';
 import Scheduler from './Scheduler';
-import CurriculumView from './CurriculumView';
+import CurriculumView from './SmartCurriculum';
 
 type AcademicViewTab = 'portal' | 'routine' | 'scheduler' | 'curriculum';
 
