@@ -351,25 +351,25 @@ export const updateSupabaseCredentials = async (url: string, key: string): Promi
     } catch (e: unknown) {
         console.error("A critical error occurred during Supabase connection test:", e);
 
-        let detail = 'An unknown error occurred.';
+        let errorMessage = "An unknown error occurred.";
 
-        if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string' && (e as { message: string }).message) {
-            // Prioritize checking for a non-empty string message property. This handles most error objects.
-            detail = (e as { message: string }).message;
-        } else if (e instanceof Error) {
-            // Fallback for Error instances, converting message to string defensively.
-            detail = String(e.message);
-        } else if (typeof e === 'string' && e) {
-            // Handle if the error thrown is just a string.
-            detail = e;
+        if (e instanceof Error) {
+            errorMessage = e.message;
+        } else if (e && typeof e === 'object') {
+            if ('message' in e && typeof (e as any).message === 'string') {
+                errorMessage = (e as any).message;
+            } else {
+                try { errorMessage = JSON.stringify(e); } catch { errorMessage = String(e); }
+            }
+        } else if (e) {
+            errorMessage = String(e);
         }
 
-        // Final sanity check to avoid '[object Object]' and provide a better default user-facing message.
-        if (detail.toLowerCase().includes('[object object]') || detail.trim() === '') {
-             detail = 'An unknown network error occurred. Please check your internet connection, Supabase URL, and CORS settings in your Supabase project.';
+        if (!errorMessage || errorMessage.trim() === '' || errorMessage.toLowerCase().includes('[object object]')) {
+            errorMessage = 'Network error. Please check your internet connection, Supabase URL, and CORS settings in your Supabase project.';
         }
-            
-        connectionStatus = { configured: false, message: `Connection failed: ${detail}` };
+
+        connectionStatus = { configured: false, message: `Connection failed: ${errorMessage}` };
         supabase = null;
         isSupabaseConfigured = false;
         return { success: false, message: connectionStatus.message };
