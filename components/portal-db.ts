@@ -1,7 +1,7 @@
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 2; // Incremented version for schema change
+const DB_VERSION = 3; // Incremented version for schema change
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',
@@ -17,20 +17,24 @@ const initPortalDB = (): Promise<IDBDatabase> => {
 
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const dbInstance = request.result;
-      if (!dbInstance.objectStoreNames.contains(STORES.USERS)) {
-        dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
+      if (event.oldVersion < 1) {
+        if (!dbInstance.objectStoreNames.contains(STORES.USERS)) {
+          dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
+        }
+        if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) {
+          dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
+        }
+        if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
+          const store = dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
+          store.createIndex('session_id', 'session_id', { unique: false });
+        }
       }
-      if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) {
-        dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
-        const store = dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('session_id', 'session_id', { unique: false });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) {
-        dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
+      if (event.oldVersion < 3) {
+         if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) {
+            dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
+         }
       }
     };
 
@@ -194,24 +198,14 @@ export const getAttendanceForSession = async (sessionId: string): Promise<Portal
 // --- Curriculum File Functions ---
 export const addCurriculumFile = async (fileInfo: CurriculumFile, fileBlob: Blob): Promise<void> => {
     await initPortalDB();
-    const transaction = db.transaction([STORES.CURRICULUM, 'blobs'], 'readwrite');
-    const infoStore = transaction.objectStore(STORES.CURRICULUM);
-    const blobStore = transaction.objectStore('blobs'); // Assuming a 'blobs' store for binary data
-
-    // This is a simplified model. A real implementation might need a separate blob store.
-    // For this local-first app, we'll store the blob with a key matching the file ID.
-    const blobKey = fileInfo.id;
-
+    const store = getStore(STORES.CURRICULUM, 'readwrite');
+    // In a real app, storing large blobs directly in the object store can be inefficient.
+    // For this local-first app, we'll store the blob along with the metadata.
+    const dataToStore = { ...fileInfo, blob: fileBlob };
     return new Promise((resolve, reject) => {
-      const infoRequest = infoStore.add(fileInfo);
-      infoRequest.onerror = () => reject(infoRequest.error);
-
-      // This is a conceptual representation. Storing large blobs directly might be inefficient.
-      const blobRequest = infoStore.put({ ...fileInfo, blob: fileBlob });
-      blobRequest.onerror = () => reject(blobRequest.error);
-
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+        const request = store.put(dataToStore); // Use put to allow overwriting if needed
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
     });
 };
 
@@ -221,7 +215,14 @@ export const getCurriculumFiles = async (): Promise<CurriculumFile[]> => {
     const store = getStore(STORES.CURRICULUM, 'readonly');
     return new Promise((resolve, reject) => {
         const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
+        request.onsuccess = () => {
+            // Remove the blob data for the list view to save memory
+            const files = request.result.map((file: any) => {
+                const { blob, ...fileInfo } = file;
+                return fileInfo;
+            });
+            resolve(files.sort((a: CurriculumFile, b: CurriculumFile) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        };
         request.onerror = () => reject(request.error);
     });
 };
