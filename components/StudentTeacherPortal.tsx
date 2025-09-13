@@ -221,7 +221,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                         </div>
                         <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
                             <h3 className="text-xl font-bold mb-4">Live Attendance ({liveAttendance.length})</h3>
-                            <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto pr-2">
+                            <div className="space-y-2">
                                 {liveAttendance.length === 0 ? <p className="text-muted-foreground text-center pt-8">Waiting for students to check in...</p> : liveAttendance.map(att => (
                                     <div key={att.student_id} className="p-3 bg-secondary rounded-lg flex justify-between items-center text-sm animate-fade-in-up transition-colors hover:bg-secondary/80">
                                         <div className="flex items-center gap-3">

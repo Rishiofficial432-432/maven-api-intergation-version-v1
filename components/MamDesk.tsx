@@ -1,10 +1,4 @@
 
-
-
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, X, Play, Pause, RotateCcw, Calendar, CheckSquare as CheckSquareIcon, List as ListIcon,
@@ -164,7 +158,7 @@ Structure your response strictly as a JSON object matching the provided schema. 
                         </button>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {Object.entries(itemsToSave).map(([category, items]) => {
                         if (items.length === 0) return null;
                         const info = categoryInfo[category as keyof typeof categoryInfo];
@@ -361,24 +355,24 @@ export const MamDesk: React.FC<MamDeskProps> = ({
     setDraggedItem(null);
   };
   
-   const cardClasses = "bg-card border border-border rounded-xl shadow-lg animate-fade-in-up";
+   const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
 
   const Dashboard = () => (
-    <div className={`p-6 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 ${cardClasses}`}>
+    <div className={`p-6 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6`}>
         <div className="lg:col-span-2 xl:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-secondary p-4 rounded-lg text-center">
+            <div className={`${cardClasses} p-4 text-center`}>
                 <h3 className="text-2xl font-bold">{tasks.filter(t => !t.completed).length}</h3>
                 <p className="text-sm text-muted-foreground">Pending Tasks</p>
             </div>
-            <div className="bg-secondary p-4 rounded-lg text-center">
+            <div className={`${cardClasses} p-4 text-center`}>
                  <h3 className="text-2xl font-bold">{events.filter(e => e.date === new Date().toISOString().slice(0, 10)).length}</h3>
                  <p className="text-sm text-muted-foreground">Events Today</p>
             </div>
-            <div className="bg-secondary p-4 rounded-lg text-center">
+            <div className={`${cardClasses} p-4 text-center`}>
                 <h3 className="text-2xl font-bold">{pomodoroSessions}</h3>
                 <p className="text-sm text-muted-foreground">Pomodoros</p>
             </div>
-             <div className="bg-secondary p-4 rounded-lg text-center">
+             <div className={`${cardClasses} p-4 text-center`}>
                 <h3 className="text-2xl font-bold">{pages.length}</h3>
                 <p className="text-sm text-muted-foreground">Notes</p>
             </div>
@@ -399,7 +393,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
         />
         <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
       </form>
-      <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto">
+      <div className="space-y-2">
         {tasks.map(task => (
           <div key={task.id} className="flex items-center gap-3 p-2 bg-secondary rounded-md">
             <button onClick={() => onToggleTask(task.id)}>
@@ -418,7 +412,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
       {Object.entries(kanbanColumns).map(([colId, col]) => (
         <div key={colId} className={`p-4 rounded-lg ${cardClasses}`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, colId)}>
           <h3 className="font-bold mb-4 text-center">{col.name}</h3>
-          <div className="space-y-3 min-h-[100px] max-h-[calc(100vh-300px)] overflow-y-auto">
+          <div className="space-y-3 min-h-[100px]">
             {col.items.map(item => (
               <div key={item.id} draggable onDragStart={(e) => handleDragStart(e, colId, item)} className="p-3 bg-secondary rounded-md cursor-grab active:cursor-grabbing flex items-center gap-2">
                 <GripVertical size={16} className="text-muted-foreground" />
@@ -495,7 +489,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
             />
             <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Save</button>
         </form>
-        <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto">
+        <div className="space-y-2">
             {quickNotes.map(note => (
                 <div key={note.id} className="p-3 bg-secondary rounded-lg flex justify-between items-start">
                     <p className="flex-1 pr-2">{note.text}</p>
@@ -544,7 +538,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
                 />
                 <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
             </form>
-             <div className="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
+             <div className="space-y-3">
                 {habits.map(habit => {
                     const todayCompleted = habit.lastCompleted === new Date().toDateString();
                     return (
@@ -568,26 +562,26 @@ export const MamDesk: React.FC<MamDeskProps> = ({
 };
   
   const Personal = () => (
-    <div className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-6 ${cardClasses}`}>
-        <div>
+    <div className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-6`}>
+        <div className={`${cardClasses} p-4`}>
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Trophy size={20}/> Goals</h3>
             <div className="space-y-2">
                 {goals.map(g => <div key={g.id} className="p-2 bg-secondary rounded-md">{g.text}</div>)}
             </div>
         </div>
-        <div>
+        <div className={`${cardClasses} p-4`}>
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Smile size={20}/> Mood Tracker</h3>
              <div className="space-y-2">
                 {moodEntries.slice(0, 5).map(m => <div key={m.id} className="p-2 bg-secondary rounded-md">{m.date}: {m.mood}</div>)}
             </div>
         </div>
-        <div className="md:col-span-2">
+        <div className={`md:col-span-2 ${cardClasses} p-4`}>
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><DollarSign size={20}/> Recent Expenses</h3>
              <div className="space-y-2">
                 {expenses.slice(0, 5).map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between"><span>{e.description} ({e.category})</span> <span>${e.amount.toFixed(2)}</span></div>)}
             </div>
         </div>
-        <div className="md:col-span-2">
+        <div className={`md:col-span-2 ${cardClasses} p-4`}>
              <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><QuoteIcon size={20}/> Personal Quotes</h3>
              <div className="space-y-2 italic">
                 {personalQuotes.map(q => <blockquote key={q.id} className="p-2 bg-secondary rounded-md border-l-4 border-primary">"{q.text}"</blockquote>)}
@@ -615,7 +609,9 @@ export const MamDesk: React.FC<MamDeskProps> = ({
 
   return (
     <main className="flex-1 flex flex-col bg-accent/20 overflow-y-auto p-4 sm:p-6 lg:p-8">
-      {renderContent()}
+      <div className="space-y-6">
+        {renderContent()}
+      </div>
     </main>
   );
 };
