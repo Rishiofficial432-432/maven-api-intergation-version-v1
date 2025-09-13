@@ -286,11 +286,16 @@ const App: React.FC = () => {
   };
 
   const onAddEvent = (title: string, date: string, time: string): string => {
-    const newEvent: CalendarEvent = { id: crypto.randomUUID(), title, date, time };
+    const newEvent: CalendarEvent = { id: crypto.randomUUID(), title, date, time, type: 'event' };
     setEvents(prev => [...prev, newEvent]);
     return `🗓️ Event scheduled: "${title}" on ${date} at ${time}.`;
   };
   
+   const onAddCalendarItem = (item: Omit<CalendarEvent, 'id'>) => {
+    setEvents(prev => [...prev, { ...item, id: crypto.randomUUID() }]);
+    toast.success("Calendar item added!");
+  };
+
    const onCompleteTaskByText = (text: string): string => {
     let found = false;
     let taskText = '';
@@ -745,7 +750,7 @@ const App: React.FC = () => {
         case 'workspace':
           return <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
         case 'academics':
-          return <AcademicView goals={goals} events={events} />;
+          return <AcademicView goals={goals} events={events} onNewNote={handleNewPage} onAddCalendarItem={onAddCalendarItem} />;
         case 'about':
           return <main className="flex-1 p-8 overflow-y-auto"><AboutPage /></main>;
         case 'help':

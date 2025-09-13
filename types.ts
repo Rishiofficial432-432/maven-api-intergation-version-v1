@@ -61,8 +61,9 @@ export interface QuickNote {
 export interface CalendarEvent {
     id: string;
     title: string;
-    date: string;
-    time: string;
+    date: string; // YYYY-MM-DD
+    time: string; // HH:MM
+    type?: 'class' | 'exam' | 'event' | 'holiday';
 }
 
 export interface Habit {
@@ -131,9 +132,12 @@ export interface PortalUser {
   id: string;
   name: string;
   email: string;
-  password?: string; // For local auth, not secure for production web apps
+  password?: string;
   role: 'student' | 'teacher';
   enrollment_id?: string;
+  ug_number?: string;
+  phone_number?: string;
+  approved?: boolean;
 }
 
 export interface PortalSession {
@@ -154,4 +158,13 @@ export interface PortalAttendanceRecord {
   student_name: string;
   enrollment_id?: string;
   created_at: string;
+}
+
+export interface CurriculumFile {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  fileName: string;
+  fileType: string;
+  createdAt: string;
 }

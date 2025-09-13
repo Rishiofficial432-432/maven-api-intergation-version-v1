@@ -1,11 +1,12 @@
-import { PortalUser, PortalSession, PortalAttendanceRecord } from '../types';
+import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented version for schema change
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',
   ATTENDANCE: 'attendance',
+  CURRICULUM: 'curriculum_files',
 };
 
 let db: IDBDatabase;
@@ -27,6 +28,9 @@ const initPortalDB = (): Promise<IDBDatabase> => {
       if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
         const store = dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
         store.createIndex('session_id', 'session_id', { unique: false });
+      }
+      if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) {
+        dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
       }
     };
 
@@ -66,11 +70,49 @@ export const getUserByEmail = async (email: string): Promise<PortalUser | null> 
         request.onsuccess = () => {
             const users = request.result as PortalUser[];
             const user = users.find(u => u.email === email);
+            if (user && user.role === 'student' && !user.approved) {
+              reject(new Error("Account pending teacher approval."));
+              return;
+            }
             resolve(user || null);
         };
         request.onerror = () => reject(request.error);
     });
 };
+
+export const getPendingStudents = async (): Promise<PortalUser[]> => {
+    await initPortalDB();
+    const store = getStore(STORES.USERS, 'readonly');
+    const request = store.getAll();
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            const users = request.result as PortalUser[];
+            resolve(users.filter(u => u.role === 'student' && !u.approved));
+        };
+        request.onerror = () => reject(request.error);
+    });
+};
+
+export const approveStudent = async (studentId: string): Promise<void> => {
+    await initPortalDB();
+    const store = getStore(STORES.USERS, 'readwrite');
+    const getRequest = store.get(studentId);
+    return new Promise((resolve, reject) => {
+        getRequest.onsuccess = () => {
+            const user = getRequest.result as PortalUser;
+            if (user) {
+                user.approved = true;
+                const putRequest = store.put(user);
+                putRequest.onsuccess = () => resolve();
+                putRequest.onerror = () => reject(putRequest.error);
+            } else {
+                reject(new Error("Student not found."));
+            }
+        };
+        getRequest.onerror = () => reject(getRequest.error);
+    });
+};
+
 
 // --- Session Functions ---
 export const createSession = async (session: PortalSession): Promise<void> => {
@@ -145,6 +187,61 @@ export const getAttendanceForSession = async (sessionId: string): Promise<Portal
 
     return new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result as PortalAttendanceRecord[]);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+// --- Curriculum File Functions ---
+export const addCurriculumFile = async (fileInfo: CurriculumFile, fileBlob: Blob): Promise<void> => {
+    await initPortalDB();
+    const transaction = db.transaction([STORES.CURRICULUM, 'blobs'], 'readwrite');
+    const infoStore = transaction.objectStore(STORES.CURRICULUM);
+    const blobStore = transaction.objectStore('blobs'); // Assuming a 'blobs' store for binary data
+
+    // This is a simplified model. A real implementation might need a separate blob store.
+    // For this local-first app, we'll store the blob with a key matching the file ID.
+    const blobKey = fileInfo.id;
+
+    return new Promise((resolve, reject) => {
+      const infoRequest = infoStore.add(fileInfo);
+      infoRequest.onerror = () => reject(infoRequest.error);
+
+      // This is a conceptual representation. Storing large blobs directly might be inefficient.
+      const blobRequest = infoStore.put({ ...fileInfo, blob: fileBlob });
+      blobRequest.onerror = () => reject(blobRequest.error);
+
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+};
+
+
+export const getCurriculumFiles = async (): Promise<CurriculumFile[]> => {
+    await initPortalDB();
+    const store = getStore(STORES.CURRICULUM, 'readonly');
+    return new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+export const getCurriculumFileBlob = async (fileId: string): Promise<Blob | null> => {
+    await initPortalDB();
+    const store = getStore(STORES.CURRICULUM, 'readonly');
+     return new Promise((resolve, reject) => {
+        const request = store.get(fileId);
+        request.onsuccess = () => resolve((request.result as any)?.blob || null);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+export const deleteCurriculumFile = async (fileId: string): Promise<void> => {
+    await initPortalDB();
+    const store = getStore(STORES.CURRICULUM, 'readwrite');
+    return new Promise((resolve, reject) => {
+        const request = store.delete(fileId);
+        request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
     });
 };

@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import StudentTeacherPortal from './StudentTeacherPortal';
-import { Goal, CalendarEvent } from '../types';
+import { Goal, CalendarEvent, Page } from '../types';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
-import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock } from 'lucide-react';
+import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb } from 'lucide-react';
 import Scheduler from './Scheduler';
+import CurriculumView from './CurriculumView';
 
-type AcademicViewTab = 'portal' | 'routine' | 'scheduler';
+type AcademicViewTab = 'portal' | 'routine' | 'scheduler' | 'curriculum';
 
 interface AcademicViewProps {
     goals: Goal[];
     events: CalendarEvent[];
+    onNewNote: (title: string, content?: string) => Page;
+    onAddCalendarItem: (item: Omit<CalendarEvent, 'id'>) => void;
 }
 
 // Daily Routine Planner Component
-const DailyRoutineGenerator: React.FC<AcademicViewProps> = ({ goals, events }) => {
+const DailyRoutineGenerator: React.FC<Pick<AcademicViewProps, 'goals' | 'events'>> = ({ goals, events }) => {
     const [routine, setRoutine] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
@@ -128,6 +131,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
         { id: 'portal', label: 'Portal', icon: ClipboardList },
         { id: 'routine', label: 'Daily Routine', icon: CalendarCheck },
         { id: 'scheduler', label: 'Scheduler', icon: Clock },
+        { id: 'curriculum', label: 'Curriculum', icon: Lightbulb },
     ];
 
     const renderContent = () => {
@@ -138,6 +142,8 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
                 return <DailyRoutineGenerator {...props} />;
             case 'scheduler':
                 return <Scheduler />;
+            case 'curriculum':
+                return <CurriculumView events={props.events} onAddCalendarItem={props.onAddCalendarItem} />;
             default:
                 return <StudentTeacherPortal />;
         }
