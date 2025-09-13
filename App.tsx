@@ -17,7 +17,6 @@ import { HelpPage } from './components/HelpPage';
 import InspirationPage from './components/InspirationPage';
 import { Section } from './components/Section';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon, ImageIcon, Trash2 } from 'lucide-react';
-import { updateSupabaseCredentials, getSupabaseCredentials, connectionStatus as supabaseConnectionStatus } from './components/supabase-config';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
   MoodEntry, Expense, Goal, KanbanItem
@@ -111,10 +110,6 @@ const App: React.FC = () => {
   
   // Settings page state
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini-api-key') || '');
-  const [supabaseUrl, setSupabaseUrl] = useState(getSupabaseCredentials().url);
-  const [supabaseKey, setSupabaseKey] = useState(getSupabaseCredentials().key);
-  const [supabaseStatus, setSupabaseStatus] = useState(supabaseConnectionStatus);
-  const [showSupabaseKey, setShowSupabaseKey] = useState(false);
   const [inspirationImageId, setInspirationImageId] = usePersistentState<string | null>('maven-inspiration-image-id', null);
   const [inspirationImagePreview, setInspirationImagePreview] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -594,14 +589,7 @@ const App: React.FC = () => {
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
     updateApiKey(apiKey);
-    const result = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
-    setSupabaseStatus({ configured: result.success, message: result.message });
-    
-    if (result.success && !result.message.includes("table not found")) {
-        toast.success("Settings saved and Supabase connection is successful!");
-    } else {
-        toast.info("Settings have been saved. Check the status message for connection details.");
-    }
+    toast.success("Settings saved successfully!");
     setIsSavingSettings(false);
   };
 
@@ -670,6 +658,8 @@ const App: React.FC = () => {
     if (dataWipeConfirmation.toLowerCase() === 'delete my data') {
         localStorage.clear();
         indexedDB.deleteDatabase('MavenDB');
+        // Also clear portal DB
+        indexedDB.deleteDatabase('MavenPortalDB');
         toast.success("All data has been wiped. The application will now reload.");
         setTimeout(() => window.location.reload(), 1500);
     } else {
@@ -785,28 +775,13 @@ const App: React.FC = () => {
                   )}
                   <div className="max-w-4xl mx-auto space-y-8">
                       <Section title="API Configuration">
-                          <p className="text-card-foreground/80 -mt-4 mb-6">Maven uses external services for AI features and the Student/Teacher portal. Your keys are stored securely in your browser and are never sent to our servers.</p>
+                          <p className="text-card-foreground/80 -mt-4 mb-6">Maven uses Google AI for its intelligent features. Your API key is stored securely in your browser and is never sent to our servers.</p>
                           <div className="space-y-6">
                             <div className="p-4 border border-border rounded-lg">
                                 <h3 className="text-lg font-semibold flex items-center gap-2"><BrainCircuitIcon size={20} /> Google AI (Gemini)</h3>
                                 <p className="text-sm text-muted-foreground mt-1 mb-4">Required for all AI features like the AI Assistant, Brain Dump, and DocuMind.</p>
                                 <label className="block text-sm font-medium text-foreground/80 mb-1">Gemini API Key</label>
                                 <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Google Gemini API Key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
-                            </div>
-                            <div className="p-4 border border-border rounded-lg">
-                                 <h3 className="text-lg font-semibold flex items-center gap-2"><UsersIcon size={20} /> Portal (Supabase)</h3>
-                                 <p className="text-sm text-muted-foreground mt-1 mb-4">Optional. For the real-time Student/Teacher Portal. Requires a free Supabase project.</p>
-                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
-                                     <div>
-                                        <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Project URL</label>
-                                        <input value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://your-project-id.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
-                                     </div>
-                                      <div>
-                                        <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
-                                        <div className="relative"><input type={showSupabaseKey ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="Enter your Supabase anon (public) key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm pr-10" /><button type="button" onClick={() => setShowSupabaseKey(!showSupabaseKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground">{showSupabaseKey ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>
-                                      </div>
-                                 </div>
-                                 <div className={`text-xs p-2 rounded-md ${supabaseStatus.configured ? 'bg-green-500/20 text-green-300' : 'bg-amber-500/20 text-amber-300'}`}><strong>Status:</strong> {supabaseStatus.message}</div>
                             </div>
                           </div>
                           <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50"><Save size={16} /> {isSavingSettings ? 'Saving...' : 'Save Credentials'}</button>

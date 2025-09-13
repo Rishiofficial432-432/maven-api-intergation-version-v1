@@ -1,20 +1,20 @@
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, isSupabaseConfigured } from './supabase-config';
-import { Database } from './supabase-config';
-import { User } from '@supabase/supabase-js';
+import { PortalUser, PortalSession, PortalAttendanceRecord } from '../types';
+import { createUser, getUserByEmail, createSession, getActiveSession, endActiveSession, logAttendance, getAttendanceForSession } from './portal-db';
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, Download, QrCode } from 'lucide-react';
 import { useToast } from './Toast';
 import QRCode from 'qrcode';
 
-type PortalUser = Database['public']['Tables']['portal_users']['Row'];
-type PortalSession = Database['public']['Tables']['portal_sessions']['Row'];
-type PortalAttendanceRecord = Database['public']['Tables']['portal_attendance']['Row'] & { portal_users: PortalUser };
-
 // --- HELPERS ---
+const getGeolocationErrorMessage = (error: GeolocationPositionError): string => {
+  switch (error.code) {
+    case error.PERMISSION_DENIED: return "Location permission denied. Please enable it in your browser settings.";
+    case error.POSITION_UNAVAILABLE: return "Unable to retrieve your location. Check your device's location services.";
+    case error.TIMEOUT: return "Getting your location took too long. Please try again.";
+    default: return "An unknown error occurred while getting your location.";
+  }
+};
+
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371e3; // metres
     const φ1 = lat1 * Math.PI/180;
@@ -26,18 +26,10 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     return R * c; // in metres
 }
 
-const getGeolocationErrorMessage = (error: GeolocationPositionError): string => {
-  switch (error.code) {
-    case error.PERMISSION_DENIED: return "Location permission denied. Please enable it in your browser settings.";
-    case error.POSITION_UNAVAILABLE: return "Unable to retrieve your location. Check your device's location services.";
-    case error.TIMEOUT: return "Getting your location took too long. Please try again.";
-    default: return "An unknown error occurred while getting your location.";
-  }
-};
-
+const attendanceChannel = new BroadcastChannel('portal-attendance-channel');
 
 // --- AUTH SCREEN ---
-const AuthScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
+const AuthScreen: React.FC<{ onLogin: (user: PortalUser) => void }> = ({ onLogin }) => {
     const [viewMode, setViewMode] = useState<'login' | 'signup'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -52,37 +44,37 @@ const AuthScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
         setLoading(true);
         try {
             if (viewMode === 'login') {
-                const { error } = await supabase!.auth.signInWithPassword({ email, password });
-                if (error) throw error;
-                toast.success("Logged in successfully!");
-                onLogin();
+                const user = await getUserByEmail(email);
+                if (user && user.password === password) {
+                    toast.success("Logged in successfully!");
+                    onLogin(user);
+                } else {
+                    throw new Error("Invalid email or password.");
+                }
             } else {
+                const existingUser = await getUserByEmail(email);
+                if (existingUser) {
+                    throw new Error("An account with this email already exists.");
+                }
                 if (role === 'student' && !enrollmentId.trim()) {
                     toast.error("Enrollment ID is required for students.");
                     setLoading(false);
                     return;
                 }
-                const { error } = await supabase!.auth.signUp({
+                const newUser: PortalUser = {
+                    id: crypto.randomUUID(),
+                    name,
                     email,
                     password,
-                    options: {
-                        data: {
-                            name,
-                            role,
-                            enrollment_id: role === 'student' ? enrollmentId : null,
-                        },
-                    },
-                });
-                if (error) throw error;
+                    role,
+                    enrollment_id: role === 'student' ? enrollmentId : undefined
+                };
+                await createUser(newUser);
                 toast.success("Signed up successfully! You can now log in.");
                 setViewMode('login');
             }
         } catch (error: any) {
-            if (error.message.includes('Failed to fetch')) {
-                toast.error("Login failed. Check your internet connection and Supabase settings.");
-            } else {
-                toast.error(error.message);
-            }
+            toast.error(error.message);
         } finally {
             setLoading(false);
         }
@@ -135,76 +127,75 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
     const toast = useToast();
 
     useEffect(() => {
-        let isMounted = true;
-        if (locationEnforced) {
-            setIsFetchingLocation(true);
-            setTeacherLocation(null);
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    if (isMounted) {
-                        setTeacherLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
-                        setIsFetchingLocation(false);
-                    }
-                },
-                (error) => {
-                    if (isMounted) {
-                        toast.error(getGeolocationErrorMessage(error));
-                        setLocationEnforced(false);
-                        setIsFetchingLocation(false);
-                    }
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        } else {
-            setTeacherLocation(null);
-        }
-        return () => { isMounted = false; };
-    }, [locationEnforced, toast]);
-
-
-    const fetchAttendance = async (sessionId: string) => {
-        const { data, error } = await supabase!.from('portal_attendance').select(`*, portal_users(*)`).eq('session_id', sessionId).order('created_at', { ascending: true });
-        if (error) toast.error(error.message);
-        else setLiveAttendance(data as PortalAttendanceRecord[]);
-    };
-
-    useEffect(() => {
-        if (!activeSession) return;
-        fetchAttendance(activeSession.id);
-        const channel = supabase!.channel(`attendance-${activeSession.id}`)
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_attendance', filter: `session_id=eq.${activeSession.id}` }, 
-            (payload) => {
+        const handleMessage = (event: MessageEvent) => {
+            const { type, payload } = event.data;
+            if (type === 'NEW_ATTENDANCE' && activeSession && payload.sessionId === activeSession.id) {
                 toast.success(`New student checked in!`);
-                setLiveAttendance(prev => [...prev, { ...payload.new, portal_users: {} } as PortalAttendanceRecord]); // Optimistic update
-                fetchAttendance(activeSession.id); // Verify with DB
-            })
-            .subscribe();
-        return () => { supabase!.removeChannel(channel) };
+                setLiveAttendance(prev => [...prev, payload.record]);
+            }
+        };
+        attendanceChannel.addEventListener('message', handleMessage);
+        return () => attendanceChannel.removeEventListener('message', handleMessage);
     }, [activeSession, toast]);
-
-    useEffect(() => { if (activeSession?.session_code) { QRCode.toDataURL(activeSession.session_code, { width: 256, margin: 2, color: { dark: '#FFFFFF', light: '#18181b' } }, (err, url) => { if (err) console.error(err); setQrCodeUrl(url); }); } }, [activeSession]);
+    
+     useEffect(() => { if (activeSession?.session_code) { QRCode.toDataURL(activeSession.session_code, { width: 256, margin: 2, color: { dark: '#FFFFFF', light: '#18181b' } }, (err, url) => { if (err) console.error(err); setQrCodeUrl(url); }); } }, [activeSession]);
 
     const startSession = async () => {
         setStartingSession(true);
         let locationData: { latitude: number; longitude: number } | null = null;
         if (locationEnforced) {
-            if (!teacherLocation) {
-                toast.error("Location has not been captured yet. Please wait or try toggling location enforcement again.");
-                setStartingSession(false);
-                return;
-            }
-            locationData = { latitude: teacherLocation.latitude, longitude: teacherLocation.longitude };
+             if (!teacherLocation) {
+                 toast.error("Location has not been captured yet. Please wait.");
+                 setIsFetchingLocation(true);
+                 try {
+                     const position = await new Promise<GeolocationPosition>((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }));
+                     const loc = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+                     setTeacherLocation(loc);
+                     locationData = loc;
+                     setIsFetchingLocation(false);
+                 } catch (error: any) {
+                     toast.error(getGeolocationErrorMessage(error));
+                     setIsFetchingLocation(false);
+                     setStartingSession(false);
+                     return;
+                 }
+             } else {
+                locationData = teacherLocation;
+             }
         }
-        const session_code = Math.floor(100000 + Math.random() * 900000).toString();
-        const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-        const { data, error } = await supabase!.from('portal_sessions').insert({ teacher_id: user.id, session_code, expires_at, location_enforced: locationEnforced, radius, location: locationData }).select().single();
-        if (error) { toast.error(error.message); } else { setActiveSession(data); toast.success("Session started!"); }
-        setStartingSession(false);
+        
+        const newSession: PortalSession = {
+            id: crypto.randomUUID(),
+            teacher_id: user.id,
+            session_code: Math.floor(100000 + Math.random() * 900000).toString(),
+            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+            is_active: true,
+            location_enforced: locationEnforced,
+            radius: radius,
+            location: locationData,
+        };
+
+        try {
+            await createSession(newSession);
+            setActiveSession(newSession);
+            setLiveAttendance([]);
+            toast.success("Session started!");
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setStartingSession(false);
+        }
     };
 
     const handleEndSession = async () => {
-        const { error } = await supabase!.from('portal_sessions').update({ is_active: false }).eq('id', activeSession!.id);
-        if (error) toast.error(error.message); else { setActiveSession(null); setLiveAttendance([]); toast.info("Session ended."); }
+        try {
+            await endActiveSession();
+            setActiveSession(null);
+            setLiveAttendance([]);
+            toast.info("Session ended.");
+        } catch (error: any) {
+            toast.error(error.message);
+        }
     };
     
     return (
@@ -232,14 +223,14 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                             <h3 className="text-xl font-bold mb-4">Live Attendance ({liveAttendance.length})</h3>
                             <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto pr-2">
                                 {liveAttendance.length === 0 ? <p className="text-muted-foreground text-center pt-8">Waiting for students to check in...</p> : liveAttendance.map(att => (
-                                    <div key={att.id} className="p-3 bg-secondary rounded-lg flex justify-between items-center text-sm animate-fade-in-up transition-colors hover:bg-secondary/80">
+                                    <div key={att.student_id} className="p-3 bg-secondary rounded-lg flex justify-between items-center text-sm animate-fade-in-up transition-colors hover:bg-secondary/80">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                                {att.portal_users?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
+                                                {att.student_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
                                             </div>
                                             <div>
-                                                <p className="font-semibold">{att.portal_users?.name || 'Loading...'}</p>
-                                                <p className="text-xs text-muted-foreground font-mono">{att.portal_users?.enrollment_id || '...'}</p>
+                                                <p className="font-semibold">{att.student_name}</p>
+                                                <p className="text-xs text-muted-foreground font-mono">{att.enrollment_id}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 text-muted-foreground text-xs"><Clock size={12}/><span>{new Date(att.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><CheckCircle size={16} className="text-green-500 ml-2"/></div>
@@ -255,18 +246,9 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                             <div className="p-4 bg-secondary rounded-lg animate-fade-in-up">
                                 <label htmlFor="radius-input" className="font-semibold flex items-center gap-2 mb-2"><MapPin/> Valid Radius (meters)</label>
                                 <input id="radius-input" type="number" value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full bg-input p-2 rounded-md"/>
-                                <div className="text-xs text-muted-foreground mt-2">
-                                    {isFetchingLocation ? (
-                                        <div className="flex items-center gap-2"><Loader size={12} className="animate-spin"/> Fetching your location...</div>
-                                    ) : teacherLocation ? (
-                                        <div className="flex items-center gap-2 text-green-400"><CheckCircle size={12}/> Session location captured: {teacherLocation.latitude.toFixed(4)}, {teacherLocation.longitude.toFixed(4)}</div>
-                                    ) : (
-                                        <div className="flex items-center gap-2 text-amber-400"><AlertTriangle size={12}/> Could not get your location. Please ensure permissions are granted.</div>
-                                    )}
-                                </div>
                             </div>
                         )}
-                        <button onClick={startSession} disabled={startingSession || (locationEnforced && isFetchingLocation)} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-primary/90 transition-colors text-lg">{startingSession ? <Loader className="animate-spin"/> : <><Smartphone/> Start Session</>}</button>
+                        <button onClick={startSession} disabled={startingSession} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-primary/90 transition-colors text-lg">{startingSession ? <Loader className="animate-spin"/> : <><Smartphone/> Start Session</>}</button>
                     </div></div>
                 )}
             </main>
@@ -283,9 +265,10 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
         e.preventDefault();
         setCheckingIn(true);
         try {
-            const { data: session, error: sessionError } = await supabase!.from('portal_sessions').select('*').eq('session_code', code).eq('is_active', true).single();
-            if (sessionError || !session) throw new Error("Invalid or expired session code.");
-            if (new Date(session.expires_at) < new Date()) throw new Error("This session has expired.");
+            const session = await getActiveSession();
+            if (!session || session.session_code !== code) {
+                throw new Error("Invalid or expired session code.");
+            }
             
             if (session.location_enforced) {
                 const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true }));
@@ -295,11 +278,23 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                 if (dist > (session.radius || 100)) throw new Error(`Location check failed. You are too far (${Math.round(dist)}m).`);
             }
             
-            const { error: attendanceError } = await supabase!.from('portal_attendance').insert({ session_id: session.id, student_id: user.id, student_name: user.name, enrollment_id: user.enrollment_id });
-            if (attendanceError) {
-                if (attendanceError.code === '23505') throw new Error("You have already checked in for this session.");
-                throw attendanceError;
-            }
+            const attendanceRecord = {
+                student_id: user.id,
+                session_id: session.id,
+                student_name: user.name,
+                enrollment_id: user.enrollment_id,
+            };
+
+            await logAttendance(attendanceRecord);
+
+            attendanceChannel.postMessage({
+                type: 'NEW_ATTENDANCE',
+                payload: {
+                    sessionId: session.id,
+                    record: { ...attendanceRecord, created_at: new Date().toISOString() }
+                }
+            });
+
             toast.success("Checked in successfully!");
             setCode('');
         } catch (error: any) { toast.error(error.message); } finally { setCheckingIn(false); }
@@ -329,59 +324,36 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
 
 // --- MAIN PORTAL COMPONENT ---
 const StudentTeacherPortal: React.FC = () => {
-    const [user, setUser] = useState<User | null>(null);
-    const [profile, setProfile] = useState<PortalUser | null>(null);
+    const [user, setUser] = useState<PortalUser | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const checkUser = async () => {
-            if (!supabase) { setLoading(false); return; }
-            const { data: { session } } = await supabase.auth.getSession();
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                const { data } = await supabase.from('portal_users').select('*').eq('id', session.user.id).single();
-                setProfile(data);
-            }
-            setLoading(false);
-        };
-        checkUser();
-        const { data: authListener } = supabase?.auth?.onAuthStateChange((_event, session) => {
-            const currentUser = session?.user ?? null;
-            setUser(currentUser);
-            if (currentUser) {
-                const fetchProfile = async () => {
-                    const { data } = await supabase!.from('portal_users').select('*').eq('id', currentUser.id).single();
-                    setProfile(data);
-                };
-                fetchProfile();
-            } else {
-                setProfile(null);
-            }
-        }) || {};
-        return () => { authListener?.subscription.unsubscribe() };
+        const loggedInUser = sessionStorage.getItem('portal-user');
+        if (loggedInUser) {
+            setUser(JSON.parse(loggedInUser));
+        }
+        setLoading(false);
     }, []);
 
-    if (!isSupabaseConfigured) {
-        return <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-            <AlertTriangle className="w-12 h-12 text-amber-400 mb-4"/>
-            <h2 className="text-xl font-bold">Portal Not Configured</h2>
-            <p className="text-muted-foreground max-w-md">The Student/Teacher Portal requires a Supabase backend. If you haven't configured your own, the app will use a default instance. If you still see this message, please check your internet connection or configure your own credentials in <strong>Settings</strong>.</p>
-        </div>;
-    }
+    const handleLogin = (loggedInUser: PortalUser) => {
+        sessionStorage.setItem('portal-user', JSON.stringify(loggedInUser));
+        setUser(loggedInUser);
+    };
+
+    const handleLogout = () => {
+        sessionStorage.removeItem('portal-user');
+        setUser(null);
+    };
 
     if (loading) {
         return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary" size={32}/></div>;
     }
 
-    if (!user || !profile) {
-        return <AuthScreen onLogin={() => {}} />;
+    if (!user) {
+        return <AuthScreen onLogin={handleLogin} />;
     }
     
-    const handleLogout = async () => {
-        await supabase?.auth.signOut();
-    };
-
-    return profile.role === 'teacher' ? <TeacherDashboard user={profile} onLogout={handleLogout} /> : <StudentDashboard user={profile} onLogout={handleLogout} />;
+    return user.role === 'teacher' ? <TeacherDashboard user={user} onLogout={handleLogout} /> : <StudentDashboard user={user} onLogout={handleLogout} />;
 };
 
 export default StudentTeacherPortal;

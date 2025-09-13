@@ -1,7 +1,3 @@
-
-
-
-
 export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration';
 
 export interface Page {
@@ -130,29 +126,32 @@ export interface TimetableEntry {
     roomName: string;
 }
 
+// Local-first Portal Types
 export interface PortalUser {
   id: string;
   name: string;
-  email: string | null;
+  email: string;
+  password?: string; // For local auth, not secure for production web apps
   role: 'student' | 'teacher';
-  enrollment_id?: string | null;
+  enrollment_id?: string;
 }
 
 export interface PortalSession {
   id: string;
   teacher_id: string;
-  session_code: string | null;
+  session_code: string;
   expires_at: string;
   is_active: boolean;
   location_enforced?: boolean;
-  radius?: number | null;
-  location?: { latitude: number; longitude: number } | any;
+  radius?: number;
+  location?: { latitude: number; longitude: number } | null;
 }
 
 export interface PortalAttendanceRecord {
-  id: number;
+  id?: number;
   session_id: string;
   student_id: string;
+  student_name: string;
+  enrollment_id?: string;
   created_at: string;
-  portal_users: PortalUser;
 }

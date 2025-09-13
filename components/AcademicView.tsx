@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import StudentTeacherPortal from './StudentTeacherPortal';
 import { Goal, CalendarEvent } from '../types';
