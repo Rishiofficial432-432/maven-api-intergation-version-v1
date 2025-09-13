@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { DriveFile, WorkspaceHistoryEntry } from '../types';
 import { FileText, Table, History, Search, Download, Briefcase, Info } from 'lucide-react';
@@ -13,7 +14,7 @@ interface GoogleWorkspaceProps {
     onFileImport: (data: { file: DriveFile; htmlContent: string }) => void;
 }
 
-const CLIENT_ID = '424363868996-4kk2seduj0iel55jiilkh7nbhu9u0bq1.apps.googleusercontent.com';
+const CLIENT_ID = '424363868996-jjad4ut47vq7ok23jq7dfqd7rs86nf3d.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
 
 const GoogleWorkspace: React.FC<GoogleWorkspaceProps> = ({ authToken, setAuthToken, history, onFileImport }) => {
