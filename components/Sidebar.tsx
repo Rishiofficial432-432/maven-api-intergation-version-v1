@@ -1,6 +1,7 @@
 
 
 
+
 import React from 'react';
 import { Page, View } from '../types';
 import { PlusIcon, FileTextIcon, BookIcon, LayoutGridIcon } from './Icons';
@@ -30,7 +31,7 @@ const navItems = [
     { id: 'braindump', icon: BrainCircuit, label: 'AI Brain Dump' },
     { id: 'tasks', icon: CheckSquare, label: 'Tasks' },
     { id: 'kanban', icon: List, label: 'Kanban Board' },
-    { id: 'attendance', icon: ClipboardList, label: 'Attendance' },
+    { id: 'attendance', icon: ClipboardList, label: 'Attendance Portal', action: 'view' },
     { id: 'calendar', icon: Calendar, label: 'Calendar' },
     { id: 'timer', icon: Timer, label: 'Pomodoro' },
     { id: 'decision', icon: Dice6, label: 'Decision Maker' },
@@ -182,8 +183,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {navItems.map(item => (
                     <button
                         key={item.id}
-                        onClick={() => setActiveTab(item.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors text-left text-foreground/80 ${isCollapsed ? 'justify-center' : ''} ${activeTab === item.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent/50'}`}
+                        onClick={() => {
+                            if (item.action === 'view') {
+                                setView('academics');
+                            } else {
+                                setActiveTab(item.id);
+                            }
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors text-left text-foreground/80 ${isCollapsed ? 'justify-center' : ''} ${activeTab === item.id && !item.action ? 'bg-primary text-primary-foreground' : 'hover:bg-accent/50'}`}
                         title={item.label}
                     >
                         <item.icon size={18} className="flex-shrink-0 w-5 h-5"/>

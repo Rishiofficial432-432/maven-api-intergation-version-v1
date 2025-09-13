@@ -1,6 +1,7 @@
 
 
 
+
 export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration';
 
 export interface Page {
@@ -100,22 +101,6 @@ export interface Goal {
     targetDate?: string;
 }
 
-export interface Class {
-    id: string;
-    name: string;
-}
-export interface Student {
-    id: string;
-    name: string;
-    enrollment: string;
-    classId: string;
-}
-export interface Attendance {
-    [date: string]: {
-        [studentId: string]: 'Present' | 'Absent';
-    };
-}
-
 // Types for AI Scheduler
 export interface Teacher {
     name: string;
@@ -145,7 +130,6 @@ export interface TimetableEntry {
     roomName: string;
 }
 
-// FIX: Updated types for Supabase-based portal implementation.
 export interface PortalUser {
   id: string;
   name: string;
@@ -162,7 +146,7 @@ export interface PortalSession {
   is_active: boolean;
   location_enforced?: boolean;
   radius?: number | null;
-  location?: { latitude: number; longitude: number } | any; // Using `any` for Supabase jsonb flexibility
+  location?: { latitude: number; longitude: number } | any;
 }
 
 export interface PortalAttendanceRecord {
@@ -170,5 +154,5 @@ export interface PortalAttendanceRecord {
   session_id: string;
   student_id: string;
   created_at: string;
-  portal_users: PortalUser; // For joined queries
+  portal_users: PortalUser;
 }

@@ -4,35 +4,26 @@
 
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
-// Fix: Removed `Settings` icon import to resolve name conflict with the Settings component.
-// Added `AlertTriangle` icon import for use in the data wipe confirmation modal.
 import { 
-  Plus, X, Play, Pause, RotateCcw, Calendar, Clock, BookOpen, 
-  Target, Calculator, Palette, Sun, Moon, Edit3, Save, Trash2,
-  CheckSquare, Square, ArrowRight, Timer, TrendingUp, Heart,
-  Link, FileText, Zap, Home, List, BarChart3, User,
-  PlusCircle, MinusCircle, Copy, Check, RefreshCw, Star,
-  ChevronLeft, ChevronRight, Download, Upload, Search, GripVertical, HelpCircleIcon,
-  Notebook, DollarSign, Trophy, Smile, Quote as QuoteIcon, CircleDot, BrainCircuit as BrainCircuitIcon, Wand2, Loader, ArrowLeft, CheckCircle, ClipboardList, Eye, EyeOff,
-  AlertTriangle, Lightbulb, Users as UsersIcon, FlaskConical, PencilRuler, ShieldCheck
+  Plus, X, Play, Pause, RotateCcw, Calendar, CheckSquare as CheckSquareIcon, List as ListIcon,
+  Target, Sun, Moon, Save, Trash2,
+  CheckSquare, Square, Timer, Heart,
+  FileText as FileTextIcon, Home, BarChart3, User,
+  Copy, Check,
+  ChevronLeft, ChevronRight, Download, Upload, GripVertical,
+  Trophy, Smile, Quote as QuoteIcon, DollarSign,
+  BrainCircuit as BrainCircuitIcon, Wand2, Loader, ArrowLeft, CheckCircle
 } from 'lucide-react';
-import { HelpPage } from './HelpPage';
 import RandomDecisionMaker from './RandomDecisionMaker';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
-// Fix: Corrected useToast import path
 import { useToast } from './Toast';
-import { updateApiKey } from './gemini';
-import { updateSupabaseCredentials, connectionStatus } from './supabase-config';
 import { 
-    Page, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance, 
-    // FIX: Removed unused 'Course' type which is not exported from '../types'.
-    Teacher, Room, TimetableEntry 
+    Page, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem
 } from '../types';
 
-
-declare const XLSX: any;
 
 // --- AI BRAIN DUMP SUB-COMPONENT ---
 
@@ -108,7 +99,6 @@ Structure your response strictly as a JSON object matching the provided schema. 
             const parsedResult: BrainDumpResponse = JSON.parse(jsonStr);
             setResult(parsedResult);
 
-            // Initialize itemsToSave with everything checked
             setItemsToSave({
                 tasks: (parsedResult.tasks || []).map(text => ({ text, checked: true })),
                 events: (parsedResult.events || []).map(item => ({ item, checked: true })),
@@ -150,12 +140,19 @@ Structure your response strictly as a JSON object matching the provided schema. 
         setItemsToSave(null);
         setInput('');
     };
+    
+    const categoryInfo = {
+        tasks: { title: "Tasks", icon: <CheckSquareIcon size={18} className="text-blue-400"/> },
+        events: { title: "Calendar Events", icon: <Calendar size={18} className="text-red-400"/> },
+        quickNotes: { title: "Quick Notes", icon: <ListIcon size={18} className="text-yellow-400"/> },
+        newNotes: { title: "New Note Ideas", icon: <FileTextIcon size={18} className="text-green-400"/> },
+    };
 
     const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
 
     if (result && itemsToSave) {
         return (
-            <div className={`${cardClasses} p-6`}>
+            <div className={`${cardClasses} p-6 animate-fade-in-up`}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold flex items-center gap-2"><CheckCircle size={24}/> AI Suggestions</h2>
                     <div className="flex items-center gap-2">
@@ -170,10 +167,10 @@ Structure your response strictly as a JSON object matching the provided schema. 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
                     {Object.entries(itemsToSave).map(([category, items]) => {
                         if (items.length === 0) return null;
-                        const categoryTitles = { tasks: "Tasks", events: "Calendar Events", quickNotes: "Quick Notes", newNotes: "New Note Ideas" };
+                        const info = categoryInfo[category as keyof typeof categoryInfo];
                         return (
                             <div key={category}>
-                                <h3 className="font-semibold mb-2 capitalize">{categoryTitles[category as keyof typeof categoryTitles]}</h3>
+                                <h3 className="font-semibold mb-2 flex items-center gap-2">{info.icon} {info.title}</h3>
                                 <div className="space-y-2">
                                     {items.map((item: any, index: number) => (
                                         <div key={index} className={`p-3 rounded-lg flex items-start gap-3 cursor-pointer transition-colors ${item.checked ? 'bg-primary/10' : 'bg-secondary/50'}`} onClick={() => handleToggleItem(category as keyof SaveableItems, index)}>
@@ -198,7 +195,7 @@ Structure your response strictly as a JSON object matching the provided schema. 
     }
 
     return (
-        <div className={`${cardClasses} p-6 flex flex-col items-center justify-center text-center h-full`}>
+        <div className={`${cardClasses} p-6 flex flex-col items-center justify-center text-center h-full animate-fade-in-up`}>
             {successMessage && <div className="animate-fade-in-out absolute top-8 bg-green-500/20 text-green-300 px-4 py-2 rounded-lg text-sm">{successMessage}</div>}
             <BrainCircuitIcon size={48} className="text-primary mb-4"/>
             <h1 className="text-3xl font-bold">AI Brain Dump</h1>
@@ -263,385 +260,9 @@ interface MamDeskProps {
     theme: string;
     setTheme: (theme: string) => void;
     pages: Page[];
-    classes: Class[];
-    students: Student[];
-    attendance: Attendance;
-    onAddClass: (name: string) => void;
-    onDeleteClass: (id: string) => void;
-    onAddStudent: (name: string, enrollment: string, classId: string) => void;
-    onDeleteStudent: (id: string) => void;
-    onSetAttendance: (date: string, studentId: string, status: 'Present' | 'Absent') => void;
-    onAddStudentsBatch: (students: { name: string; enrollment: string; classId: string }[]) => string;
     onNewNote: (title: string, content?: string) => Page;
 }
 
-const formatDateToYYYYMMDD = (date: Date) => {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-};
-
-const AttendanceManager: React.FC<{
-    classes: Class[];
-    students: Student[];
-    attendance: Attendance;
-    onAddClass: (name: string) => void;
-    onDeleteClass: (id: string) => void;
-    onAddStudent: (name: string, enrollment: string, classId: string) => void;
-    onDeleteStudent: (id: string) => void;
-    onSetAttendance: (date: string, studentId: string, status: 'Present' | 'Absent') => void;
-    onAddStudentsBatch: (students: { name: string; enrollment: string; classId: string }[]) => string;
-}> = ({ classes, students, attendance, onAddClass, onDeleteClass, onAddStudent, onDeleteStudent, onSetAttendance, onAddStudentsBatch }) => {
-    const [activeClassId, setActiveClassId] = useState<string | null>(classes[0]?.id || null);
-    const [selectedDate, setSelectedDate] = useState(formatDateToYYYYMMDD(new Date()));
-    const [isDragging, setIsDragging] = useState(false);
-    const [importFeedback, setImportFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const toast = useToast();
-
-    useEffect(() => {
-        if (!activeClassId && classes.length > 0) {
-            setActiveClassId(classes[0].id);
-        }
-    }, [classes, activeClassId]);
-
-    const [newClassName, setNewClassName] = useState('');
-    const [newStudentName, setNewStudentName] = useState('');
-    const [newStudentEnrollment, setNewStudentEnrollment] = useState('');
-    
-    const studentsInClass = students.filter(s => s.classId === activeClassId);
-
-    const handleAddClass = (e: React.FormEvent) => {
-        e.preventDefault();
-        onAddClass(newClassName);
-        setNewClassName('');
-    };
-    
-    const handleAddStudent = (e: React.FormEvent) => {
-        e.preventDefault();
-        if(activeClassId) {
-            onAddStudent(newStudentName, newStudentEnrollment, activeClassId);
-            setNewStudentName('');
-            setNewStudentEnrollment('');
-        }
-    };
-    
-    const attendanceForDate = attendance[selectedDate] || {};
-
-    const handleDateChange = (offset: number) => {
-        // Adding T00:00:00 ensures the date is parsed in local time, avoiding timezone-related off-by-one-day errors.
-        const currentDate = new Date(selectedDate + 'T00:00:00');
-        currentDate.setDate(currentDate.getDate() + offset);
-        setSelectedDate(formatDateToYYYYMMDD(currentDate));
-    };
-
-    const goToToday = () => {
-        setSelectedDate(formatDateToYYYYMMDD(new Date()));
-    };
-
-    const handleExportAttendance = () => {
-        if (!activeClassId) {
-            toast.error("Please select a class to export.");
-            return;
-        }
-
-        const activeClass = classes.find(c => c.id === activeClassId);
-        if (!activeClass) return;
-
-        const studentsInClass = students.filter(s => s.classId === activeClassId);
-        if (studentsInClass.length === 0) {
-            toast.info("This class has no students to export.");
-            return;
-        }
-        
-        // Sort students by enrollment number for consistency
-        studentsInClass.sort((a, b) => a.enrollment.localeCompare(b.enrollment));
-
-        // Get all unique dates for which any student in this class has a record
-        const studentIdsInClass = new Set(studentsInClass.map(s => s.id));
-        const allDates = new Set<string>();
-        Object.entries(attendance).forEach(([date, studentRecords]) => {
-            if (Object.keys(studentRecords).some(studentId => studentIdsInClass.has(studentId))) {
-                allDates.add(date);
-            }
-        });
-
-        if (allDates.size === 0) {
-            toast.info("No attendance data recorded for this class yet.");
-            return;
-        }
-
-        const sortedDates = Array.from(allDates).sort();
-
-        // Create header row
-        const headers = ['Enrollment No.', 'Student Name', ...sortedDates];
-
-        // Create data rows
-        const dataRows = studentsInClass.map(student => {
-            const row = [student.enrollment, student.name];
-            sortedDates.forEach(date => {
-                const status = attendance[date]?.[student.id] || ''; // Empty string if not marked
-                row.push(status);
-            });
-            return row;
-        });
-
-        // Combine headers and data
-        const sheetData = [headers, ...dataRows];
-
-        // Create worksheet and workbook
-        const ws = XLSX.utils.aoa_to_sheet(sheetData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Attendance');
-
-        // Generate and download the file
-        const fileName = `${activeClass.name}_Attendance_${formatDateToYYYYMMDD(new Date())}.xlsx`;
-        XLSX.writeFile(wb, fileName);
-        toast.success("Attendance exported successfully!");
-    };
-
-    const processFile = (file: File) => {
-        if (!activeClassId) {
-            setImportFeedback({ type: 'error', message: "Please select a class before importing students." });
-            return;
-        }
-
-        const reader = new FileReader();
-
-        reader.onload = (event) => {
-            try {
-                const data = new Uint8Array(event.target!.result as ArrayBuffer);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-
-                if (json.length === 0) {
-                    setImportFeedback({ type: 'error', message: "The Excel file is empty or invalid." });
-                    return;
-                }
-                
-                const headers = Object.keys(json[0]);
-                const nameKeys = ['name', 'student name', 'student'];
-                const enrollmentKeys = ['enrollment', 'enrollment no', 'no', 'enrollment number', 'reg no', 'registration number'];
-
-                let nameHeader = '';
-                let enrollmentHeader = '';
-
-                for (const header of headers) {
-                    const lowerHeader = header.toLowerCase().trim();
-                    if (!nameHeader && nameKeys.includes(lowerHeader)) {
-                        nameHeader = header;
-                    }
-                    if (!enrollmentHeader && enrollmentKeys.includes(lowerHeader)) {
-                        enrollmentHeader = header;
-                    }
-                }
-
-                if (!nameHeader || !enrollmentHeader) {
-                     setImportFeedback({ type: 'error', message: "Could not find required columns. Please ensure your file has headers for both student names (e.g., 'Name') and enrollment numbers (e.g., 'Enrollment' or 'No')." });
-                    return;
-                }
-
-                const newStudents = json
-                    .map(row => ({
-                        name: row[nameHeader]?.toString().trim() || '',
-                        enrollment: row[enrollmentHeader]?.toString().trim() || '',
-                        classId: activeClassId,
-                    }))
-                    .filter(student => student.name && student.enrollment);
-
-                if (newStudents.length > 0) {
-                    const feedbackMessage = onAddStudentsBatch(newStudents);
-                    setImportFeedback({ type: 'success', message: feedbackMessage });
-                } else {
-                    setImportFeedback({ type: 'error', message: "No valid student data found in the file." });
-                }
-            } catch (error) {
-                console.error("Error parsing Excel file:", error);
-                setImportFeedback({ type: 'error', message: "Failed to parse the Excel file. Please ensure it's a valid format." });
-            }
-        };
-
-        reader.onerror = () => {
-             setImportFeedback({ type: 'error', message: "Failed to read the file." });
-        }
-
-        reader.readAsArrayBuffer(file);
-    };
-
-    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-    };
-
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-    };
-
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        setImportFeedback(null);
-
-        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            processFile(e.dataTransfer.files[0]);
-            e.dataTransfer.clearData();
-        }
-    };
-
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setImportFeedback(null);
-        if (e.target.files && e.target.files.length > 0) {
-            processFile(e.target.files[0]);
-            e.target.value = ''; // Reset input to allow selecting the same file again
-        }
-    };
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
-            {/* Class list and management */}
-            <div className="lg:col-span-1 bg-card border border-border rounded-xl shadow-lg p-6 flex flex-col">
-                <h2 className="text-xl font-bold mb-4">Classes</h2>
-                <form onSubmit={handleAddClass} className="flex gap-2 mb-4">
-                    <input
-                        type="text"
-                        value={newClassName}
-                        onChange={(e) => setNewClassName(e.target.value)}
-                        placeholder="New class name"
-                        className="flex-1 bg-input border-border rounded-md px-3 py-2 focus:ring-ring focus:border-primary"
-                    />
-                    <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 active:scale-95 transition-transform">Add</button>
-                </form>
-                <div className="flex-1 overflow-y-auto space-y-2">
-                    {classes.map(c => (
-                        <div key={c.id} className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors ${activeClassId === c.id ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-secondary/80'}`} onClick={() => setActiveClassId(c.id)}>
-                            <span className="font-medium">{c.name}</span>
-                            <button onClick={(e) => { e.stopPropagation(); onDeleteClass(c.id); if(activeClassId === c.id) setActiveClassId(classes.find(cls => cls.id !== c.id)?.id || null); }} className={`p-1 rounded-full transition-colors ${activeClassId === c.id ? 'text-primary-foreground/70 hover:text-white hover:bg-white/10' : 'text-muted-foreground hover:text-destructive hover:bg-destructive/10'}`}><Trash2 size={16}/></button>
-                        </div>
-                    ))}
-                    {classes.length === 0 && <p className="text-muted-foreground text-center py-8">No classes created yet.</p>}
-                </div>
-            </div>
-
-            {/* Attendance and Student management */}
-            <div className="lg:col-span-2 bg-card border border-border rounded-xl shadow-lg p-6 flex flex-col">
-                {activeClassId ? (
-                    <>
-                        <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
-                            <h2 className="text-xl font-bold">Manage Attendance: <span className="text-primary">{classes.find(c=>c.id === activeClassId)?.name}</span></h2>
-                             <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-1 bg-secondary rounded-md p-1">
-                                    <button onClick={() => handleDateChange(-1)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors" title="Previous day">
-                                        <ChevronLeft size={16} />
-                                    </button>
-                                    <button onClick={goToToday} className="px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors">
-                                        Today
-                                    </button>
-                                    <button onClick={() => handleDateChange(1)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors" title="Next day">
-                                        <ChevronRight size={16} />
-                                    </button>
-                                </div>
-                                <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-secondary text-foreground border-none rounded-md px-3 py-1.5 text-sm focus:ring-2 focus:ring-ring" />
-                                 <button onClick={handleExportAttendance} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 active:scale-95 transition-transform" title="Export Attendance to Excel">
-                                    <Download size={16}/> Export
-                                </button>
-                            </div>
-                        </div>
-
-                        {studentsInClass.length === 0 ? (
-                             <div className="flex-1 flex flex-col items-center justify-center">
-                                 <p className="text-muted-foreground mb-4">No students in this class yet. Add them below or import from Excel.</p>
-                             </div>
-                        ) : (
-                            <div className="flex-1 overflow-y-auto pr-2">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                    {studentsInClass.map(student => {
-                                        const status = attendanceForDate[student.id];
-                                        return (
-                                            <div key={student.id} className="bg-secondary rounded-lg p-3 flex items-center justify-between">
-                                                <div>
-                                                    <p className="font-semibold text-sm">{student.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{student.enrollment}</p>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                     <button onClick={() => onSetAttendance(selectedDate, student.id, 'Present')} className={`px-2 py-1 text-xs rounded-md ${status === 'Present' ? 'bg-green-500 text-white' : 'bg-accent hover:bg-green-500/50'}`}>P</button>
-                                                     <button onClick={() => onSetAttendance(selectedDate, student.id, 'Absent')} className={`px-2 py-1 text-xs rounded-md ${status === 'Absent' ? 'bg-red-500 text-white' : 'bg-accent hover:bg-red-500/50'}`}>A</button>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                        
-                        {/* Student Management Section */}
-                        <div className="mt-6 pt-6 border-t border-border/50">
-                            <h3 className="text-lg font-bold mb-4">Manage Students</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Add Student Form */}
-                                <div>
-                                    <h4 className="font-semibold mb-2">Add New Student</h4>
-                                    <form onSubmit={handleAddStudent} className="space-y-2">
-                                        <input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} placeholder="Student's full name" required className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
-                                        <input type="text" value={newStudentEnrollment} onChange={e => setNewStudentEnrollment(e.target.value)} placeholder="Enrollment/ID number" required className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
-                                        <button type="submit" className="w-full bg-primary text-primary-foreground py-2 rounded-md text-sm font-semibold">Add Student</button>
-                                    </form>
-                                </div>
-                                {/* Import Students */}
-                                <div>
-                                    <h4 className="font-semibold mb-2">Import from Excel</h4>
-                                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept=".xlsx, .xls, .csv" />
-                                    <div
-                                        onDragEnter={handleDragEnter}
-                                        onDragLeave={handleDragLeave}
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDrop}
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg cursor-pointer h-full transition-colors ${isDragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`}
-                                    >
-                                        <Upload size={24} className="text-muted-foreground mb-2"/>
-                                        <p className="text-sm text-center text-muted-foreground">
-                                            {isDragging ? 'Drop the file here' : 'Drag & drop or click to upload an Excel file (.xlsx)'}
-                                        </p>
-                                        <p className="text-xs text-center text-muted-foreground/70 mt-1">
-                                            (Must contain 'Name' and 'Enrollment' columns)
-                                        </p>
-                                    </div>
-                                     {importFeedback && (
-                                        <div className={`mt-2 p-2 text-xs rounded-md ${importFeedback.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                                            {importFeedback.message}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                    </>
-                ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center">
-                        <UsersIcon size={48} className="text-muted-foreground mb-4"/>
-                        <h2 className="text-xl font-bold">No Class Selected</h2>
-                        <p className="text-muted-foreground">Please create or select a class from the left panel to manage attendance.</p>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-
-// FIX: Changed from default export to named export to resolve circular dependency with App.tsx.
 export const MamDesk: React.FC<MamDeskProps> = ({
   activeTab,
   tasks,
@@ -681,15 +302,6 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   theme,
   setTheme,
   pages,
-  classes,
-  students,
-  attendance,
-  onAddClass,
-  onDeleteClass,
-  onAddStudent,
-  onDeleteStudent,
-  onSetAttendance,
-  onAddStudentsBatch,
   onNewNote
 }) => {
   const [newTask, setNewTask] = useState('');
@@ -697,7 +309,6 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   const [newNote, setNewNote] = useState('');
   const [draggedItem, setDraggedItem] = useState<{ colId: string; item: KanbanItem } | null>(null);
 
-  // Fix: Add a handler for adding quick notes to pass to the AIBrainDump component.
   const handleAddQuickNote = (text: string) => {
     setQuickNotes(prev => [{ id: crypto.randomUUID(), text, createdAt: new Date().toISOString() }, ...prev]);
   };
@@ -738,9 +349,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
     const { colId: sourceColId, item } = draggedItem;
 
     if (sourceColId !== targetColId) {
-      // Remove from source
       const newSourceItems = kanbanColumns[sourceColId].items.filter(i => i.id !== item.id);
-      // Add to target
       const newTargetItems = [...kanbanColumns[targetColId].items, item];
 
       setKanbanColumns(prev => ({
@@ -752,12 +361,10 @@ export const MamDesk: React.FC<MamDeskProps> = ({
     setDraggedItem(null);
   };
   
-   const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
+   const cardClasses = "bg-card border border-border rounded-xl shadow-lg animate-fade-in-up";
 
-  // Sub-components for each tab
- const Dashboard = () => (
+  const Dashboard = () => (
     <div className={`p-6 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 ${cardClasses}`}>
-        {/* Quick Stats */}
         <div className="lg:col-span-2 xl:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-secondary p-4 rounded-lg text-center">
                 <h3 className="text-2xl font-bold">{tasks.filter(t => !t.completed).length}</h3>
@@ -835,7 +442,6 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   );
   
   const CalendarComponent = () => {
-    // Basic implementation - can be expanded
     return (
         <div className={`p-6 ${cardClasses}`}>
             <h2 className="text-xl font-bold mb-4">Calendar - {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
@@ -915,7 +521,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
         const todayStr = new Date().toDateString();
         setHabits(prev => prev.map(h => {
             if (h.id === id) {
-                if (h.lastCompleted === todayStr) return h; // Already completed today
+                if (h.lastCompleted === todayStr) return h; 
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
                 const isConsecutive = h.lastCompleted === yesterday.toDateString();
@@ -963,28 +569,24 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   
   const Personal = () => (
     <div className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-6 ${cardClasses}`}>
-        {/* Goals */}
         <div>
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Trophy size={20}/> Goals</h3>
             <div className="space-y-2">
                 {goals.map(g => <div key={g.id} className="p-2 bg-secondary rounded-md">{g.text}</div>)}
             </div>
         </div>
-        {/* Mood */}
         <div>
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Smile size={20}/> Mood Tracker</h3>
              <div className="space-y-2">
                 {moodEntries.slice(0, 5).map(m => <div key={m.id} className="p-2 bg-secondary rounded-md">{m.date}: {m.mood}</div>)}
             </div>
         </div>
-        {/* Expenses */}
         <div className="md:col-span-2">
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><DollarSign size={20}/> Recent Expenses</h3>
              <div className="space-y-2">
                 {expenses.slice(0, 5).map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between"><span>{e.description} ({e.category})</span> <span>${e.amount.toFixed(2)}</span></div>)}
             </div>
         </div>
-        {/* Quotes */}
         <div className="md:col-span-2">
              <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><QuoteIcon size={20}/> Personal Quotes</h3>
              <div className="space-y-2 italic">
@@ -1000,7 +602,6 @@ export const MamDesk: React.FC<MamDeskProps> = ({
       case 'braindump': return <AIBrainDump onAddTask={onAddTask} onAddEvent={onAddEvent} onAddQuickNote={handleAddQuickNote} onNewNote={onNewNote} />;
       case 'tasks': return <Tasks />;
       case 'kanban': return <Kanban />;
-      case 'attendance': return <AttendanceManager classes={classes} students={students} attendance={attendance} onAddClass={onAddClass} onDeleteClass={onDeleteClass} onAddStudent={onAddStudent} onDeleteStudent={onDeleteStudent} onSetAttendance={onSetAttendance} onAddStudentsBatch={onAddStudentsBatch}/>;
       case 'calendar': return <CalendarComponent />;
       case 'timer': return <Pomodoro />;
       case 'decision': return <RandomDecisionMaker options={decisionOptions} setOptions={setDecisionOptions} result={decisionResult} setResult={setDecisionResult} isSpinning={isDecisionSpinning} setIsSpinning={setIsDecisionSpinning} currentSpin={currentDecisionSpin} setCurrentSpin={setCurrentDecisionSpin} />;

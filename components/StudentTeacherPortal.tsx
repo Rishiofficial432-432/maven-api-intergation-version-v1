@@ -1,10 +1,12 @@
 
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from './supabase-config';
 import { Database } from './supabase-config';
 import { User } from '@supabase/supabase-js';
-import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, Download } from 'lucide-react';
+import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, Download, QrCode } from 'lucide-react';
 import { useToast } from './Toast';
 import QRCode from 'qrcode';
 
@@ -41,7 +43,7 @@ const AuthScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [enrollmentId, setEnrollmentId] = useState('');
-    const [role, setRole] = useState<'teacher' | 'student'>('student');
+    const [role, setRole] = useState<'student' | 'teacher'>('student');
     const [loading, setLoading] = useState(false);
     const toast = useToast();
 
@@ -87,7 +89,7 @@ const AuthScreen: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     };
 
     return (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/20">
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/20 animate-fade-in-up">
             <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-lg p-8">
                 <div className="text-center mb-8">
                     <h1 className="text-3xl font-bold flex items-center justify-center gap-2"><ClipboardList/> Student/Teacher Portal</h1>
@@ -147,7 +149,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                 (error) => {
                     if (isMounted) {
                         toast.error(getGeolocationErrorMessage(error));
-                        setLocationEnforced(false); // Disable if permission denied/failed
+                        setLocationEnforced(false);
                         setIsFetchingLocation(false);
                     }
                 },
@@ -168,11 +170,13 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
 
     useEffect(() => {
         if (!activeSession) return;
+        fetchAttendance(activeSession.id);
         const channel = supabase!.channel(`attendance-${activeSession.id}`)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_attendance', filter: `session_id=eq.${activeSession.id}` }, 
             (payload) => {
                 toast.success(`New student checked in!`);
-                fetchAttendance(activeSession.id);
+                setLiveAttendance(prev => [...prev, { ...payload.new, portal_users: {} } as PortalAttendanceRecord]); // Optimistic update
+                fetchAttendance(activeSession.id); // Verify with DB
             })
             .subscribe();
         return () => { supabase!.removeChannel(channel) };
@@ -192,7 +196,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
             locationData = { latitude: teacherLocation.latitude, longitude: teacherLocation.longitude };
         }
         const session_code = Math.floor(100000 + Math.random() * 900000).toString();
-        const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 mins
+        const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString();
         const { data, error } = await supabase!.from('portal_sessions').insert({ teacher_id: user.id, session_code, expires_at, location_enforced: locationEnforced, radius, location: locationData }).select().single();
         if (error) { toast.error(error.message); } else { setActiveSession(data); toast.success("Session started!"); }
         setStartingSession(false);
@@ -214,13 +218,14 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
             </header>
             <main className="flex-1 overflow-y-auto p-6">
                 {activeSession ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up">
                         <div className="lg:col-span-1 bg-card border border-border rounded-xl p-6 flex flex-col items-center text-center">
                             <h2 className="text-xl font-bold">Session is Live</h2>
                             <p className="text-muted-foreground mt-2">Share this code with your students:</p>
                             <div className="flex items-center gap-2 my-4"><span className="text-5xl font-bold tracking-[0.2em] bg-secondary px-6 py-3 rounded-lg">{activeSession.session_code}</span><button onClick={() => { navigator.clipboard.writeText(activeSession.session_code!); toast.success("Code copied!"); }} className="p-2 bg-secondary rounded-lg hover:bg-accent"><Copy size={20}/></button></div>
                             {qrCodeUrl && <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 rounded-lg bg-card p-2 border border-border"/>}
                             {activeSession.location_enforced && (<div className="mt-4 text-xs text-muted-foreground p-2 bg-secondary rounded-md flex items-center gap-2"><MapPin size={14} className="text-blue-400"/> Location enforced within {activeSession.radius}m</div>)}
+                            <p className="text-xs text-muted-foreground mt-4">Session expires at {new Date(activeSession.expires_at).toLocaleTimeString()}</p>
                             <button onClick={handleEndSession} className="mt-6 bg-destructive text-destructive-foreground px-4 py-2 rounded-md font-semibold w-full hover:bg-destructive/90 transition-colors">End Session</button>
                         </div>
                         <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
@@ -230,11 +235,11 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                                     <div key={att.id} className="p-3 bg-secondary rounded-lg flex justify-between items-center text-sm animate-fade-in-up transition-colors hover:bg-secondary/80">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
-                                                {att.portal_users.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                                                {att.portal_users?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '?'}
                                             </div>
                                             <div>
-                                                <p className="font-semibold">{att.portal_users.name}</p>
-                                                <p className="text-xs text-muted-foreground font-mono">{att.portal_users.enrollment_id}</p>
+                                                <p className="font-semibold">{att.portal_users?.name || 'Loading...'}</p>
+                                                <p className="text-xs text-muted-foreground font-mono">{att.portal_users?.enrollment_id || '...'}</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 text-muted-foreground text-xs"><Clock size={12}/><span>{new Date(att.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><CheckCircle size={16} className="text-green-500 ml-2"/></div>
@@ -244,7 +249,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-card border border-border rounded-xl p-6 max-w-lg mx-auto"><h2 className="text-2xl font-bold mb-6 text-center">Start New Session</h2><div className="space-y-6">
+                    <div className="bg-card border border-border rounded-xl p-6 max-w-lg mx-auto animate-fade-in-up"><h2 className="text-2xl font-bold mb-6 text-center">Start New Session</h2><div className="space-y-6">
                         <div className="flex items-center justify-between p-4 bg-secondary rounded-lg"><label htmlFor="loc-check" className="font-semibold flex items-center gap-2 cursor-pointer"><ShieldCheck className="text-primary"/> Enforce Location Verification</label><label className="relative inline-flex items-center cursor-pointer"><input type="checkbox" checked={locationEnforced} onChange={e => setLocationEnforced(e.target.checked)} id="loc-check" className="sr-only peer" /><div className="w-11 h-6 bg-input peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div></label></div>
                         {locationEnforced && (
                             <div className="p-4 bg-secondary rounded-lg animate-fade-in-up">
@@ -261,7 +266,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                                 </div>
                             </div>
                         )}
-                        <button onClick={startSession} disabled={startingSession} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-primary/90 transition-colors text-lg">{startingSession ? <Loader className="animate-spin"/> : <><Smartphone/> Start Session</>}</button>
+                        <button onClick={startSession} disabled={startingSession || (locationEnforced && isFetchingLocation)} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-primary/90 transition-colors text-lg">{startingSession ? <Loader className="animate-spin"/> : <><Smartphone/> Start Session</>}</button>
                     </div></div>
                 )}
             </main>
@@ -280,6 +285,7 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
         try {
             const { data: session, error: sessionError } = await supabase!.from('portal_sessions').select('*').eq('session_code', code).eq('is_active', true).single();
             if (sessionError || !session) throw new Error("Invalid or expired session code.");
+            if (new Date(session.expires_at) < new Date()) throw new Error("This session has expired.");
             
             if (session.location_enforced) {
                 const position = await new Promise<GeolocationPosition>((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000, enableHighAccuracy: true }));
@@ -309,7 +315,7 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                 </div>
             </header>
              <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
-                 <div className="bg-card border border-border rounded-xl p-8 w-full max-w-sm text-center">
+                 <div className="bg-card border border-border rounded-xl p-8 w-full max-w-sm text-center animate-fade-in-up">
                     <h2 className="text-2xl font-bold mb-2">Mark Your Attendance</h2><p className="text-muted-foreground mb-6">Enter the 6-digit code provided by your teacher.</p>
                     <form onSubmit={handleCheckIn}>
                         <input type="text" value={code} onChange={e => setCode(e.target.value.replace(/[^0-9]/g, ''))} placeholder="000000" className="w-full bg-input text-4xl text-center tracking-[0.5em] font-mono border-border rounded-lg p-4 mb-6 focus:ring-2 focus:ring-ring focus:border-transparent" maxLength={6} disabled={checkingIn} autoFocus/>
@@ -343,7 +349,6 @@ const StudentTeacherPortal: React.FC = () => {
             const currentUser = session?.user ?? null;
             setUser(currentUser);
             if (currentUser) {
-                // Fetch profile only if user exists
                 const fetchProfile = async () => {
                     const { data } = await supabase!.from('portal_users').select('*').eq('id', currentUser.id).single();
                     setProfile(data);

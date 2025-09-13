@@ -15,11 +15,12 @@ import LandingPage from './components/LandingPage';
 import AboutPage from './components/AboutPage';
 import { HelpPage } from './components/HelpPage';
 import InspirationPage from './components/InspirationPage';
+import { Section } from './components/Section';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon, ImageIcon, Trash2 } from 'lucide-react';
 import { updateSupabaseCredentials, getSupabaseCredentials, connectionStatus as supabaseConnectionStatus } from './components/supabase-config';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
-  MoodEntry, Expense, Goal, KanbanItem, Class, Student, Attendance
+  MoodEntry, Expense, Goal, KanbanItem
 } from './types';
 import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
 
@@ -30,7 +31,6 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
     try {
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item, (k, v) => {
-        // A reviver function to restore dates
         if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v)) {
           return new Date(v);
         }
@@ -101,11 +101,6 @@ const App: React.FC = () => {
   
   // Search Palette State
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-  // Attendance Manager State
-  const [classes, setClasses] = usePersistentState<Class[]>('maven-classes', []);
-  const [students, setStudents] = usePersistentState<Student[]>('maven-students', []);
-  const [attendance, setAttendance] = usePersistentState<Attendance>('maven-attendance', {});
   
   // App Load State
   const [hasEntered, setHasEntered] = useState(sessionStorage.getItem('maven-has-entered') === 'true');
@@ -183,7 +178,6 @@ const App: React.FC = () => {
     sessionStorage.removeItem('maven-has-entered');
   };
   
-    // Effect to load the preview for settings page
   useEffect(() => {
     let objectUrl: string | null = null;
     const loadPreview = async () => {
@@ -201,7 +195,7 @@ const App: React.FC = () => {
                 setInspirationImagePreview(null);
             }
         } else {
-            setInspirationImagePreview(null); // No image set
+            setInspirationImagePreview(null);
         }
     };
     loadPreview();
@@ -234,7 +228,6 @@ const App: React.FC = () => {
     const pageToDelete = pages.find(p => p.id === id);
     if (!pageToDelete) return;
     
-    // Delete associated banner from IndexedDB if it exists
     if (pageToDelete.bannerUrl && !pageToDelete.bannerUrl.startsWith('data:')) {
         try {
             await deleteBannerData(pageToDelete.bannerUrl);
@@ -261,13 +254,11 @@ const App: React.FC = () => {
     const existingEntry = journalEntries.find(e => e.date === date);
     if (existingEntry) {
       if (content.trim() === '') {
-        // If content is empty, delete the entry
         onDeleteJournal(date);
       } else {
         setJournalEntries(prev => prev.map(e => e.date === date ? { ...e, content } : e));
       }
     } else if (content.trim() !== '') {
-      // Create new entry only if content is not empty
       const newEntry: JournalEntry = { id: crypto.randomUUID(), date, content, createdAt: new Date() };
       setJournalEntries(prev => [...prev, newEntry]);
     }
@@ -403,9 +394,7 @@ const App: React.FC = () => {
     if (!card || !sourceColId) return `Card "${cardText}" not found.`;
     if (sourceColId === targetColId) return `Card "${card.text}" is already in "${targetColumn}".`;
 
-    // Remove from source
     const newSourceItems = kanbanColumns[sourceColId as keyof KanbanState].items.filter(i => i.id !== card!.id);
-    // Add to target
     const newTargetItems = [...kanbanColumns[targetColId as keyof KanbanState].items, card];
 
     setKanbanColumns(prev => ({
@@ -486,7 +475,6 @@ const App: React.FC = () => {
             return;
         }
 
-        // Visual spinning effect
         setIsDecisionSpinning(true);
         setDecisionResult('');
         let spins = 0;
@@ -576,14 +564,12 @@ const App: React.FC = () => {
     return `❝ Quote added to your collection.`;
   };
 
-  // Pomodoro Handlers
   const onTogglePomodoro = () => setPomodoroActive(prev => !prev);
   const onResetPomodoro = () => {
     setPomodoroActive(false);
     setPomodoroTime(25 * 60);
   };
   
-  // Decision Maker Handlers
   const onAddDecisionOption = (option: string) => {
     if (option.trim() && !decisionOptions.includes(option.trim())) {
       setDecisionOptions(prev => [...prev, option.trim()]);
@@ -604,108 +590,6 @@ const App: React.FC = () => {
     return "All decision options have been cleared.";
   };
   
-  // Attendance Manager Handlers
-  const onAddClass = (name: string) => {
-    if (name.trim()) {
-        const newClass: Class = { id: crypto.randomUUID(), name: name.trim() };
-        setClasses(prev => [...prev, newClass]);
-    }
-  };
-
-  const onDeleteClass = (id: string) => {
-    // Also delete students and attendance records associated with this class
-    const studentIdsToDelete = students.filter(s => s.classId === id).map(s => s.id);
-    setStudents(prev => prev.filter(s => s.classId !== id));
-    setAttendance(prev => {
-        const newAttendance: Attendance = {};
-        for (const date in prev) {
-            newAttendance[date] = {};
-            for (const studentId in prev[date]) {
-                if (!studentIdsToDelete.includes(studentId)) {
-                    newAttendance[date][studentId] = prev[date][studentId];
-                }
-            }
-            if (Object.keys(newAttendance[date]).length === 0) {
-                delete newAttendance[date];
-            }
-        }
-        return newAttendance;
-    });
-    setClasses(prev => prev.filter(c => c.id !== id));
-  };
-  
-  const onAddStudent = (name: string, enrollment: string, classId: string) => {
-    if (name.trim() && enrollment.trim() && classId) {
-        const newStudent: Student = { id: crypto.randomUUID(), name: name.trim(), enrollment: enrollment.trim(), classId };
-        setStudents(prev => [...prev, newStudent]);
-    }
-  };
-  
-  const onAddStudentsBatch = (newStudents: { name: string; enrollment: string; classId: string }[]): string => {
-    const existingEnrollments = new Set(students.map(s => s.enrollment.toLowerCase()));
-    let addedCount = 0;
-    let skippedCount = 0;
-
-    const studentsToAdd: Student[] = [];
-
-    newStudents.forEach(s => {
-        if (!existingEnrollments.has(s.enrollment.toLowerCase())) {
-            studentsToAdd.push({ ...s, id: crypto.randomUUID() });
-            addedCount++;
-        } else {
-            skippedCount++;
-        }
-    });
-    
-    if (studentsToAdd.length > 0) {
-        setStudents(prev => [...prev, ...studentsToAdd]);
-    }
-
-    let message = `Import complete. Added ${addedCount} new students.`;
-    if (skippedCount > 0) {
-        message += ` Skipped ${skippedCount} duplicates.`;
-    }
-    return message;
-  };
-
-  const onDeleteStudent = (id: string) => {
-    setStudents(prev => prev.filter(s => s.id !== id));
-    // Also remove from attendance
-    setAttendance(prev => {
-        const newAttendance: Attendance = {};
-        for (const date in prev) {
-            if (prev[date][id]) {
-                const { [id]: _, ...rest } = prev[date];
-                if (Object.keys(rest).length > 0) {
-                    newAttendance[date] = rest;
-                }
-            } else {
-                newAttendance[date] = prev[date];
-            }
-        }
-        return newAttendance;
-    });
-  };
-  
-  const onSetAttendance = (date: string, studentId: string, status: 'Present' | 'Absent') => {
-    setAttendance(prev => {
-        const newAttendance = { ...prev };
-        if (!newAttendance[date]) {
-            newAttendance[date] = {};
-        }
-        // If the student is already marked with the same status, unmark them.
-        if (newAttendance[date][studentId] === status) {
-            delete newAttendance[date][studentId];
-             if (Object.keys(newAttendance[date]).length === 0) {
-                delete newAttendance[date];
-            }
-        } else {
-            newAttendance[date][studentId] = status;
-        }
-        return newAttendance;
-    });
-  };
-  
   // --- SETTINGS PAGE HANDLERS ---
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
@@ -713,7 +597,6 @@ const App: React.FC = () => {
     const result = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
     setSupabaseStatus({ configured: result.success, message: result.message });
     
-    // Use toasts for more visible feedback
     if (result.success && !result.message.includes("table not found")) {
         toast.success("Settings saved and Supabase connection is successful!");
     } else {
@@ -724,28 +607,10 @@ const App: React.FC = () => {
 
   const handleExportData = () => {
     const data = {
-        pages,
-        journalEntries,
-        tasks,
-        kanbanColumns,
-        quickNotes,
-        events,
-        habits,
-        personalQuotes,
-        moodEntries,
-        expenses,
-        goals,
-        pomodoroSessions,
-        decisionOptions,
-        theme,
-        isSidebarCollapsed,
-        isChatbotCollapsed,
-        googleAuthToken,
-        workspaceHistory,
-        classes,
-        students,
-        attendance,
-        inspirationImageId,
+        pages, journalEntries, tasks, kanbanColumns, quickNotes, events, habits,
+        personalQuotes, moodEntries, expenses, goals, pomodoroSessions,
+        decisionOptions, theme, isSidebarCollapsed, isChatbotCollapsed,
+        googleAuthToken, workspaceHistory, inspirationImageId,
     };
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
     const link = document.createElement("a");
@@ -766,10 +631,8 @@ const App: React.FC = () => {
             if (typeof text !== 'string') throw new Error("File could not be read");
             const data = JSON.parse(text);
 
-            // Basic validation
             if (!data.pages || !data.tasks) throw new Error("Invalid backup file format");
             
-            // This is a destructive action, so a confirmation is good practice
             if(window.confirm("Are you sure you want to overwrite all current data with this backup? This action cannot be undone.")){
                 setPages(data.pages || []);
                 setJournalEntries(data.journalEntries || []);
@@ -789,9 +652,6 @@ const App: React.FC = () => {
                 setIsChatbotCollapsed(data.isChatbotCollapsed || false);
                 setGoogleAuthToken(data.googleAuthToken || null);
                 setWorkspaceHistory(data.workspaceHistory || []);
-                setClasses(data.classes || []);
-                setStudents(data.students || []);
-                setAttendance(data.attendance || {});
                 setInspirationImageId(data.inspirationImageId || null);
                 
                 toast.success("Data imported successfully! The app will now reload.");
@@ -803,13 +663,13 @@ const App: React.FC = () => {
         }
     };
     reader.readAsText(file);
-    event.target.value = ''; // Reset input to allow re-uploading the same file
+    event.target.value = '';
   };
   
   const handleWipeData = () => {
     if (dataWipeConfirmation.toLowerCase() === 'delete my data') {
         localStorage.clear();
-        indexedDB.deleteDatabase('MavenDB'); // Also wipe IndexedDB
+        indexedDB.deleteDatabase('MavenDB');
         toast.success("All data has been wiped. The application will now reload.");
         setTimeout(() => window.location.reload(), 1500);
     } else {
@@ -820,13 +680,10 @@ const App: React.FC = () => {
   const handleInspirationImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     try {
-        // Delete old image if it exists
         if (inspirationImageId) {
             await deleteBannerData(inspirationImageId);
         }
-        
         const newImageId = `inspiration-${crypto.randomUUID()}`;
         await setBannerData(newImageId, file);
         setInspirationImageId(newImageId);
@@ -858,198 +715,132 @@ const App: React.FC = () => {
   }
   
   const renderView = () => {
-    switch(view) {
-      case 'notes':
-        return activePage ? (
-          <Editor
-            key={activePage.id}
-            page={activePage}
-            onUpdatePage={onUpdatePage}
-            onDeletePage={onDeletePage}
-            onNewPage={handleNewPage}
-          />
-        ) : <WelcomePlaceholder onNewPage={handleNewPage} />;
-      case 'dashboard':
-        return <MamDesk 
-            activeTab={activeDashboardTab}
-            tasks={tasks} onAddTask={(text) => { onAddTask(text); }} onToggleTask={(id) => setTasks(tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t))} onDeleteTask={(id) => setTasks(tasks.filter(t => t.id !== id))}
-            kanbanColumns={kanbanColumns} setKanbanColumns={setKanbanColumns} onAddKanbanCard={(colId, text) => {
-                const newItem: KanbanItem = { id: crypto.randomUUID(), text };
-                setKanbanColumns(prev => ({ ...prev, [colId]: { ...prev[colId as keyof KanbanState], items: [...prev[colId as keyof KanbanState].items, newItem] } }));
-            }}
-            quickNotes={quickNotes} setQuickNotes={setQuickNotes}
-            events={events} onAddEvent={(title, date, time) => { onAddEvent(title, date, time); }}
-            habits={habits} setHabits={setHabits}
-            personalQuotes={personalQuotes} setPersonalQuotes={setPersonalQuotes}
-            moodEntries={moodEntries} setMoodEntries={setMoodEntries}
-            expenses={expenses} setExpenses={setExpenses}
-            goals={goals} setGoals={setGoals}
-            pomodoroTime={pomodoroTime} pomodoroActive={pomodoroActive} pomodoroSessions={pomodoroSessions} onTogglePomodoro={onTogglePomodoro} onResetPomodoro={onResetPomodoro}
-            decisionOptions={decisionOptions} setDecisionOptions={setDecisionOptions} decisionResult={decisionResult} setDecisionResult={setDecisionResult} isDecisionSpinning={isDecisionSpinning} setIsDecisionSpinning={setIsDecisionSpinning} currentDecisionSpin={currentDecisionSpin} setCurrentDecisionSpin={setCurrentDecisionSpin}
-            theme={theme} setTheme={setTheme}
-            pages={pages}
-            classes={classes} students={students} attendance={attendance}
-            onAddClass={onAddClass} onDeleteClass={onDeleteClass} onAddStudent={onAddStudent} onDeleteStudent={onDeleteStudent} onSetAttendance={onSetAttendance} onAddStudentsBatch={onAddStudentsBatch}
-            onNewNote={handleNewPage}
-        />;
-      case 'journal':
-        return <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />;
-      case 'documind':
-        return <InteractiveMindMap />;
-      case 'workspace':
-        return <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
-      case 'academics':
-        return <AcademicView goals={goals} events={events} />;
-      case 'about':
-        return <AboutPage />;
-      case 'help':
-        return <div className="p-8 overflow-y-auto"><HelpPage /></div>;
-      case 'inspiration':
-        return <InspirationPage inspirationImageId={inspirationImageId} />;
-      case 'settings':
-         return (
-            <main className="flex-1 p-8 overflow-y-auto">
-                 {isDataWipeModalOpen && (
-                    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-card border border-destructive/50 rounded-xl shadow-2xl w-full max-w-lg p-6">
-                            <div className="text-center">
-                                <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4"/>
-                                <h2 className="text-xl font-bold text-foreground">Irreversible Action</h2>
-                                <p className="text-muted-foreground mt-2">
-                                    You are about to delete all of your data, including notes, tasks, and settings. This cannot be undone. To confirm, please type "<strong className="text-destructive">delete my data</strong>" below.
-                                </p>
-                            </div>
-                            <input
-                                type="text"
-                                value={dataWipeConfirmation}
-                                onChange={(e) => setDataWipeConfirmation(e.target.value)}
-                                className="w-full bg-input border-border rounded-md px-3 py-2 mt-4 text-center"
-                            />
-                            <div className="flex gap-4 mt-6">
-                                <button onClick={() => setIsDataWipeModalOpen(false)} className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-md">Cancel</button>
-                                <button onClick={handleWipeData} className="flex-1 bg-destructive text-destructive-foreground py-2 rounded-md">Confirm Deletion</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                <div className="max-w-4xl mx-auto space-y-8">
-                    <section className="bg-card border border-border rounded-xl p-6">
-                        <h2 className="text-2xl font-bold mb-1">API Configuration</h2>
-                        <p className="text-muted-foreground mb-6">Maven uses external services for AI features and the Student/Teacher portal. Your keys are stored securely in your browser and are never sent to our servers.</p>
-
-                        {/* Gemini AI Configuration */}
-                        <div className="p-4 border border-border rounded-lg mb-6">
-                            <h3 className="text-lg font-semibold flex items-center gap-2"><BrainCircuitIcon size={20} /> Google AI (Gemini)</h3>
-                            <p className="text-sm text-muted-foreground mt-1 mb-4">Required for all AI features, including the AI Assistant, AI Brain Dump, DocuMind explanations, and in-note commands.</p>
-                            
-                            <div>
+    const mainContent = (() => {
+      switch(view) {
+        case 'notes':
+          return activePage ? (
+            <Editor
+              key={activePage.id}
+              page={activePage}
+              onUpdatePage={onUpdatePage}
+              onDeletePage={onDeletePage}
+              onNewPage={handleNewPage}
+            />
+          ) : <WelcomePlaceholder onNewPage={handleNewPage} />;
+        case 'dashboard':
+          return <MamDesk 
+              activeTab={activeDashboardTab}
+              tasks={tasks} onAddTask={(text) => { onAddTask(text); }} onToggleTask={(id) => setTasks(tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t))} onDeleteTask={(id) => setTasks(tasks.filter(t => t.id !== id))}
+              kanbanColumns={kanbanColumns} setKanbanColumns={setKanbanColumns} onAddKanbanCard={(colId, text) => {
+                  const newItem: KanbanItem = { id: crypto.randomUUID(), text };
+                  setKanbanColumns(prev => ({ ...prev, [colId]: { ...prev[colId as keyof KanbanState], items: [...prev[colId as keyof KanbanState].items, newItem] } }));
+              }}
+              quickNotes={quickNotes} setQuickNotes={setQuickNotes}
+              events={events} onAddEvent={(title, date, time) => { onAddEvent(title, date, time); }}
+              habits={habits} setHabits={setHabits}
+              personalQuotes={personalQuotes} setPersonalQuotes={setPersonalQuotes}
+              moodEntries={moodEntries} setMoodEntries={setMoodEntries}
+              expenses={expenses} setExpenses={setExpenses}
+              goals={goals} setGoals={setGoals}
+              pomodoroTime={pomodoroTime} pomodoroActive={pomodoroActive} pomodoroSessions={pomodoroSessions} onTogglePomodoro={onTogglePomodoro} onResetPomodoro={onResetPomodoro}
+              decisionOptions={decisionOptions} setDecisionOptions={setDecisionOptions} decisionResult={decisionResult} setDecisionResult={setDecisionResult} isDecisionSpinning={isDecisionSpinning} setIsDecisionSpinning={setIsDecisionSpinning} currentDecisionSpin={currentDecisionSpin} setCurrentDecisionSpin={setCurrentDecisionSpin}
+              theme={theme} setTheme={setTheme}
+              pages={pages}
+              onNewNote={handleNewPage}
+          />;
+        case 'journal':
+          return <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />;
+        case 'documind':
+          return <InteractiveMindMap />;
+        case 'workspace':
+          return <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
+        case 'academics':
+          return <AcademicView goals={goals} events={events} />;
+        case 'about':
+          return <main className="flex-1 p-8 overflow-y-auto"><AboutPage /></main>;
+        case 'help':
+          return <main className="flex-1 p-8 overflow-y-auto"><HelpPage /></main>;
+        case 'inspiration':
+          return <InspirationPage inspirationImageId={inspirationImageId} />;
+        case 'settings':
+           return (
+              <main className="flex-1 p-8 overflow-y-auto">
+                   {isDataWipeModalOpen && (
+                      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                          <div className="bg-card border border-destructive/50 rounded-xl shadow-2xl w-full max-w-lg p-6">
+                              <div className="text-center">
+                                  <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4"/>
+                                  <h2 className="text-xl font-bold text-foreground">Irreversible Action</h2>
+                                  <p className="text-muted-foreground mt-2">
+                                      You are about to delete all of your data. This cannot be undone. To confirm, please type "<strong className="text-destructive">delete my data</strong>" below.
+                                  </p>
+                              </div>
+                              <input type="text" value={dataWipeConfirmation} onChange={(e) => setDataWipeConfirmation(e.target.value)} className="w-full bg-input border-border rounded-md px-3 py-2 mt-4 text-center"/>
+                              <div className="flex gap-4 mt-6">
+                                  <button onClick={() => setIsDataWipeModalOpen(false)} className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-md">Cancel</button>
+                                  <button onClick={handleWipeData} className="flex-1 bg-destructive text-destructive-foreground py-2 rounded-md">Confirm Deletion</button>
+                              </div>
+                          </div>
+                      </div>
+                  )}
+                  <div className="max-w-4xl mx-auto space-y-8">
+                      <Section title="API Configuration">
+                          <p className="text-card-foreground/80 -mt-4 mb-6">Maven uses external services for AI features and the Student/Teacher portal. Your keys are stored securely in your browser and are never sent to our servers.</p>
+                          <div className="space-y-6">
+                            <div className="p-4 border border-border rounded-lg">
+                                <h3 className="text-lg font-semibold flex items-center gap-2"><BrainCircuitIcon size={20} /> Google AI (Gemini)</h3>
+                                <p className="text-sm text-muted-foreground mt-1 mb-4">Required for all AI features like the AI Assistant, Brain Dump, and DocuMind.</p>
                                 <label className="block text-sm font-medium text-foreground/80 mb-1">Gemini API Key</label>
                                 <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Google Gemini API Key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
                             </div>
-                            
-                            <details className="mt-3 text-sm">
-                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Where can I find my API key?</summary>
-                                <p className="mt-2 text-foreground/80">You can create and manage your API keys from the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google AI Studio</a>. Remember to keep your key confidential.</p>
-                            </details>
-                        </div>
-
-                        {/* Supabase Configuration */}
-                        <div className="p-4 border border-border rounded-lg">
-                             <h3 className="text-lg font-semibold flex items-center gap-2"><UsersIcon size={20} /> Student/Teacher Portal (Supabase)</h3>
-                             <p className="text-sm text-muted-foreground mt-1 mb-4">Optional. Required only for the real-time Student/Teacher Portal. You will need to create a free Supabase project and run the provided SQL setup script.</p>
-                             
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
-                                 <div>
-                                    <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Project URL</label>
-                                    <input value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://your-project-id.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                            <div className="p-4 border border-border rounded-lg">
+                                 <h3 className="text-lg font-semibold flex items-center gap-2"><UsersIcon size={20} /> Portal (Supabase)</h3>
+                                 <p className="text-sm text-muted-foreground mt-1 mb-4">Optional. For the real-time Student/Teacher Portal. Requires a free Supabase project.</p>
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                                     <div>
+                                        <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Project URL</label>
+                                        <input value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://your-project-id.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                                     </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
+                                        <div className="relative"><input type={showSupabaseKey ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="Enter your Supabase anon (public) key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm pr-10" /><button type="button" onClick={() => setShowSupabaseKey(!showSupabaseKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground">{showSupabaseKey ? <EyeOff size={16} /> : <Eye size={16} />}</button></div>
+                                      </div>
                                  </div>
-                                  <div>
-                                    <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
-                                    <div className="relative">
-                                      <input type={showSupabaseKey ? 'text' : 'password'} value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="Enter your Supabase anon (public) key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm pr-10" />
-                                      <button type="button" onClick={() => setShowSupabaseKey(!showSupabaseKey)} className="absolute inset-y-0 right-0 px-3 flex items-center text-muted-foreground">
-                                        {showSupabaseKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                                      </button>
-                                    </div>
-                                  </div>
-                             </div>
-                             <div className={`text-xs p-2 rounded-md ${supabaseStatus.configured ? 'bg-green-500/20 text-green-300' : 'bg-amber-500/20 text-amber-300'}`}>
-                                <strong>Status:</strong> {supabaseStatus.message}
-                             </div>
-                        </div>
-                        
-                        <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors">
-                            {isSavingSettings ? <><Loader className="animate-spin" size={20}/> Testing & Saving...</> : <><Save size={16} /> Save Credentials</>}
-                        </button>
-                    </section>
-
-                     <section className="bg-card border border-border rounded-xl p-6">
-                        <h2 className="text-2xl font-bold mb-4">Appearance</h2>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                            {(['theme-dark', 'theme-light', 'theme-jetblack', 'theme-midlight', 'theme-midnight'] as const).map(t => (
-                                <button key={t} onClick={() => setTheme(t)} className={`h-20 rounded-lg border-2 ${theme === t ? 'border-primary' : 'border-border'}`}>
-                                    <div className={`w-full h-full p-2 ${t} rounded-md`}>
-                                        <div className="w-full h-full bg-background rounded-sm flex flex-col items-center justify-center">
-                                            <p className="text-xs font-semibold capitalize text-foreground">{t.split('-')[1]}</p>
-                                        </div>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </section>
-                    
-                     <section className="bg-card border border-border rounded-xl p-6">
-                        <h2 className="text-2xl font-bold mb-4">Inspiration Image</h2>
-                         <p className="text-muted-foreground mb-4">Set a custom image for the "Inspiration" page to personalize your workspace.</p>
-                        <div className="flex items-center gap-4">
-                            <div className="w-24 h-24 rounded-lg bg-secondary flex items-center justify-center">
-                                {inspirationImagePreview ? (
-                                    <img src={inspirationImagePreview} alt="Inspiration preview" className="w-full h-full object-cover rounded-lg"/>
-                                ) : (
-                                    <ImageIcon className="w-8 h-8 text-muted-foreground"/>
-                                )}
+                                 <div className={`text-xs p-2 rounded-md ${supabaseStatus.configured ? 'bg-green-500/20 text-green-300' : 'bg-amber-500/20 text-amber-300'}`}><strong>Status:</strong> {supabaseStatus.message}</div>
                             </div>
-                            <div className="flex-1 space-y-2">
-                                <label className="w-full text-center cursor-pointer bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold block">
-                                    <input type="file" onChange={handleInspirationImageUpload} accept="image/*" className="hidden"/>
-                                    Upload New Image
-                                </label>
-                                 <button onClick={handleRemoveInspirationImage} disabled={!inspirationImageId} className="w-full bg-secondary disabled:opacity-50 px-4 py-2 rounded-md text-sm font-semibold">
-                                    Remove Image
-                                </button>
-                            </div>
-                        </div>
-                    </section>
+                          </div>
+                          <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50"><Save size={16} /> {isSavingSettings ? 'Saving...' : 'Save Credentials'}</button>
+                      </Section>
+  
+                      <Section title="Appearance">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                              {(['theme-dark', 'theme-light', 'theme-jetblack', 'theme-midlight', 'theme-midnight'] as const).map(t => (
+                                  <button key={t} onClick={() => setTheme(t)} className={`h-20 rounded-lg border-2 ${theme === t ? 'border-primary' : 'border-border'}`}><div className={`w-full h-full p-2 ${t} rounded-md`}><div className="w-full h-full bg-background rounded-sm flex flex-col items-center justify-center"><p className="text-xs font-semibold capitalize text-foreground">{t.split('-')[1]}</p></div></div></button>
+                              ))}
+                          </div>
+                      </Section>
 
-                    <section className="bg-card border border-destructive/20 rounded-xl p-6">
-                        <h2 className="text-2xl font-bold text-destructive mb-4">Danger Zone</h2>
+                      <Section title="Inspiration Image">
+                          <p className="text-card-foreground/80 -mt-4 mb-4">Set a custom image for the "Inspiration" page.</p>
+                          <div className="flex items-center gap-4"><div className="w-24 h-24 rounded-lg bg-secondary flex items-center justify-center">{inspirationImagePreview ? <img src={inspirationImagePreview} alt="Inspiration preview" className="w-full h-full object-cover rounded-lg"/> : <ImageIcon className="w-8 h-8 text-muted-foreground"/>}</div><div className="flex-1 space-y-2"><label className="w-full text-center cursor-pointer bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold block"><input type="file" onChange={handleInspirationImageUpload} accept="image/*" className="hidden"/>Upload Image</label><button onClick={handleRemoveInspirationImage} disabled={!inspirationImageId} className="w-full bg-secondary disabled:opacity-50 px-4 py-2 rounded-md text-sm font-semibold">Remove</button></div></div>
+                      </Section>
+  
+                      <Section title="Danger Zone">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="p-4 bg-secondary rounded-lg">
-                                <h3 className="font-semibold">Export Data</h3>
-                                <p className="text-xs text-muted-foreground mb-2">Download a JSON backup of all your local data.</p>
-                                <button onClick={handleExportData} className="w-full bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold">Export</button>
-                            </div>
-                            <div className="p-4 bg-secondary rounded-lg">
-                                <h3 className="font-semibold">Import Data</h3>
-                                <p className="text-xs text-muted-foreground mb-2">Import a backup file. This will overwrite all current data.</p>
-                                <label className="w-full block cursor-pointer bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold text-center">
-                                    <input type="file" onChange={handleImportData} accept=".json" className="hidden"/>
-                                    Import
-                                </label>
-                            </div>
-                             <div className="p-4 bg-secondary rounded-lg">
-                                <h3 className="font-semibold text-destructive">Wipe All Data</h3>
-                                <p className="text-xs text-muted-foreground mb-2">Permanently delete all data from this browser.</p>
-                                <button onClick={() => setIsDataWipeModalOpen(true)} className="w-full bg-destructive/20 hover:bg-destructive/30 text-destructive px-3 py-1.5 rounded-md text-sm font-semibold">Wipe Data</button>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-            </main>
-        );
-      default:
-        return <WelcomePlaceholder onNewPage={handleNewPage} />;
-    }
+                              <div className="p-4 bg-secondary rounded-lg"><h3 className="font-semibold">Export Data</h3><p className="text-xs text-muted-foreground mb-2">Download a JSON backup of all local data.</p><button onClick={handleExportData} className="w-full bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold">Export</button></div>
+                              <div className="p-4 bg-secondary rounded-lg"><h3 className="font-semibold">Import Data</h3><p className="text-xs text-muted-foreground mb-2">Overwrite all data with a backup file.</p><label className="w-full block cursor-pointer bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold text-center"><input type="file" onChange={handleImportData} accept=".json" className="hidden"/>Import</label></div>
+                               <div className="p-4 bg-destructive/10 rounded-lg"><h3 className="font-semibold text-destructive">Wipe All Data</h3><p className="text-xs text-muted-foreground mb-2">Permanently delete all local data.</p><button onClick={() => setIsDataWipeModalOpen(true)} className="w-full bg-destructive/20 hover:bg-destructive/30 text-destructive px-3 py-1.5 rounded-md text-sm font-semibold">Wipe Data</button></div>
+                          </div>
+                      </Section>
+                  </div>
+              </main>
+          );
+        default:
+          return <WelcomePlaceholder onNewPage={handleNewPage} />;
+      }
+    })();
+
+    return <div key={view} className="flex-1 flex flex-col min-w-0 animate-fade-in-up">{mainContent}</div>;
   }
 
   return (
@@ -1113,6 +904,15 @@ const App: React.FC = () => {
         pages={pages}
         onSelectPage={onSelectPage}
       />
+       <style>{`
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fade-in-up 0.5s ease-out forwards;
+        }
+    `}</style>
     </div>
   );
 };

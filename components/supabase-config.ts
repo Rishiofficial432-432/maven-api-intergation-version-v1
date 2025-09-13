@@ -332,7 +332,8 @@ export const updateSupabaseCredentials = async (url: string, key: string): Promi
 
         if (error && error.code !== '42P01') { // 42P01 means table doesn't exist.
             console.error("Supabase connection test failed:", error);
-            connectionStatus = { configured: false, message: `Connection failed: ${error.message}. Check URL, Key, and RLS policies.` };
+            const errorMessage = typeof error.message === 'string' ? error.message : 'An unknown database error occurred. Check the console for details.';
+            connectionStatus = { configured: false, message: `Connection failed: ${errorMessage}. Check URL, Key, and RLS policies.` };
             supabase = null;
             isSupabaseConfigured = false;
             return { success: false, message: connectionStatus.message };
@@ -347,10 +348,28 @@ export const updateSupabaseCredentials = async (url: string, key: string): Promi
         connectionStatus = { configured: true, message: successMessage };
         return { success: true, message: successMessage };
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error("A critical error occurred during Supabase connection test:", e);
-        const errorMessage = e.message || 'An unknown network error occurred. Check your internet connection and CORS settings in Supabase.';
-        connectionStatus = { configured: false, message: `Connection failed: ${errorMessage}` };
+
+        let detail = 'An unknown error occurred.';
+
+        if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string' && (e as { message: string }).message) {
+            // Prioritize checking for a non-empty string message property. This handles most error objects.
+            detail = (e as { message: string }).message;
+        } else if (e instanceof Error) {
+            // Fallback for Error instances, converting message to string defensively.
+            detail = String(e.message);
+        } else if (typeof e === 'string' && e) {
+            // Handle if the error thrown is just a string.
+            detail = e;
+        }
+
+        // Final sanity check to avoid '[object Object]' and provide a better default user-facing message.
+        if (detail.toLowerCase().includes('[object object]') || detail.trim() === '') {
+             detail = 'An unknown network error occurred. Please check your internet connection, Supabase URL, and CORS settings in your Supabase project.';
+        }
+            
+        connectionStatus = { configured: false, message: `Connection failed: ${detail}` };
         supabase = null;
         isSupabaseConfigured = false;
         return { success: false, message: connectionStatus.message };
