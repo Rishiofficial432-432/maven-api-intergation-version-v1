@@ -1,7 +1,4 @@
-
-
-
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Teacher, Subject, ClassInfo, Room, TimetableEntry } from '../types';
 import { Plus, Trash2, Wand2, Loader, Users, BookOpen, Building, UploadCloud, Download, ArrowRight } from 'lucide-react';
 import { useToast } from './Toast';
@@ -9,6 +6,8 @@ import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
 
 declare const XLSX: any;
+declare const html2canvas: any;
+declare const jspdf: any;
 
 const Scheduler: React.FC = () => {
     const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -17,7 +16,9 @@ const Scheduler: React.FC = () => {
     const [rooms, setRooms] = useState<Room[]>([]);
     const [timetable, setTimetable] = useState<TimetableEntry[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const toast = useToast();
+    const timetableRef = useRef<HTMLDivElement>(null);
 
     // State for room input form
     const [roomName, setRoomName] = useState('');
@@ -213,6 +214,47 @@ Your response must be a JSON object containing a single key "schedule", which is
             setIsLoading(false);
         }
     };
+    
+    const handleExportPdf = async () => {
+        const { jsPDF } = jspdf;
+        const input = timetableRef.current;
+        if (!input) {
+            toast.error("Timetable element not found.");
+            return;
+        }
+
+        setIsExporting(true);
+        toast.info("Preparing PDF, this may take a moment...");
+    
+        try {
+            const canvas = await html2canvas(input, {
+                scale: 2, // Higher scale for better quality
+                useCORS: true,
+                logging: false,
+                backgroundColor: null, // Use transparent background
+                windowWidth: input.scrollWidth,
+                windowHeight: input.scrollHeight
+            });
+    
+            const imgData = canvas.toDataURL('image/png');
+            // Use 'l' for landscape, 'pt' for points, and get dimensions from canvas
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'pt',
+                format: [canvas.width, canvas.height]
+            });
+    
+            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+            pdf.save('maven_timetable.pdf');
+            toast.success("Timetable exported to PDF!");
+    
+        } catch (error) {
+            console.error("Error exporting to PDF:", error);
+            toast.error("Failed to export timetable to PDF.");
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
 
     const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -294,43 +336,54 @@ Your response must be a JSON object containing a single key "schedule", which is
             </div>
 
             {timetableByClass && (
-                <div className="space-y-6 animate-fade-in-up">
-                    {Object.entries(timetableByClass).map(([className, entries]) => (
-                        <div key={className} className="bg-card border border-border rounded-xl p-6">
-                            <h2 className="text-2xl font-bold mb-4">Timetable for: <span className="text-primary">{className}</span></h2>
-                            <div className="overflow-x-auto">
-                                <table className="w-full border-collapse">
-                                    <thead>
-                                        <tr>
-                                            <th className="p-2 border border-border bg-secondary w-32">Time</th>
-                                            {weekdays.map(day => <th key={day} className="p-2 border border-border bg-secondary">{day}</th>)}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {timeSlots.map(slot => (
-                                            <tr key={slot}>
-                                                <td className="p-2 border border-border font-mono text-xs text-center bg-secondary">{slot}</td>
-                                                {weekdays.map(day => {
-                                                    const entry = entries.find(e => e.day === day && e.timeSlot === slot);
-                                                    return (
-                                                        <td key={day} className="p-2 border border-border text-center align-top h-24">
-                                                            {entry ? (
-                                                                <div className="bg-accent p-2 rounded-md text-xs text-left h-full">
-                                                                    <p className="font-bold">{entry.subjectName}</p>
-                                                                    <p className="text-muted-foreground">{entry.teacherName}</p>
-                                                                    <p className="text-muted-foreground">@{entry.roomName}</p>
-                                                                </div>
-                                                            ) : null}
-                                                        </td>
-                                                    );
-                                                })}
+                 <div className="animate-fade-in-up">
+                    <div className="flex justify-end mb-4">
+                        <button 
+                            onClick={handleExportPdf}
+                            disabled={isExporting}
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold text-sm hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {isExporting ? <><Loader className="animate-spin" size={16}/> Exporting...</> : <><Download size={16}/> Export to PDF</>}
+                        </button>
+                    </div>
+                    <div ref={timetableRef} className="space-y-6 bg-card p-4 rounded-xl">
+                        {Object.entries(timetableByClass).map(([className, entries]) => (
+                            <div key={className} className="bg-card border border-border rounded-xl p-6">
+                                <h2 className="text-2xl font-bold mb-4">Timetable for: <span className="text-primary">{className}</span></h2>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full border-collapse">
+                                        <thead>
+                                            <tr>
+                                                <th className="p-2 border border-border bg-secondary w-32">Time</th>
+                                                {weekdays.map(day => <th key={day} className="p-2 border border-border bg-secondary">{day}</th>)}
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {timeSlots.map(slot => (
+                                                <tr key={slot}>
+                                                    <td className="p-2 border border-border font-mono text-xs text-center bg-secondary">{slot}</td>
+                                                    {weekdays.map(day => {
+                                                        const entry = entries.find(e => e.day === day && e.timeSlot === slot);
+                                                        return (
+                                                            <td key={day} className="p-2 border border-border text-center align-top h-24">
+                                                                {entry ? (
+                                                                    <div className="bg-accent p-2 rounded-md text-xs text-left h-full">
+                                                                        <p className="font-bold">{entry.subjectName}</p>
+                                                                        <p className="text-muted-foreground">{entry.teacherName}</p>
+                                                                        <p className="text-muted-foreground">@{entry.roomName}</p>
+                                                                    </div>
+                                                                ) : null}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

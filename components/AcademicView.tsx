@@ -144,7 +144,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-accent/20 overflow-hidden">
+        <div className="flex-1 flex flex-col h-full bg-accent/20">
             <header className="p-4 border-b border-border/50 bg-card/80 backdrop-blur-sm flex-shrink-0">
                 <div className="flex items-center justify-between">
                      <h1 className="text-2xl font-bold flex items-center gap-3"><GraduationCap /> Academics Hub</h1>
