@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Page } from '../types';
 import CommandPalette from './AiToolbar';
@@ -219,13 +220,13 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage
     <div className="flex-1 flex flex-col h-full bg-background text-foreground overflow-hidden">
       <Banner page={page} onUpdatePage={onUpdatePage} />
       <div className="flex-1 flex flex-col overflow-y-auto">
-          <header className="px-8 md:px-16 lg:px-24 pt-8">
+          <header className="px-4 sm:px-6 md:px-8 pt-8">
             <input
               type="text"
               value={title}
               onChange={handleTitleChange}
               placeholder="Untitled Page"
-              className="w-full bg-transparent text-4xl font-bold focus:outline-none placeholder-muted-foreground/50"
+              className="w-full bg-transparent text-3xl sm:text-4xl font-bold focus:outline-none placeholder-muted-foreground/50"
             />
           </header>
           <div
@@ -233,12 +234,12 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage
             contentEditable
             onInput={handleContentChange}
             data-placeholder="Start writing, or press Cmd+K for AI..."
-            className="relative flex-1 w-full px-8 md:px-16 lg:px-24 py-6 bg-transparent text-foreground/90 focus:outline-none resize-none leading-8 editor-content prose prose-invert max-w-none"
+            className="relative flex-1 w-full px-4 sm:px-6 md:px-8 py-6 bg-transparent text-foreground/90 focus:outline-none resize-none leading-8 editor-content prose prose-invert max-w-none"
             aria-label="Page content"
           />
           <input type="file" ref={imageInputRef} onChange={handleImageUpload} className="hidden" accept="image/*" />
       </div>
-       <footer className="px-8 md:px-16 lg:px-24 py-4 border-t border-border/50 flex items-center justify-between">
+       <footer className="px-4 sm:px-6 md:px-8 py-4 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-2">
             <div className="flex items-center gap-2">
                 <button onClick={() => setCommandPaletteOpen(true)} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent text-accent-foreground rounded-md hover:bg-accent/80 transition-colors">
                     <Sparkles size={14}/> Ask AI

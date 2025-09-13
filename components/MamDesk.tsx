@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, X, Play, Pause, RotateCcw, Calendar, CheckSquare as CheckSquareIcon, List as ListIcon,
@@ -358,7 +359,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
    const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
 
   const Dashboard = () => (
-    <div className={`p-6 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6`}>
+    <div className={`grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6`}>
         <div className="lg:col-span-2 xl:col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className={`${cardClasses} p-4 text-center`}>
                 <h3 className="text-2xl font-bold">{tasks.filter(t => !t.completed).length}</h3>
@@ -381,28 +382,30 @@ export const MamDesk: React.FC<MamDeskProps> = ({
 );
 
   const Tasks = () => (
-    <div className={`p-6 ${cardClasses}`}>
-      <h2 className="text-xl font-bold mb-4">Tasks</h2>
-      <form onSubmit={handleTaskSubmit} className="flex gap-2 mb-4">
-        <input
-          type="text"
-          value={newTask}
-          onChange={(e) => setNewTask(e.target.value)}
-          placeholder="Add a new task..."
-          className="flex-1 bg-input border-border rounded-md px-3 py-2"
-        />
-        <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
-      </form>
-      <div className="space-y-2">
-        {tasks.map(task => (
-          <div key={task.id} className="flex items-center gap-3 p-2 bg-secondary rounded-md">
-            <button onClick={() => onToggleTask(task.id)}>
-              {task.completed ? <CheckSquare className="text-green-500" /> : <Square className="text-muted-foreground" />}
-            </button>
-            <span className={`flex-1 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>{task.text}</span>
-            <button onClick={() => onDeleteTask(task.id)} className="text-muted-foreground hover:text-destructive"><X size={16} /></button>
-          </div>
-        ))}
+    <div className={`${cardClasses}`}>
+      <h2 className="text-xl font-bold mb-4 p-6 border-b border-border">Tasks</h2>
+      <div className="p-6">
+        <form onSubmit={handleTaskSubmit} className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={newTask}
+            onChange={(e) => setNewTask(e.target.value)}
+            placeholder="Add a new task..."
+            className="flex-1 bg-input border-border rounded-md px-3 py-2"
+          />
+          <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
+        </form>
+        <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+          {tasks.map(task => (
+            <div key={task.id} className="flex items-center gap-3 p-2 bg-secondary rounded-md">
+              <button onClick={() => onToggleTask(task.id)}>
+                {task.completed ? <CheckSquare className="text-green-500" /> : <Square className="text-muted-foreground" />}
+              </button>
+              <span className={`flex-1 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>{task.text}</span>
+              <button onClick={() => onDeleteTask(task.id)} className="text-muted-foreground hover:text-destructive"><X size={16} /></button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -410,9 +413,9 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   const Kanban = () => (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {Object.entries(kanbanColumns).map(([colId, col]) => (
-        <div key={colId} className={`p-4 rounded-lg ${cardClasses}`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, colId)}>
-          <h3 className="font-bold mb-4 text-center">{col.name}</h3>
-          <div className="space-y-3 min-h-[100px]">
+        <div key={colId} className={`${cardClasses}`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, colId)}>
+          <h3 className="font-bold p-4 text-center border-b border-border">{col.name}</h3>
+          <div className="space-y-3 min-h-[100px] max-h-96 overflow-y-auto p-4">
             {col.items.map(item => (
               <div key={item.id} draggable onDragStart={(e) => handleDragStart(e, colId, item)} className="p-3 bg-secondary rounded-md cursor-grab active:cursor-grabbing flex items-center gap-2">
                 <GripVertical size={16} className="text-muted-foreground" />
@@ -420,7 +423,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
               </div>
             ))}
           </div>
-          <form onSubmit={(e) => handleKanbanSubmit(e, colId)} className="flex gap-2 mt-4">
+          <form onSubmit={(e) => handleKanbanSubmit(e, colId)} className="flex gap-2 p-4 border-t border-border">
             <input
               type="text"
               value={newKanbanTexts[colId as keyof typeof newKanbanTexts]}
@@ -437,9 +440,9 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   
   const CalendarComponent = () => {
     return (
-        <div className={`p-6 ${cardClasses}`}>
-            <h2 className="text-xl font-bold mb-4">Calendar - {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
-            <div className="space-y-2">
+        <div className={`${cardClasses}`}>
+            <h2 className="text-xl font-bold p-6 border-b border-border">Calendar - {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
+            <div className="space-y-2 p-6">
                 {events.length > 0 ? (
                     events
                         .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -458,44 +461,48 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   };
   
     const Pomodoro = () => (
-      <div className={`p-8 text-center ${cardClasses}`}>
-          <h2 className="text-2xl font-bold mb-4">Pomodoro Timer</h2>
-          <div className="text-7xl font-mono font-bold mb-6 tabular-nums">
-              {Math.floor(pomodoroTime / 60).toString().padStart(2, '0')}:
-              {(pomodoroTime % 60).toString().padStart(2, '0')}
+      <div className={`text-center ${cardClasses}`}>
+          <h2 className="text-2xl font-bold mb-4 p-6 border-b border-border">Pomodoro Timer</h2>
+          <div className="p-8">
+            <div className="text-7xl font-mono font-bold mb-6 tabular-nums">
+                {Math.floor(pomodoroTime / 60).toString().padStart(2, '0')}:
+                {(pomodoroTime % 60).toString().padStart(2, '0')}
+            </div>
+            <div className="flex justify-center gap-4">
+                <button onClick={onTogglePomodoro} className="w-24 bg-primary text-primary-foreground py-3 rounded-lg text-lg font-semibold flex items-center justify-center gap-2">
+                    {pomodoroActive ? <><Pause size={20}/> Pause</> : <><Play size={20}/> Start</>}
+                </button>
+                <button onClick={onResetPomodoro} className="w-24 bg-secondary py-3 rounded-lg text-lg font-semibold flex items-center justify-center gap-2">
+                    <RotateCcw size={20}/> Reset
+                </button>
+            </div>
+            <p className="mt-6 text-muted-foreground">Completed sessions: {pomodoroSessions}</p>
           </div>
-          <div className="flex justify-center gap-4">
-              <button onClick={onTogglePomodoro} className="w-24 bg-primary text-primary-foreground py-3 rounded-lg text-lg font-semibold flex items-center justify-center gap-2">
-                  {pomodoroActive ? <><Pause size={20}/> Pause</> : <><Play size={20}/> Start</>}
-              </button>
-              <button onClick={onResetPomodoro} className="w-24 bg-secondary py-3 rounded-lg text-lg font-semibold flex items-center justify-center gap-2">
-                  <RotateCcw size={20}/> Reset
-              </button>
-          </div>
-          <p className="mt-6 text-muted-foreground">Completed sessions: {pomodoroSessions}</p>
       </div>
   );
   
   const QuickNotes = () => (
-    <div className={`p-6 ${cardClasses}`}>
-        <h2 className="text-xl font-bold mb-4">Quick Notes</h2>
-        <form onSubmit={handleNoteSubmit} className="flex gap-2 mb-4">
-            <input
-                type="text"
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                placeholder="Jot down a quick thought..."
-                className="flex-1 bg-input border-border rounded-md px-3 py-2"
-            />
-            <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Save</button>
-        </form>
-        <div className="space-y-2">
-            {quickNotes.map(note => (
-                <div key={note.id} className="p-3 bg-secondary rounded-lg flex justify-between items-start">
-                    <p className="flex-1 pr-2">{note.text}</p>
-                    <button onClick={() => setQuickNotes(prev => prev.filter(n => n.id !== note.id))} className="text-muted-foreground hover:text-destructive"><X size={16}/></button>
-                </div>
-            ))}
+    <div className={`${cardClasses}`}>
+        <h2 className="text-xl font-bold p-6 border-b border-border">Quick Notes</h2>
+        <div className="p-6">
+            <form onSubmit={handleNoteSubmit} className="flex gap-2 mb-4">
+                <input
+                    type="text"
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    placeholder="Jot down a quick thought..."
+                    className="flex-1 bg-input border-border rounded-md px-3 py-2"
+                />
+                <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Save</button>
+            </form>
+            <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                {quickNotes.map(note => (
+                    <div key={note.id} className="p-3 bg-secondary rounded-lg flex justify-between items-start">
+                        <p className="flex-1 pr-2">{note.text}</p>
+                        <button onClick={() => setQuickNotes(prev => prev.filter(n => n.id !== note.id))} className="text-muted-foreground hover:text-destructive"><X size={16}/></button>
+                    </div>
+                ))}
+            </div>
         </div>
     </div>
   );
@@ -526,64 +533,66 @@ export const MamDesk: React.FC<MamDeskProps> = ({
     };
 
     return (
-        <div className={`p-6 ${cardClasses}`}>
-            <h2 className="text-xl font-bold mb-4">Habit Tracker</h2>
-            <form onSubmit={handleAddHabit} className="flex gap-2 mb-4">
-                <input
-                    type="text"
-                    value={newHabit}
-                    onChange={(e) => setNewHabit(e.target.value)}
-                    placeholder="Add a new habit..."
-                    className="flex-1 bg-input border-border rounded-md px-3 py-2"
-                />
-                <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
-            </form>
-             <div className="space-y-3">
-                {habits.map(habit => {
-                    const todayCompleted = habit.lastCompleted === new Date().toDateString();
-                    return (
-                         <div key={habit.id} className="p-3 bg-secondary rounded-lg flex justify-between items-center">
-                            <div>
-                                <p className="font-semibold">{habit.name}</p>
-                                <p className="text-sm text-muted-foreground">Streak: {habit.streak} days</p>
+        <div className={`${cardClasses}`}>
+            <h2 className="text-xl font-bold p-6 border-b border-border">Habit Tracker</h2>
+            <div className="p-6">
+                <form onSubmit={handleAddHabit} className="flex gap-2 mb-4">
+                    <input
+                        type="text"
+                        value={newHabit}
+                        onChange={(e) => setNewHabit(e.target.value)}
+                        placeholder="Add a new habit..."
+                        className="flex-1 bg-input border-border rounded-md px-3 py-2"
+                    />
+                    <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90">Add</button>
+                </form>
+                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                    {habits.map(habit => {
+                        const todayCompleted = habit.lastCompleted === new Date().toDateString();
+                        return (
+                             <div key={habit.id} className="p-3 bg-secondary rounded-lg flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">{habit.name}</p>
+                                    <p className="text-sm text-muted-foreground">Streak: {habit.streak} days</p>
+                                </div>
+                                <button 
+                                    onClick={() => handleToggleHabit(habit.id)}
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${todayCompleted ? 'bg-green-500 text-white' : 'bg-accent hover:bg-green-500/50'}`}
+                                >
+                                   <Check size={20} />
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => handleToggleHabit(habit.id)}
-                                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${todayCompleted ? 'bg-green-500 text-white' : 'bg-accent hover:bg-green-500/50'}`}
-                            >
-                               <Check size={20} />
-                            </button>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
 };
   
   const Personal = () => (
-    <div className={`p-6 grid grid-cols-1 md:grid-cols-2 gap-6`}>
+    <div className={`grid grid-cols-1 md:grid-cols-2 gap-6`}>
         <div className={`${cardClasses} p-4`}>
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Trophy size={20}/> Goals</h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                 {goals.map(g => <div key={g.id} className="p-2 bg-secondary rounded-md">{g.text}</div>)}
             </div>
         </div>
         <div className={`${cardClasses} p-4`}>
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Smile size={20}/> Mood Tracker</h3>
-             <div className="space-y-2">
-                {moodEntries.slice(0, 5).map(m => <div key={m.id} className="p-2 bg-secondary rounded-md">{m.date}: {m.mood}</div>)}
+             <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                {moodEntries.map(m => <div key={m.id} className="p-2 bg-secondary rounded-md">{m.date}: {m.mood}</div>)}
             </div>
         </div>
         <div className={`md:col-span-2 ${cardClasses} p-4`}>
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><DollarSign size={20}/> Recent Expenses</h3>
-             <div className="space-y-2">
-                {expenses.slice(0, 5).map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between"><span>{e.description} ({e.category})</span> <span>${e.amount.toFixed(2)}</span></div>)}
+             <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                {expenses.map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between"><span>{e.description} ({e.category})</span> <span>${e.amount.toFixed(2)}</span></div>)}
             </div>
         </div>
         <div className={`md:col-span-2 ${cardClasses} p-4`}>
              <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><QuoteIcon size={20}/> Personal Quotes</h3>
-             <div className="space-y-2 italic">
+             <div className="space-y-2 max-h-40 overflow-y-auto pr-2 italic">
                 {personalQuotes.map(q => <blockquote key={q.id} className="p-2 bg-secondary rounded-md border-l-4 border-primary">"{q.text}"</blockquote>)}
             </div>
         </div>
@@ -601,7 +610,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
       case 'decision': return <RandomDecisionMaker options={decisionOptions} setOptions={setDecisionOptions} result={decisionResult} setResult={setDecisionResult} isSpinning={isDecisionSpinning} setIsSpinning={setIsDecisionSpinning} currentSpin={currentDecisionSpin} setCurrentSpin={setCurrentDecisionSpin} />;
       case 'notes': return <QuickNotes />;
       case 'habits': return <HabitTracker />;
-      case 'analytics': return <div className={`p-6 ${cardClasses}`}><h2 className="text-xl font-bold">Analytics</h2><p className="text-muted-foreground">Coming soon!</p></div>;
+      case 'analytics': return <div className={`${cardClasses} p-6`}><h2 className="text-xl font-bold">Analytics</h2><p className="text-muted-foreground">Coming soon!</p></div>;
       case 'personal': return <Personal />;
       default: return <Dashboard />;
     }

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { JournalEntry } from '../types';
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
@@ -67,7 +66,7 @@ const JournalView: React.FC<JournalViewProps> = ({ entries, onUpdate, onDelete }
         const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
         return [...blanks, ...days].map((day, index) => {
-            if (!day) return <div key={`blank-${index}`} className="w-10 h-10"></div>;
+            if (!day) return <div key={`blank-${index}`} className="w-8 h-8 sm:w-10 sm:h-10"></div>;
             
             const dayDate = new Date(year, month, day);
             const dayString = formatDateToYYYYMMDD(dayDate);
@@ -79,7 +78,7 @@ const JournalView: React.FC<JournalViewProps> = ({ entries, onUpdate, onDelete }
                 <button
                     key={day}
                     onClick={() => setSelectedDate(dayDate)}
-                    className={`w-10 h-10 rounded-full flex items-center justify-center relative transition-colors text-sm
+                    className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center relative transition-colors text-sm
                         ${isSelected ? 'bg-primary text-primary-foreground font-bold' : ''}
                         ${!isSelected && isToday ? 'bg-accent text-accent-foreground' : ''}
                         ${!isSelected && !isToday ? 'hover:bg-accent' : ''}
@@ -97,27 +96,27 @@ const JournalView: React.FC<JournalViewProps> = ({ entries, onUpdate, onDelete }
     };
 
     return (
-        <div className="flex-1 flex h-full bg-background overflow-hidden">
-            <aside className="w-80 border-r border-border p-4 flex flex-col">
+        <div className="flex-1 flex flex-col md:flex-row h-full bg-background overflow-hidden">
+            <aside className="w-full md:w-80 md:flex-shrink-0 border-b md:border-b-0 md:border-r border-border p-4 flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                     <button onClick={() => changeMonth(-1)} className="p-2 rounded-md hover:bg-accent"><ChevronLeft className="w-5 h-5" /></button>
                     <h2 className="font-semibold text-lg">{currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
                     <button onClick={() => changeMonth(1)} className="p-2 rounded-md hover:bg-accent"><ChevronRight className="w-5 h-5" /></button>
                 </div>
                 <div className="grid grid-cols-7 gap-y-2 place-items-center text-sm text-muted-foreground mb-2">
-                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => <div key={d} className="w-10 h-10 flex items-center justify-center">{d}</div>)}
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => <div key={d} className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center">{d}</div>)}
                 </div>
                 <div className="grid grid-cols-7 gap-y-2 place-items-center">
                     {generateCalendar()}
                 </div>
             </aside>
-            <main className="flex-1 flex flex-col p-6 sm:p-8 overflow-y-auto">
-                 <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-3xl font-bold text-foreground">
+            <main className="flex-1 flex flex-col p-4 sm:p-6 md:p-8 overflow-y-auto">
+                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
                         {selectedDate.toLocaleDateString('default', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                     </h1>
                     {activeEntry && (
-                         <button onClick={handleDelete} className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors">
+                         <button onClick={handleDelete} className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors flex-shrink-0">
                             <Trash2 className="w-4 h-4" />
                             Delete Entry
                         </button>

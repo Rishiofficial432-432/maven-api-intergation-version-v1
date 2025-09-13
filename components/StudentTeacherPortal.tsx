@@ -227,7 +227,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                     <div className="max-w-2xl mx-auto bg-card border-border rounded-xl p-6 animate-fade-in-up">
                         <h2 className="text-xl font-bold mb-4">Pending Student Approvals</h2>
                         {loadingApprovals ? <Loader className="animate-spin mx-auto"/> : pendingStudents.length === 0 ? <p className="text-muted-foreground">No students are currently waiting for approval.</p> : (
-                            <div className="space-y-3">{pendingStudents.map(student => (
+                            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">{pendingStudents.map(student => (
                                 <div key={student.id} className="p-3 bg-secondary rounded-lg flex justify-between items-center">
                                     <div>
                                         <p className="font-semibold">{student.name}</p>
@@ -247,7 +247,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                             <span className="mt-2 text-sm font-semibold">Click to upload or drag and drop</span>
                             <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploadingFile} />
                         </label>
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
                              {curriculumFiles.map(file => (
                                 <div key={file.id} className="p-3 bg-secondary rounded-lg flex justify-between items-center">
                                     <div className="flex items-center gap-3"><FileText size={18}/><div><p className="font-semibold text-sm">{file.fileName}</p><p className="text-xs text-muted-foreground">Uploaded by {file.teacherName} on {new Date(file.createdAt).toLocaleDateString()}</p></div></div>
@@ -318,7 +318,7 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                  {activeTab === 'curriculum' && (
                      <div className="w-full max-w-2xl bg-card border-border rounded-xl p-6 self-start animate-fade-in-up">
                          <h2 className="text-xl font-bold mb-4">Available Curriculum Files</h2>
-                         <div className="space-y-2">
+                         <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-2">
                             {curriculumFiles.length === 0 ? <p className="text-muted-foreground text-center">No files have been uploaded by teachers yet.</p> : curriculumFiles.map(file => (
                                 <div key={file.id} className="p-3 bg-secondary rounded-lg flex justify-between items-center">
                                     <div className="flex items-center gap-3"><FileText size={18}/><div><p className="font-semibold text-sm">{file.fileName}</p><p className="text-xs text-muted-foreground">Uploaded by {file.teacherName} on {new Date(file.createdAt).toLocaleDateString()}</p></div></div>
