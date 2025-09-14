@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, X, Play, Pause, RotateCcw, Calendar, CheckSquare as CheckSquareIcon, List as ListIcon,
@@ -617,10 +618,8 @@ export const MamDesk: React.FC<MamDeskProps> = ({
   };
 
   return (
-    <main className="flex-1 flex flex-col bg-accent/20 overflow-y-auto p-4 sm:p-6 lg:p-8">
-      <div className="space-y-6">
-        {renderContent()}
-      </div>
-    </main>
+    <div className="space-y-6">
+      {renderContent()}
+    </div>
   );
 };

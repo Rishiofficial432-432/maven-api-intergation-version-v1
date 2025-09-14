@@ -710,20 +710,32 @@ const App: React.FC = () => {
   }
   
   const renderView = () => {
-    const mainContent = (() => {
-      switch(view) {
-        case 'notes':
-          return activePage ? (
-            <Editor
-              key={activePage.id}
-              page={activePage}
-              onUpdatePage={onUpdatePage}
-              onDeletePage={onDeletePage}
-              onNewPage={handleNewPage}
-            />
-          ) : <WelcomePlaceholder onNewPage={handleNewPage} />;
-        case 'dashboard':
-          return <MamDesk 
+    // These are full-height "app" views that manage their own complex layouts and scrolling.
+    const appViews: View[] = ['notes', 'journal', 'documind', 'workspace', 'academics'];
+    
+    // These are "content" pages that will be placed inside a standard scrolling container.
+    const pageViews: View[] = ['dashboard', 'about', 'help', 'settings', 'inspiration'];
+
+    // Render "app" views directly; they are responsible for their own layout.
+    if (appViews.includes(view)) {
+      const AppViewComponent = {
+        notes: activePage ? (
+          <Editor key={activePage.id} page={activePage} onUpdatePage={onUpdatePage} onDeletePage={onDeletePage} onNewPage={handleNewPage}/>
+        ) : (
+          <WelcomePlaceholder onNewPage={handleNewPage} />
+        ),
+        journal: <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />,
+        documind: <InteractiveMindMap />,
+        workspace: <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />,
+        academics: <AcademicView goals={goals} events={events} onNewNote={handleNewPage} onAddCalendarItem={onAddCalendarItem} />,
+      }[view];
+      return AppViewComponent;
+    }
+
+    // Render "content" pages within a standardized scrolling layout container.
+    if (pageViews.includes(view)) {
+      const PageComponent = {
+        dashboard: <MamDesk 
               activeTab={activeDashboardTab}
               tasks={tasks} onAddTask={(text) => { onAddTask(text); }} onToggleTask={(id) => setTasks(tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t))} onDeleteTask={(id) => setTasks(tasks.filter(t => t.id !== id))}
               kanbanColumns={kanbanColumns} setKanbanColumns={setKanbanColumns} onAddKanbanCard={(colId, text) => {
@@ -742,85 +754,73 @@ const App: React.FC = () => {
               theme={theme} setTheme={setTheme}
               pages={pages}
               onNewNote={handleNewPage}
-          />;
-        case 'journal':
-          return <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />;
-        case 'documind':
-          return <InteractiveMindMap />;
-        case 'workspace':
-          return <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
-        case 'academics':
-          return <AcademicView goals={goals} events={events} onNewNote={handleNewPage} onAddCalendarItem={onAddCalendarItem} />;
-        case 'about':
-          return <main className="flex-1 p-8 overflow-y-auto"><AboutPage /></main>;
-        case 'help':
-          return <main className="flex-1 p-8 overflow-y-auto"><HelpPage /></main>;
-        case 'inspiration':
-          return <InspirationPage inspirationImageId={inspirationImageId} />;
-        case 'settings':
-           return (
-              <main className="flex-1 p-8 overflow-y-auto">
-                   {isDataWipeModalOpen && (
-                      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                          <div className="bg-card border border-destructive/50 rounded-xl shadow-2xl w-full max-w-lg p-6">
-                              <div className="text-center">
-                                  <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4"/>
-                                  <h2 className="text-xl font-bold text-foreground">Irreversible Action</h2>
-                                  <p className="text-muted-foreground mt-2">
-                                      You are about to delete all of your data. This cannot be undone. To confirm, please type "<strong className="text-destructive">delete my data</strong>" below.
-                                  </p>
-                              </div>
-                              <input type="text" value={dataWipeConfirmation} onChange={(e) => setDataWipeConfirmation(e.target.value)} className="w-full bg-input border-border rounded-md px-3 py-2 mt-4 text-center"/>
-                              <div className="flex gap-4 mt-6">
-                                  <button onClick={() => setIsDataWipeModalOpen(false)} className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-md">Cancel</button>
-                                  <button onClick={handleWipeData} className="flex-1 bg-destructive text-destructive-foreground py-2 rounded-md">Confirm Deletion</button>
-                              </div>
-                          </div>
-                      </div>
-                  )}
-                  <div className="max-w-4xl mx-auto space-y-8">
-                      <Section title="API Configuration">
-                          <p className="text-card-foreground/80 -mt-4 mb-6">Maven uses Google AI for its intelligent features. Your API key is stored securely in your browser and is never sent to our servers.</p>
-                          <div className="space-y-6">
-                            <div className="p-4 border border-border rounded-lg">
-                                <h3 className="text-lg font-semibold flex items-center gap-2"><BrainCircuitIcon size={20} /> Google AI (Gemini)</h3>
-                                <p className="text-sm text-muted-foreground mt-1 mb-4">Required for all AI features like the AI Assistant, Brain Dump, and DocuMind.</p>
-                                <label className="block text-sm font-medium text-foreground/80 mb-1">Gemini API Key</label>
-                                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Google Gemini API Key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
-                            </div>
-                          </div>
-                          <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50"><Save size={16} /> {isSavingSettings ? 'Saving...' : 'Save Credentials'}</button>
-                      </Section>
-  
-                      <Section title="Appearance">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                              {(['theme-dark', 'theme-light', 'theme-jetblack', 'theme-midlight', 'theme-midnight'] as const).map(t => (
-                                  <button key={t} onClick={() => setTheme(t)} className={`h-20 rounded-lg border-2 ${theme === t ? 'border-primary' : 'border-border'}`}><div className={`w-full h-full p-2 ${t} rounded-md`}><div className="w-full h-full bg-background rounded-sm flex flex-col items-center justify-center"><p className="text-xs font-semibold capitalize text-foreground">{t.split('-')[1]}</p></div></div></button>
-                              ))}
-                          </div>
-                      </Section>
-
-                      <Section title="Inspiration Image">
-                          <p className="text-card-foreground/80 -mt-4 mb-4">Set a custom image for the "Inspiration" page.</p>
-                          <div className="flex items-center gap-4"><div className="w-24 h-24 rounded-lg bg-secondary flex items-center justify-center">{inspirationImagePreview ? <img src={inspirationImagePreview} alt="Inspiration preview" className="w-full h-full object-cover rounded-lg"/> : <ImageIcon className="w-8 h-8 text-muted-foreground"/>}</div><div className="flex-1 space-y-2"><label className="w-full text-center cursor-pointer bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold block"><input type="file" onChange={handleInspirationImageUpload} accept="image/*" className="hidden"/>Upload Image</label><button onClick={handleRemoveInspirationImage} disabled={!inspirationImageId} className="w-full bg-secondary disabled:opacity-50 px-4 py-2 rounded-md text-sm font-semibold">Remove</button></div></div>
-                      </Section>
-  
-                      <Section title="Danger Zone">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="p-4 bg-secondary rounded-lg"><h3 className="font-semibold">Export Data</h3><p className="text-xs text-muted-foreground mb-2">Download a JSON backup of all local data.</p><button onClick={handleExportData} className="w-full bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold">Export</button></div>
-                              <div className="p-4 bg-secondary rounded-lg"><h3 className="font-semibold">Import Data</h3><p className="text-xs text-muted-foreground mb-2">Overwrite all data with a backup file.</p><label className="w-full block cursor-pointer bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold text-center"><input type="file" onChange={handleImportData} accept=".json" className="hidden"/>Import</label></div>
-                               <div className="p-4 bg-destructive/10 rounded-lg"><h3 className="font-semibold text-destructive">Wipe All Data</h3><p className="text-xs text-muted-foreground mb-2">Permanently delete all local data.</p><button onClick={() => setIsDataWipeModalOpen(true)} className="w-full bg-destructive/20 hover:bg-destructive/30 text-destructive px-3 py-1.5 rounded-md text-sm font-semibold">Wipe Data</button></div>
-                          </div>
-                      </Section>
-                  </div>
-              </main>
-          );
-        default:
-          return <WelcomePlaceholder onNewPage={handleNewPage} />;
-      }
-    })();
-
-    return <div key={view} className="flex-1 flex flex-col min-w-0 animate-fade-in-up">{mainContent}</div>;
+          />,
+        about: <AboutPage />,
+        help: <HelpPage />,
+        inspiration: <InspirationPage inspirationImageId={inspirationImageId} />,
+        settings: (
+          <div className="max-w-4xl mx-auto space-y-8">
+            <Section title="API Configuration">
+              <p className="text-card-foreground/80 -mt-4 mb-6">Maven uses Google AI for its intelligent features. Your API key is stored securely in your browser and is never sent to our servers.</p>
+              <div className="space-y-6">
+                <div className="p-4 border border-border rounded-lg">
+                    <h3 className="text-lg font-semibold flex items-center gap-2"><BrainCircuitIcon size={20} /> Google AI (Gemini)</h3>
+                    <p className="text-sm text-muted-foreground mt-1 mb-4">Required for all AI features like the AI Assistant, Brain Dump, and DocuMind.</p>
+                    <label className="block text-sm font-medium text-foreground/80 mb-1">Gemini API Key</label>
+                    <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Google Gemini API Key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50"><Save size={16} /> {isSavingSettings ? 'Saving...' : 'Save Credentials'}</button>
+            </Section>
+            <Section title="Appearance">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                  {(['theme-dark', 'theme-light', 'theme-jetblack', 'theme-midlight', 'theme-midnight'] as const).map(t => (
+                      <button key={t} onClick={() => setTheme(t)} className={`h-20 rounded-lg border-2 ${theme === t ? 'border-primary' : 'border-border'}`}><div className={`w-full h-full p-2 ${t} rounded-md`}><div className="w-full h-full bg-background rounded-sm flex flex-col items-center justify-center"><p className="text-xs font-semibold capitalize text-foreground">{t.split('-')[1]}</p></div></div></button>
+                  ))}
+              </div>
+            </Section>
+            <Section title="Inspiration Image">
+                <p className="text-card-foreground/80 -mt-4 mb-4">Set a custom image for the "Inspiration" page.</p>
+                <div className="flex items-center gap-4"><div className="w-24 h-24 rounded-lg bg-secondary flex items-center justify-center">{inspirationImagePreview ? <img src={inspirationImagePreview} alt="Inspiration preview" className="w-full h-full object-cover rounded-lg"/> : <ImageIcon className="w-8 h-8 text-muted-foreground"/>}</div><div className="flex-1 space-y-2"><label className="w-full text-center cursor-pointer bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold block"><input type="file" onChange={handleInspirationImageUpload} accept="image/*" className="hidden"/>Upload Image</label><button onClick={handleRemoveInspirationImage} disabled={!inspirationImageId} className="w-full bg-secondary disabled:opacity-50 px-4 py-2 rounded-md text-sm font-semibold">Remove</button></div></div>
+            </Section>
+            <Section title="Danger Zone">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-secondary rounded-lg"><h3 className="font-semibold">Export Data</h3><p className="text-xs text-muted-foreground mb-2">Download a JSON backup of all local data.</p><button onClick={handleExportData} className="w-full bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold">Export</button></div>
+                    <div className="p-4 bg-secondary rounded-lg"><h3 className="font-semibold">Import Data</h3><p className="text-xs text-muted-foreground mb-2">Overwrite all data with a backup file.</p><label className="w-full block cursor-pointer bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold text-center"><input type="file" onChange={handleImportData} accept=".json" className="hidden"/>Import</label></div>
+                      <div className="p-4 bg-destructive/10 rounded-lg"><h3 className="font-semibold text-destructive">Wipe All Data</h3><p className="text-xs text-muted-foreground mb-2">Permanently delete all local data.</p><button onClick={() => setIsDataWipeModalOpen(true)} className="w-full bg-destructive/20 hover:bg-destructive/30 text-destructive px-3 py-1.5 rounded-md text-sm font-semibold">Wipe Data</button></div>
+                </div>
+            </Section>
+          </div>
+        )
+      }[view];
+      
+      return (
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+            {isDataWipeModalOpen && (
+                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-card border border-destructive/50 rounded-xl shadow-2xl w-full max-w-lg p-6">
+                        <div className="text-center">
+                            <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4"/>
+                            <h2 className="text-xl font-bold text-foreground">Irreversible Action</h2>
+                            <p className="text-muted-foreground mt-2">
+                                You are about to delete all of your data. This cannot be undone. To confirm, please type "<strong className="text-destructive">delete my data</strong>" below.
+                            </p>
+                        </div>
+                        <input type="text" value={dataWipeConfirmation} onChange={(e) => setDataWipeConfirmation(e.target.value)} className="w-full bg-input border-border rounded-md px-3 py-2 mt-4 text-center"/>
+                        <div className="flex gap-4 mt-6">
+                            <button onClick={() => setIsDataWipeModalOpen(false)} className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-md">Cancel</button>
+                            <button onClick={handleWipeData} className="flex-1 bg-destructive text-destructive-foreground py-2 rounded-md">Confirm Deletion</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {PageComponent}
+        </main>
+      );
+    }
+    
+    // Fallback to a non-scrolling Welcome view if no view matches
+    return <WelcomePlaceholder onNewPage={handleNewPage} />;
   }
 
   return (
@@ -839,7 +839,7 @@ const App: React.FC = () => {
         onToggleSearch={() => setIsSearchOpen(true)}
         onGoToLandingPage={handleGoToLandingPage}
       />
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 animate-fade-in-up">
         {renderView()}
       </div>
       <aside className={`bg-card/80 backdrop-blur-xl flex-shrink-0 border-l border-border/50 flex flex-col transition-all duration-300 ease-in-out ${isChatbotCollapsed ? 'w-20' : 'w-96'}`}>
