@@ -47,13 +47,17 @@ const AICurriculumGenerator: React.FC = () => {
         }
 
         setIsGenerating(true);
-        setCurriculum(null);
+        // Initialize with a base structure for streaming
+        setCurriculum({
+            courseTitle: "Generating Title...",
+            courseDescription: "",
+            learningObjectives: [],
+            weeklyBreakdown: [],
+        });
 
         try {
-            // Use the generic simulation function
             const simulatedFileContent = await simulateFileExtraction(courseFile);
 
-            // Make the prompt more generic
             const prompt = `You are an expert curriculum designer for a university. Your task is to create a detailed, 12-week semester curriculum based on a course document.
 
 CONTEXT:
@@ -65,48 +69,52 @@ ${indexText}
 ---
 
 INSTRUCTIONS:
-Based on all the provided context, generate a comprehensive 12-week curriculum. The curriculum should be logically sequenced, starting with foundational concepts and progressing to more advanced topics.
-Your response MUST be a single JSON object that adheres to the provided schema. Do not include any text outside of the JSON object.
-`;
+Generate a comprehensive 12-week curriculum. Your response MUST be a stream of JSON objects, ONE PER LINE. Follow this exact sequence:
+1.  A JSON object for the course title: \`{"courseTitle": "..."}\`
+2.  A JSON object for the course description: \`{"courseDescription": "..."}\`
+3.  A JSON object for the learning objectives: \`{"learningObjectives": ["...", "..."]}\`
+4.  FINALLY, stream a separate JSON object for EACH of the 12 weekly breakdowns, one per line: \`{"weeklyBreakdown": {"week": 1, ...}}\`, then \`{"weeklyBreakdown": {"week": 2, ...}}\`, etc.
+
+Do not include any text outside of the JSON objects. Each JSON object must be on its own line.`;
             
-            // Schema remains the same
-            const schema = {
-                type: Type.OBJECT,
-                properties: {
-                    courseTitle: { type: Type.STRING, description: "A suitable title for the course based on the document." },
-                    courseDescription: { type: Type.STRING, description: "A brief, engaging description of the course." },
-                    learningObjectives: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A list of 3-5 key learning objectives for students." },
-                    weeklyBreakdown: {
-                        type: Type.ARRAY,
-                        description: "A breakdown of the 12-week semester.",
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                week: { type: Type.NUMBER },
-                                topic: { type: Type.STRING, description: "The main topic for the week." },
-                                keyConcepts: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A list of key concepts to be covered." },
-                                reading: { type: Type.STRING, description: "The assigned reading from the document (e.g., 'Chapters 1-2' or 'Slides 1-50')." },
-                                assignment: { type: Type.STRING, description: "A relevant assignment or activity for the week." },
-                            }
+            const responseStream = await geminiAI.models.generateContentStream({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+            });
+
+            let buffer = '';
+            for await (const chunk of responseStream) {
+                buffer += chunk.text;
+                let EOL_index;
+                while ((EOL_index = buffer.indexOf('\n')) >= 0) {
+                    const line = buffer.slice(0, EOL_index).trim();
+                    buffer = buffer.slice(EOL_index + 1);
+
+                    if (line) {
+                        try {
+                            const parsed = JSON.parse(line);
+                            setCurriculum(prev => {
+                                if (!prev) return null;
+                                if (parsed.weeklyBreakdown) {
+                                    return {
+                                        ...prev,
+                                        weeklyBreakdown: [...prev.weeklyBreakdown, parsed.weeklyBreakdown]
+                                    };
+                                }
+                                return { ...prev, ...parsed };
+                            });
+                        } catch (e) {
+                            console.warn("Could not parse streaming JSON line:", line, e);
                         }
                     }
                 }
-            };
-
-            const response = await geminiAI.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: "application/json", responseSchema: schema }
-            });
-
-            const jsonStr = response.text.trim();
-            const parsedResult: GeneratedCurriculum = JSON.parse(jsonStr);
-            setCurriculum(parsedResult);
+            }
             toast.success("Curriculum generated successfully!");
 
         } catch (error: any) {
             console.error("Curriculum generation failed:", error);
             toast.error(`Failed to generate curriculum: ${error.message}`);
+            setCurriculum(null); // Clear partial results on error
         } finally {
             setIsGenerating(false);
         }
@@ -160,27 +168,23 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
             </div>
             {/* Output Column */}
             <div className="bg-card border border-border rounded-xl p-6 overflow-y-auto">
-                 {isGenerating ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                        <Loader className="w-12 h-12 animate-spin text-primary mb-4" />
-                        <p className="text-lg font-semibold">Generating your curriculum...</p>
-                        <p>This may take a moment.</p>
-                    </div>
-                ) : curriculum ? (
+                 {isGenerating || curriculum ? (
                     <div className="animate-fade-in-up space-y-6">
-                        <h2 className="text-3xl font-bold text-primary">{curriculum.courseTitle}</h2>
-                        <p className="text-muted-foreground">{curriculum.courseDescription}</p>
-                        <div>
-                            <h3 className="text-xl font-semibold mb-2">Learning Objectives</h3>
-                            <ul className="list-disc pl-5 space-y-1 text-foreground/90">
-                                {curriculum.learningObjectives.map((obj, i) => <li key={i}>{obj}</li>)}
-                            </ul>
-                        </div>
+                        <h2 className="text-3xl font-bold text-primary">{curriculum?.courseTitle || '...'}</h2>
+                        <p className="text-muted-foreground">{curriculum?.courseDescription || 'Generating description...'}</p>
+                        {curriculum?.learningObjectives && curriculum.learningObjectives.length > 0 && (
+                             <div>
+                                <h3 className="text-xl font-semibold mb-2">Learning Objectives</h3>
+                                <ul className="list-disc pl-5 space-y-1 text-foreground/90">
+                                    {curriculum.learningObjectives.map((obj, i) => <li key={i}>{obj}</li>)}
+                                </ul>
+                            </div>
+                        )}
                         <div>
                              <h3 className="text-xl font-semibold mb-4">Weekly Breakdown</h3>
                              <div className="space-y-4">
-                                {curriculum.weeklyBreakdown.map(week => (
-                                    <div key={week.week} className="p-4 bg-secondary/50 rounded-lg border border-border/50">
+                                {curriculum?.weeklyBreakdown.map(week => (
+                                    <div key={week.week} className="p-4 bg-secondary/50 rounded-lg border border-border/50 animate-fade-in-up">
                                         <h4 className="font-bold text-primary">Week {week.week}: {week.topic}</h4>
                                         <p className="text-sm font-semibold mt-2">Key Concepts:</p>
                                         <p className="text-sm text-muted-foreground">{week.keyConcepts.join(', ')}</p>
@@ -190,6 +194,11 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
                                         <p className="text-sm text-muted-foreground">{week.assignment}</p>
                                     </div>
                                 ))}
+                                {isGenerating && curriculum && curriculum.weeklyBreakdown.length < 12 &&
+                                    <div className="p-4 bg-secondary/50 rounded-lg border border-border/50 flex items-center justify-center text-muted-foreground">
+                                        <Loader className="animate-spin w-5 h-5 mr-2" /> Generating week {curriculum.weeklyBreakdown.length + 1}...
+                                    </div>
+                                }
                              </div>
                         </div>
                     </div>
