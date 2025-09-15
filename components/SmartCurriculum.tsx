@@ -14,6 +14,32 @@ const simulateFileExtraction = async (file: File): Promise<string> => {
 };
 
 
+const CurriculumRoadmap: React.FC<{ weeks: CurriculumWeek[] }> = ({ weeks }) => {
+    return (
+        <div className="w-full overflow-x-auto py-4">
+            <div className="flex items-center min-w-[800px] px-2">
+                {weeks.map((week, index) => (
+                    <React.Fragment key={week.week}>
+                        <div className="flex-shrink-0 flex flex-col items-center group relative">
+                            <div className="w-10 h-10 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center font-bold z-10 cursor-pointer">
+                                <span>{week.week}</span>
+                            </div>
+                            <div className="absolute top-full mt-3 w-max max-w-xs p-3 bg-popover border border-border text-popover-foreground text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-center">
+                                <p className="font-bold text-primary">Week {week.week}</p>
+                                <p>{week.topic}</p>
+                            </div>
+                        </div>
+                        {index < weeks.length - 1 && (
+                            <div className="flex-1 h-1 bg-border/50"></div>
+                        )}
+                    </React.Fragment>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+
 const AICurriculumGenerator: React.FC = () => {
     // Rename state to be more generic
     const [courseFile, setCourseFile] = useState<File | null>(null);
@@ -170,6 +196,14 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
                     <div className="animate-fade-in-up space-y-6">
                         <h2 className="text-3xl font-bold text-primary">{curriculum.courseTitle}</h2>
                         <p className="text-muted-foreground">{curriculum.courseDescription}</p>
+                        
+                        <div>
+                            <h3 className="text-xl font-semibold mb-2">Visual Roadmap</h3>
+                            <div className="bg-secondary/30 rounded-lg">
+                                <CurriculumRoadmap weeks={curriculum.weeklyBreakdown} />
+                            </div>
+                        </div>
+
                         <div>
                             <h3 className="text-xl font-semibold mb-2">Learning Objectives</h3>
                             <ul className="list-disc pl-5 space-y-1 text-foreground/90">
