@@ -15,25 +15,98 @@ const simulateFileExtraction = async (file: File): Promise<string> => {
 
 
 const CurriculumRoadmap: React.FC<{ weeks: CurriculumWeek[] }> = ({ weeks }) => {
+    const nodeColors = [
+        'bg-sky-400', 'bg-teal-400', 'bg-rose-400', 'bg-amber-400',
+        'bg-indigo-400', 'bg-lime-400', 'bg-pink-400', 'bg-cyan-400',
+        'bg-purple-400', 'bg-green-400', 'bg-red-400', 'bg-blue-400'
+    ];
+
+    const nodePositions = [
+        { top: '4%', left: '20%', tooltip: 'top' }, 
+        { top: '4%', left: '50%', tooltip: 'top' }, 
+        { top: '4%', left: '80%', tooltip: 'top' },
+        { top: '47.5%', left: '70%', tooltip: 'bottom' }, 
+        { top: '47.5%', left: '45%', tooltip: 'bottom' }, 
+        { top: '47.5%', left: '20%', tooltip: 'bottom' },
+        { top: '44.5%', left: '30%', tooltip: 'top' }, 
+        { top: '44.5%', left: '55%', tooltip: 'top' }, 
+        { top: '44.5%', left: '80%', tooltip: 'top' },
+        { top: '87.5%', left: '70%', tooltip: 'bottom' }, 
+        { top: '87.5%', left: '45%', tooltip: 'bottom' }, 
+        { top: '87.5%', left: '15%', tooltip: 'bottom' },
+    ];
+
+    const roadPath = "M 50 70 H 800 C 950 70, 950 150, 800 150 H 200 C 50 150, 50 230, 200 230 H 800 C 950 230, 950 310, 800 310 H 150";
+
     return (
-        <div className="w-full overflow-x-auto py-4">
-            <div className="flex items-center min-w-[800px] px-2">
-                {weeks.map((week, index) => (
-                    <React.Fragment key={week.week}>
-                        <div className="flex-shrink-0 flex flex-col items-center group relative">
-                            <div className="w-10 h-10 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center font-bold z-10 cursor-pointer">
-                                <span>{week.week}</span>
+        <div 
+            className="w-full max-w-6xl mx-auto my-4 p-4 rounded-xl shadow-lg bg-card"
+            style={{
+                backgroundImage: 'radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0)',
+                backgroundSize: '20px 20px',
+            }}
+        >
+            <div className="relative h-[400px]">
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet">
+                    {/* Road shadow/border */}
+                    <path
+                        d={roadPath}
+                        fill="none"
+                        stroke="hsl(var(--card))"
+                        strokeWidth="38"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                    {/* Main road surface */}
+                    <path
+                        d={roadPath}
+                        fill="none"
+                        stroke="#27272a"
+                        strokeWidth="30"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                    {/* Dashed center line */}
+                    <path
+                        d={roadPath}
+                        fill="none"
+                        strokeWidth="2"
+                        strokeDasharray="15 15"
+                        style={{ stroke: 'hsl(var(--border))' }}
+                    />
+                </svg>
+
+                <div className="absolute" style={{ top: '17.5%', left: '2%' }}>
+                    <div className="w-20 h-20 rounded-full bg-secondary border-4 border-border flex items-center justify-center font-bold text-lg shadow-lg -translate-x-1/2 -translate-y-1/2">
+                        START
+                    </div>
+                </div>
+
+                <div className="absolute" style={{ top: '77.5%', left: '12%' }}>
+                     <div className="w-20 h-20 rounded-full bg-secondary border-4 border-border flex items-center justify-center font-bold text-lg shadow-lg -translate-x-1/2 -translate-y-1/2">
+                        FINISH
+                    </div>
+                </div>
+
+                {/* Week nodes */}
+                {weeks.map((week, index) => {
+                    const pos = nodePositions[index % nodePositions.length];
+                    return (
+                        <div
+                            key={week.week}
+                            className="absolute -translate-x-1/2 -translate-y-1/2 group"
+                            style={{top: pos.top, left: pos.left}}
+                        >
+                            <div className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg text-white shadow-lg cursor-pointer transition-all duration-300 group-hover:scale-110 group-hover:shadow-2xl border-4 border-card ${nodeColors[index % nodeColors.length]}`}>
+                                {week.week}
                             </div>
-                            <div className="absolute top-full mt-3 w-max max-w-xs p-3 bg-popover border border-border text-popover-foreground text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 text-center">
-                                <p className="font-bold text-primary">Week {week.week}</p>
-                                <p>{week.topic}</p>
+                            <div className={`absolute w-48 p-3 bg-popover border border-border text-popover-foreground text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 text-center transform -translate-x-1/2 left-1/2 ${pos.tooltip === 'top' ? 'bottom-full mb-3' : 'top-full mt-3'}`}>
+                                <p className="font-bold text-primary">Week {week.week}: {week.topic}</p>
+                                <p className="text-muted-foreground mt-1">{week.assignment}</p>
                             </div>
                         </div>
-                        {index < weeks.length - 1 && (
-                            <div className="flex-1 h-1 bg-border/50"></div>
-                        )}
-                    </React.Fragment>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );
