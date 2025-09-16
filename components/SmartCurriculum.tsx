@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GeneratedCurriculum, CurriculumWeek } from '../types';
-import { Wand2, Loader, UploadCloud, FileText, BookOpen, Lightbulb } from 'lucide-react';
+import { Wand2, Loader, UploadCloud, FileText, BookOpen, Lightbulb, ArrowLeft } from 'lucide-react';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
 import { Type } from '@google/genai';
@@ -114,15 +114,14 @@ const CurriculumRoadmap: React.FC<{ weeks: CurriculumWeek[] }> = ({ weeks }) => 
 
 
 const AICurriculumGenerator: React.FC = () => {
-    // Rename state to be more generic
     const [courseFile, setCourseFile] = useState<File | null>(null);
     const [indexText, setIndexText] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [curriculum, setCurriculum] = useState<GeneratedCurriculum | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [viewMode, setViewMode] = useState<'form' | 'curriculum' | 'roadmap'>('form');
     const toast = useToast();
 
-    // Update file handling to accept more types
     const handleFileChange = (files: FileList | null) => {
         if (files && files[0]) {
             const file = files[0];
@@ -147,12 +146,10 @@ const AICurriculumGenerator: React.FC = () => {
 
         setIsGenerating(true);
         setCurriculum(null);
+        setViewMode('form');
 
         try {
-            // Use the generic simulation function
             const simulatedFileContent = await simulateFileExtraction(courseFile);
-
-            // Make the prompt more generic
             const prompt = `You are an expert curriculum designer for a university. Your task is to create a detailed, 12-week semester curriculum based on a course document.
 
 CONTEXT:
@@ -168,7 +165,6 @@ Based on all the provided context, generate a comprehensive 12-week curriculum. 
 Your response MUST be a single JSON object that adheres to the provided schema. Do not include any text outside of the JSON object.
 `;
             
-            // Schema remains the same
             const schema = {
                 type: Type.OBJECT,
                 properties: {
@@ -201,6 +197,7 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
             const jsonStr = response.text.trim();
             const parsedResult: GeneratedCurriculum = JSON.parse(jsonStr);
             setCurriculum(parsedResult);
+            setViewMode('curriculum');
             toast.success("Curriculum generated successfully!");
 
         } catch (error: any) {
@@ -211,13 +208,25 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
         }
     };
 
+    const handleStartOver = () => {
+        setCourseFile(null);
+        setIndexText('');
+        setCurriculum(null);
+        setViewMode('form');
+    };
+
     return (
         <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Input Column */}
             <div className="bg-card border border-border rounded-xl p-6 flex flex-col">
-                <h2 className="text-2xl font-bold mb-4 flex items-center gap-3"><Lightbulb /> AI Curriculum Generator</h2>
+                <div className="flex justify-between items-start">
+                    <h2 className="text-2xl font-bold mb-4 flex items-center gap-3"><Lightbulb /> AI Curriculum Generator</h2>
+                    {viewMode !== 'form' && (
+                        <button onClick={handleStartOver} className="text-sm text-primary hover:underline">Start Over</button>
+                    )}
+                </div>
                 <div className="space-y-6 flex-1 flex flex-col">
-                    {/* File Upload - Updated */}
+                    {/* File Upload */}
                     <div>
                         <label className="font-semibold text-muted-foreground flex items-center gap-2 mb-2"><FileText size={18}/> 1. Upload Subject Document</label>
                         <div
@@ -254,7 +263,7 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
                     className="mt-6 w-full bg-primary text-primary-foreground py-3 rounded-md font-semibold flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-95"
                 >
                     {isGenerating ? <Loader className="animate-spin" /> : <Wand2 />}
-                    Generate Full Curriculum
+                    Generate Curriculum
                 </button>
             </div>
             {/* Output Column */}
@@ -265,18 +274,20 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
                         <p className="text-lg font-semibold">Generating your curriculum...</p>
                         <p>This may take a moment.</p>
                     </div>
-                ) : curriculum ? (
+                ) : viewMode === 'curriculum' && curriculum ? (
                     <div className="animate-fade-in-up space-y-6">
-                        <h2 className="text-3xl font-bold text-primary">{curriculum.courseTitle}</h2>
-                        <p className="text-muted-foreground">{curriculum.courseDescription}</p>
-                        
-                        <div>
-                            <h3 className="text-xl font-semibold mb-2">Visual Roadmap</h3>
-                            <div className="bg-secondary/30 rounded-lg">
-                                <CurriculumRoadmap weeks={curriculum.weeklyBreakdown} />
+                        <div className="flex justify-between items-start gap-4">
+                            <div>
+                                <h2 className="text-3xl font-bold text-primary">{curriculum.courseTitle}</h2>
+                                <p className="text-muted-foreground mt-1">{curriculum.courseDescription}</p>
                             </div>
+                            <button
+                                onClick={() => setViewMode('roadmap')}
+                                className="bg-secondary text-secondary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-accent flex items-center gap-2 flex-shrink-0"
+                            >
+                                <Wand2 size={16}/> Gen Roadmap
+                            </button>
                         </div>
-
                         <div>
                             <h3 className="text-xl font-semibold mb-2">Learning Objectives</h3>
                             <ul className="list-disc pl-5 space-y-1 text-foreground/90">
@@ -298,6 +309,21 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
                                     </div>
                                 ))}
                              </div>
+                        </div>
+                    </div>
+                ) : viewMode === 'roadmap' && curriculum ? (
+                    <div className="animate-fade-in-up h-full flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-bold text-primary">Visual Roadmap</h2>
+                            <button
+                                onClick={() => setViewMode('curriculum')}
+                                className="bg-secondary text-secondary-foreground px-4 py-2 rounded-lg font-semibold hover:bg-accent flex items-center gap-2"
+                            >
+                                <ArrowLeft size={16} /> Back to Details
+                            </button>
+                        </div>
+                        <div className="flex-1 flex items-center justify-center">
+                            <CurriculumRoadmap weeks={curriculum.weeklyBreakdown} />
                         </div>
                     </div>
                 ) : (
