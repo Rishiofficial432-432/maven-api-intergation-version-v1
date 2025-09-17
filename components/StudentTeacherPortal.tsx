@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile } from '../types';
-import { createUser, getUserByEmail, createSession, getActiveSession, endActiveSession, logAttendance, getAttendanceForSession, getPendingStudents, approveStudent, addCurriculumFile, getCurriculumFiles, getCurriculumFileBlob, deleteCurriculumFile } from './portal-db';
+import { PortalUser, CurriculumFile } from '../types';
+import * as Portal from './portal-supabase';
+import { supabase } from './supabase-config';
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, Download, QrCode, UploadCloud, FileText, Check, GraduationCap } from 'lucide-react';
 import { useToast } from './Toast';
 import QRCode from 'qrcode';
+import { Session } from '@supabase/supabase-js';
 
 // --- HELPERS ---
 const getGeolocationErrorMessage = (error: GeolocationPositionError): string => {
@@ -27,30 +29,8 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     return R * c; // in metres
 }
 
-const attendanceChannel = new BroadcastChannel('portal-attendance-channel');
-
-// --- DEMO USERS ---
-const demoTeacher: PortalUser = {
-    id: 'teacher-demo-01',
-    name: 'Dr. Evelyn Reed',
-    email: 'e.reed@university.edu',
-    role: 'teacher',
-    approved: true
-};
-
-const demoStudent: PortalUser = {
-    id: 'student-demo-01',
-    name: 'Alex Johnson',
-    email: 'a.johnson@university.edu',
-    role: 'student',
-    enrollment_id: 'S2024-AJ-01',
-    ug_number: 'UG-12345',
-    phone_number: '555-0101',
-    approved: true
-};
-
 // --- AUTH SCREEN ---
-const AuthScreen: React.FC<{ onLogin: (user: PortalUser) => void }> = ({ onLogin }) => {
+const AuthScreen: React.FC<{ onLoginSuccess: (user: PortalUser) => void }> = ({ onLoginSuccess }) => {
     const [viewMode, setViewMode] = useState<'login' | 'signup'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -67,22 +47,14 @@ const AuthScreen: React.FC<{ onLogin: (user: PortalUser) => void }> = ({ onLogin
         setLoading(true);
         try {
             if (viewMode === 'login') {
-                const user = await getUserByEmail(email);
-                if (user && user.password === password) {
-                    toast.success("Logged in successfully!");
-                    onLogin(user);
-                } else {
-                    throw new Error("Invalid email or password.");
+                const user = await Portal.signInUser(email, password);
+                if (!user.approved) {
+                    throw new Error("Account pending teacher approval.");
                 }
+                toast.success("Logged in successfully!");
+                onLoginSuccess(user);
             } else {
-                 const newUser: PortalUser = {
-                    id: crypto.randomUUID(), name, email, password, role,
-                    enrollment_id: role === 'student' ? enrollmentId : undefined,
-                    ug_number: role === 'student' ? ugNumber : undefined,
-                    phone_number: role === 'student' ? phoneNumber : undefined,
-                    approved: role === 'teacher' // Teachers are auto-approved
-                };
-                await createUser(newUser);
+                await Portal.signUpUser({ name, email, password, role, enrollment_id: enrollmentId, ug_number: ugNumber, phone_number: phoneNumber });
                 toast.success(role === 'student' ? "Signup successful! A teacher must approve your account before you can log in." : "Teacher account created! You can now log in.");
                 setViewMode('login');
             }
@@ -92,6 +64,22 @@ const AuthScreen: React.FC<{ onLogin: (user: PortalUser) => void }> = ({ onLogin
             setLoading(false);
         }
     };
+    
+    const handleDemoLogin = async (demoRole: 'teacher' | 'student') => {
+        setLoading(true);
+        try {
+            // NOTE: These demo users must be created in your Supabase project first.
+            const email = demoRole === 'teacher' ? 'e.reed@university.edu' : 'a.johnson@university.edu';
+            const password = 'password123'; // Use a secure, common password for both demo accounts.
+            const user = await Portal.signInUser(email, password);
+            toast.success(`Logged in as Demo ${demoRole === 'teacher' ? 'Teacher' : 'Student'}.`);
+            onLoginSuccess(user);
+        } catch (error: any) {
+            toast.error(`Demo login failed: ${error.message}. Ensure demo accounts are set up in Supabase.`);
+        } finally {
+            setLoading(false);
+        }
+    }
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/20 animate-fade-in-up">
@@ -102,10 +90,10 @@ const AuthScreen: React.FC<{ onLogin: (user: PortalUser) => void }> = ({ onLogin
                 </div>
 
                 <div className="space-y-3 mb-4">
-                    <button onClick={() => onLogin(demoTeacher)} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
+                    <button onClick={() => handleDemoLogin('teacher')} disabled={loading} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
                         <UserIcon size={16}/> Demo Login as Teacher
                     </button>
-                    <button onClick={() => onLogin(demoStudent)} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
+                    <button onClick={() => handleDemoLogin('student')} disabled={loading} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
                         <GraduationCap size={16}/> Demo Login as Student
                     </button>
                 </div>
@@ -150,15 +138,15 @@ const AuthScreen: React.FC<{ onLogin: (user: PortalUser) => void }> = ({ onLogin
 
 // --- DASHBOARDS ---
 const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = ({ user, onLogout }) => {
-    const [activeSession, setActiveSession] = useState<PortalSession | null>(null);
+    const [activeSession, setActiveSession] = useState<Portal.Session | null>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState('');
-    const [liveAttendance, setLiveAttendance] = useState<PortalAttendanceRecord[]>([]);
+    const [liveAttendance, setLiveAttendance] = useState<Portal.AttendanceRecord[]>([]);
     const [locationEnforced, setLocationEnforced] = useState(false);
     const [radius, setRadius] = useState(50);
     const [startingSession, setStartingSession] = useState(false);
     const [pendingStudents, setPendingStudents] = useState<PortalUser[]>([]);
     const [loadingApprovals, setLoadingApprovals] = useState(true);
-    const [curriculumFiles, setCurriculumFiles] = useState<CurriculumFile[]>([]);
+    const [curriculumFiles, setCurriculumFiles] = useState<any[]>([]);
     const [uploadingFile, setUploadingFile] = useState(false);
     const toast = useToast();
 
@@ -166,15 +154,15 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
         setLoadingApprovals(true);
         try {
             const [students, files, session] = await Promise.all([
-                getPendingStudents(),
-                getCurriculumFiles(),
-                getActiveSession()
+                Portal.getPendingStudents(),
+                Portal.getCurriculumFiles(),
+                Portal.getActiveSession()
             ]);
             setPendingStudents(students);
             setCurriculumFiles(files);
             if (session) {
                 setActiveSession(session);
-                const attendance = await getAttendanceForSession(session.id);
+                const attendance = await Portal.getAttendanceForSession(session.id);
                 setLiveAttendance(attendance);
             }
         } catch (error: any) {
@@ -188,17 +176,27 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
         fetchDashboardData();
     }, [fetchDashboardData]);
     
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent) => {
-            const { type, payload } = event.data;
-            if (type === 'NEW_ATTENDANCE' && activeSession && payload.sessionId === activeSession.id) {
-                toast.success(`${payload.record.student_name} just checked in!`);
-                setLiveAttendance(prev => [...prev, payload.record]);
-            }
+     useEffect(() => {
+        if (!activeSession || !supabase) return;
+
+        const channel = supabase.channel(`attendance-${activeSession.id}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'portal_attendance',
+                filter: `session_id=eq.${activeSession.id}`
+            }, (payload) => {
+                const newRecord = payload.new as Portal.AttendanceRecord;
+                toast.success(`${newRecord.student_name} just checked in!`);
+                setLiveAttendance(prev => [newRecord, ...prev]);
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
         };
-        attendanceChannel.addEventListener('message', handleMessage);
-        return () => attendanceChannel.removeEventListener('message', handleMessage);
     }, [activeSession, toast]);
+
 
     useEffect(() => {
         if (activeSession?.session_code) {
@@ -221,19 +219,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                     );
                 });
             }
-            const session_code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-            const newSession: PortalSession = {
-                id: crypto.randomUUID(),
-                teacher_id: user.id,
-                session_code,
-                expires_at,
-                is_active: true,
-                location_enforced: locationEnforced,
-                radius,
-                location
-            };
-            await createSession(newSession);
+            const newSession = await Portal.startSession({ teacherId: user.id, locationEnforced, radius, location });
             setActiveSession(newSession);
             toast.success("New session started!");
         } catch (error: any) {
@@ -246,7 +232,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
     const handleEndSession = async () => {
         if (!activeSession) return;
         try {
-            await endActiveSession();
+            await Portal.endActiveSession();
             setActiveSession(null);
             setLiveAttendance([]);
             setQrCodeUrl('');
@@ -257,7 +243,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
     };
     
     const handleApproveStudent = async (studentId: string) => {
-        await approveStudent(studentId);
+        await Portal.approveStudent(studentId);
         setPendingStudents(p => p.filter(s => s.id !== studentId));
         toast.success("Student approved!");
     };
@@ -267,16 +253,10 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
         if (!file) return;
         setUploadingFile(true);
         try {
-            const newFile: CurriculumFile = {
-                id: crypto.randomUUID(),
-                teacherId: user.id,
-                teacherName: user.name,
-                fileName: file.name,
-                fileType: file.type,
-                createdAt: new Date().toISOString()
-            };
-            await addCurriculumFile(newFile, file);
-            setCurriculumFiles(prev => [newFile, ...prev]);
+            await Portal.uploadCurriculumFile(user.id, user.name, file);
+            // Refetch files to get the latest list
+            const files = await Portal.getCurriculumFiles();
+            setCurriculumFiles(files);
             toast.success("File uploaded successfully.");
         } catch(err: any) {
             toast.error(`Upload failed: ${err.message}`);
@@ -285,9 +265,9 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
         }
     };
     
-    const handleFileDelete = async (fileId: string) => {
+    const handleFileDelete = async (fileId: string, storagePath: string) => {
         if(window.confirm("Are you sure you want to delete this file?")) {
-            await deleteCurriculumFile(fileId);
+            await Portal.deleteCurriculumFile(fileId, storagePath);
             setCurriculumFiles(f => f.filter(file => file.id !== fileId));
             toast.success("File deleted.");
         }
@@ -332,13 +312,13 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                                         <p className="text-sm text-muted-foreground">Session PIN</p>
                                         <div className="flex items-center justify-between">
                                             <p className="text-3xl font-mono tracking-widest">{activeSession.session_code}</p>
-                                            <button onClick={() => { navigator.clipboard.writeText(activeSession.session_code); toast.success("PIN Copied!"); }} className="p-2 hover:bg-accent rounded-md"><Copy size={18}/></button>
+                                            <button onClick={() => { activeSession.session_code && navigator.clipboard.writeText(activeSession.session_code); toast.success("PIN Copied!"); }} className="p-2 hover:bg-accent rounded-md"><Copy size={18}/></button>
                                         </div>
                                     </div>
                                     {activeSession.location_enforced && activeSession.location && (
                                         <div className="p-3 bg-secondary rounded-lg">
                                             <p className="text-sm font-semibold text-green-400 flex items-center gap-1"><ShieldCheck size={14}/> Location Enforcement: ON</p>
-                                            <p className="text-xs font-mono text-muted-foreground">Lat: {activeSession.location.latitude.toFixed(5)}, Lon: {activeSession.location.longitude.toFixed(5)}</p>
+                                            <p className="text-xs font-mono text-muted-foreground">Lat: {(activeSession.location as any).latitude.toFixed(5)}, Lon: {(activeSession.location as any).longitude.toFixed(5)}</p>
                                         </div>
                                     )}
                                     <button onClick={handleEndSession} className="w-full bg-destructive/80 hover:bg-destructive text-destructive-foreground py-2 rounded-lg font-semibold">End Session</button>
@@ -388,8 +368,8 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                         <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
                            {curriculumFiles.map(f => (
                                 <div key={f.id} className="flex justify-between items-center p-2 bg-secondary rounded-md text-sm">
-                                    <p className="truncate pr-2">{f.fileName}</p>
-                                    <button onClick={() => handleFileDelete(f.id)} className="text-destructive/70 hover:text-destructive flex-shrink-0"><Trash2 size={14}/></button>
+                                    <p className="truncate pr-2">{f.file_name}</p>
+                                    <button onClick={() => handleFileDelete(f.id, f.storage_path)} className="text-destructive/70 hover:text-destructive flex-shrink-0"><Trash2 size={14}/></button>
                                 </div>
                            ))}
                         </div>
@@ -417,29 +397,29 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
         }
         setCheckingIn(true);
         try {
-            const session = await getActiveSession();
-            if (!session || session.session_code !== code) throw new Error("Invalid or expired session code.");
+            const session = await Portal.getActiveSession();
+            if (!session || session.session_code?.toUpperCase() !== code.toUpperCase()) throw new Error("Invalid or expired session code.");
 
             if (session.location_enforced) {
+                 if(!session.location) throw new Error("Session is location enforced, but teacher location is missing.");
                 const studentLocation = await new Promise<{ lat: number, lon: number }>((resolve, reject) => {
                     navigator.geolocation.getCurrentPosition(
                         (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
                         (err) => reject(new Error(getGeolocationErrorMessage(err)))
                     );
                 });
-                const distance = getDistance(session.location!.latitude, session.location!.longitude, studentLocation.lat, studentLocation.lon);
+                const teacherLoc = session.location as { latitude: number, longitude: number };
+                const distance = getDistance(teacherLoc.latitude, teacherLoc.longitude, studentLocation.lat, studentLocation.lon);
                 if (distance > session.radius!) throw new Error(`You are too far from the class (${Math.round(distance)}m). Required: <${session.radius}m.`);
             }
 
-            const attendanceRecord = {
+            await Portal.logAttendance({
                 session_id: session.id,
                 student_id: user.id,
                 student_name: user.name,
                 enrollment_id: user.enrollment_id
-            };
+            });
             
-            await logAttendance(attendanceRecord);
-            attendanceChannel.postMessage({ type: 'NEW_ATTENDANCE', payload: { record: { ...attendanceRecord, created_at: new Date().toISOString() }, sessionId: session.id } });
             toast.success("Checked in successfully!");
             setCode('');
 
@@ -593,29 +573,55 @@ const StudentTeacherPortal: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const loggedInUser = sessionStorage.getItem('portal-user');
-        if (loggedInUser) {
-            setUser(JSON.parse(loggedInUser));
-        }
-        setLoading(false);
+        if (!supabase) return;
+
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                try {
+                    const profile = await Portal.getUserProfile(session.user.id);
+                    setUser(profile);
+                } catch (error: any) {
+                    console.error("Failed to fetch profile:", error);
+                    // Log out if profile fetch fails
+                    await supabase.auth.signOut();
+                    setUser(null);
+                }
+            }
+            setLoading(false);
+        };
+
+        checkUser();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (session) {
+                const profile = await Portal.getUserProfile(session.user.id);
+                setUser(profile);
+            } else {
+                setUser(null);
+            }
+        });
+
+        return () => subscription.unsubscribe();
     }, []);
 
-    const handleLogin = (loggedInUser: PortalUser) => {
-        sessionStorage.setItem('portal-user', JSON.stringify(loggedInUser));
-        setUser(loggedInUser);
-    };
 
-    const handleLogout = () => {
-        sessionStorage.removeItem('portal-user');
+    const handleLogout = async () => {
+        if (!supabase) return;
+        await supabase.auth.signOut();
         setUser(null);
     };
 
     if (loading) {
         return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary" size={32}/></div>;
     }
+    
+    if (!supabase) {
+         return <div className="flex-1 flex items-center justify-center text-center p-8"><div className="bg-card p-6 rounded-lg border border-border"><h2 className="text-xl font-bold">Portal Offline</h2><p className="text-muted-foreground mt-2">Supabase is not configured. Please add credentials in Settings.</p></div></div>;
+    }
 
     if (!user) {
-        return <AuthScreen onLogin={handleLogin} />;
+        return <AuthScreen onLoginSuccess={setUser} />;
     }
     
     const dashboard = user.role === 'teacher' 

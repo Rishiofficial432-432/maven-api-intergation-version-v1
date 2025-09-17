@@ -17,6 +17,7 @@ import { HelpPage } from './components/HelpPage';
 import InspirationPage from './components/InspirationPage';
 import { Section } from './components/Section';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon, ImageIcon, Trash2 } from 'lucide-react';
+import { getSupabaseCredentials, updateSupabaseCredentials, connectionStatus } from './components/supabase-config';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
   MoodEntry, Expense, Goal, KanbanItem
@@ -113,6 +114,12 @@ const App: React.FC = () => {
   const [inspirationImageId, setInspirationImageId] = usePersistentState<string | null>('maven-inspiration-image-id', null);
   const [inspirationImagePreview, setInspirationImagePreview] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  
+  // New Supabase state
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseKey, setSupabaseKey] = useState('');
+  const [supabaseStatus, setSupabaseStatus] = useState({ message: connectionStatus.message, configured: connectionStatus.configured });
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
 
 
   // --- LIFECYCLE & INITIALIZATION ---
@@ -123,6 +130,10 @@ const App: React.FC = () => {
         toast.error("Failed to initialize local database. Banners may not work correctly.");
       }
     });
+
+    const { url, key } = getSupabaseCredentials();
+    setSupabaseUrl(url);
+    setSupabaseKey(key);
   }, [toast]);
   
   useEffect(() => {
@@ -598,6 +609,19 @@ const App: React.FC = () => {
     setIsSavingSettings(false);
   };
 
+  const handleTestAndSaveSupabase = async () => {
+    setIsTestingSupabase(true);
+    const result = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
+    setSupabaseStatus({ message: result.message, configured: result.success });
+    setIsTestingSupabase(false);
+    if (result.success) {
+        toast.success("Connection successful! The app will now reload to apply the new settings.");
+        setTimeout(() => window.location.reload(), 2000);
+    } else {
+        toast.error(result.message);
+    }
+  };
+
   const handleExportData = () => {
     const data = {
         pages, journalEntries, tasks, kanbanColumns, quickNotes, events, habits,
@@ -772,6 +796,28 @@ const App: React.FC = () => {
               </div>
               <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50"><Save size={16} /> {isSavingSettings ? 'Saving...' : 'Save Credentials'}</button>
             </Section>
+
+            <Section title="Cloud & Portal Configuration">
+                <p className="text-card-foreground/80 -mt-4 mb-6">Configure the Student/Teacher Portal by connecting to your own Supabase project. Get your URL and Anon Key from your Supabase project's API settings.</p>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase URL</label>
+                        <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://<your-project-id>.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
+                        <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="Enter your Supabase anonymous key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                    </div>
+                    <div className={`p-3 rounded-md text-sm ${supabaseStatus.configured ? 'bg-green-500/10 text-green-300' : 'bg-destructive/10 text-destructive'}`}>
+                        <strong>Status:</strong> {supabaseStatus.message}
+                    </div>
+                </div>
+                <button onClick={handleTestAndSaveSupabase} disabled={isTestingSupabase} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50">
+                    {isTestingSupabase ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                    {isTestingSupabase ? 'Testing...' : 'Test Connection & Save'}
+                </button>
+            </Section>
+
             <Section title="Appearance">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
                   {(['theme-dark', 'theme-light', 'theme-jetblack', 'theme-midlight', 'theme-midnight'] as const).map(t => (

@@ -1,5 +1,3 @@
-
-
 /*
 -- =================================================================
 -- MANDATORY SUPABASE PORTAL SCHEMA SETUP
@@ -30,7 +28,10 @@ CREATE TABLE IF NOT EXISTS public.portal_users (
     name text NOT NULL,
     email text UNIQUE,
     role text DEFAULT 'student'::text NOT NULL,
-    enrollment_id text UNIQUE
+    enrollment_id text UNIQUE,
+    ug_number text,
+    phone_number text,
+    approved boolean DEFAULT false NOT NULL
 );
 COMMENT ON TABLE public.portal_users IS 'Stores user profiles for students and teachers.';
 
@@ -44,7 +45,8 @@ CREATE POLICY "Allow individual read access" ON public.portal_users FOR SELECT U
 CREATE POLICY "Allow individual update access" ON public.portal_users FOR UPDATE USING (auth.uid() = id);
 -- Allow authenticated users to see other users for portal functionality.
 CREATE POLICY "Allow authenticated users to read user data" ON public.portal_users FOR SELECT TO authenticated USING (true);
-
+-- Allow teachers to update any user profile (for approving students).
+CREATE POLICY "Allow teachers to update user profiles" ON public.portal_users FOR UPDATE USING ((SELECT role FROM public.portal_users WHERE id = auth.uid()) = 'teacher');
 
 -- This function and trigger automatically creates a user profile upon signup.
 create or replace function public.handle_new_user()
@@ -53,13 +55,16 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.portal_users (id, name, email, role, enrollment_id)
+  insert into public.portal_users (id, name, email, role, enrollment_id, ug_number, phone_number, approved)
   values (
     new.id, 
     new.raw_user_meta_data ->> 'name', 
     new.email, 
     new.raw_user_meta_data ->> 'role',
-    new.raw_user_meta_data ->> 'enrollment_id'
+    new.raw_user_meta_data ->> 'enrollment_id',
+    new.raw_user_meta_data ->> 'ug_number',
+    new.raw_user_meta_data ->> 'phone_number',
+    (new.raw_user_meta_data ->> 'role') = 'teacher'
   );
   return new;
 end;
@@ -128,8 +133,37 @@ CREATE POLICY "Allow teachers to view attendance for their sessions" ON public.p
 -- Students can view their own attendance records.
 CREATE POLICY "Allow students to view their own attendance" ON public.portal_attendance FOR SELECT TO authenticated USING (auth.uid() = student_id);
 
--- Make sure RLS is also enabled on the auth schema if not already
-ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY;
+-- Table: curriculum_files
+-- Stores metadata about uploaded curriculum files.
+CREATE TABLE IF NOT EXISTS public.curriculum_files (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    teacher_id uuid NOT NULL REFERENCES public.portal_users(id) ON DELETE CASCADE,
+    teacher_name text,
+    file_name text NOT NULL,
+    file_type text,
+    storage_path text NOT NULL UNIQUE
+);
+COMMENT ON TABLE public.curriculum_files IS 'Stores metadata for curriculum files linked to Supabase Storage.';
+
+-- Enable RLS for curriculum_files
+ALTER TABLE public.curriculum_files ENABLE ROW LEVEL SECURITY;
+
+-- Policies for curriculum_files
+CREATE POLICY "Allow authenticated read access" ON public.curriculum_files FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Allow teachers to insert files" ON public.curriculum_files FOR INSERT TO authenticated WITH CHECK (auth.uid() = teacher_id);
+CREATE POLICY "Allow teachers to delete their own files" ON public.curriculum_files FOR DELETE TO authenticated USING (auth.uid() = teacher_id);
+
+-- Storage Bucket: curriculum_uploads
+-- Create a bucket named 'curriculum_uploads' in the Supabase Storage UI.
+-- Set it to be a PUBLIC bucket if you want easy access, or private and use the policies below.
+-- The following policies assume a private bucket.
+
+-- Policies for storage.objects (curriculum_uploads bucket)
+CREATE POLICY "Allow authenticated read access" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'curriculum_uploads');
+CREATE POLICY "Allow teachers to upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK ((bucket_id = 'curriculum_uploads') AND (SELECT role FROM public.portal_users WHERE id = auth.uid()) = 'teacher');
+CREATE POLICY "Allow teachers to delete their files" ON storage.objects FOR DELETE TO authenticated USING ((bucket_id = 'curriculum_uploads') AND owner = auth.uid());
+
 */
 
 
@@ -145,9 +179,48 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+// FIX: Updated the Database interface to be in sync with the SQL schema.
+// This adds the curriculum_files table and includes missing fields in portal_users.
 export interface Database {
   public: {
     Tables: {
+      curriculum_files: {
+        Row: {
+          id: string
+          created_at: string
+          teacher_id: string
+          teacher_name: string | null
+          file_name: string
+          file_type: string | null
+          storage_path: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          teacher_id: string
+          teacher_name?: string | null
+          file_name: string
+          file_type?: string | null
+          storage_path: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          teacher_id?: string
+          teacher_name?: string | null
+          file_name?: string
+          file_type?: string | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "curriculum_files_teacher_id_fkey"
+            columns: ["teacher_id"]
+            referencedRelation: "portal_users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       portal_attendance: {
         Row: {
           created_at: string
@@ -233,28 +306,37 @@ export interface Database {
       }
       portal_users: {
         Row: {
+          approved: boolean
           created_at: string
           email: string | null
           enrollment_id: string | null
           id: string
           name: string
+          phone_number: string | null
           role: string
+          ug_number: string | null
         }
         Insert: {
+          approved?: boolean
           created_at?: string
           email?: string | null
           enrollment_id?: string | null
           id?: string
           name: string
+          phone_number?: string | null
           role?: string
+          ug_number?: string | null
         }
         Update: {
+          approved?: boolean
           created_at?: string
           email?: string | null
           enrollment_id?: string | null
           id?: string
           name?: string
+          phone_number?: string | null
           role?: string
+          ug_number?: string | null
         }
         Relationships: []
       }
@@ -328,47 +410,51 @@ export const updateSupabaseCredentials = async (url: string, key: string): Promi
     }
 
     try {
+        // This request will either succeed, return a PostgrestError, or throw a network error.
         const { error } = await tempClient.from('portal_users').select('id', { count: 'exact', head: true });
 
-        if (error && error.code !== '42P01') { // 42P01 means table doesn't exist.
-            console.error("Supabase connection test failed:", error);
-            const errorMessage = typeof error.message === 'string' ? error.message : 'An unknown database error occurred. Check the console for details.';
-            connectionStatus = { configured: false, message: `Connection failed: ${errorMessage}. Check URL, Key, and RLS policies.` };
+        // Case 1: The request succeeded, but Supabase returned a structured error.
+        if (error) {
+            console.error("Supabase API Error:", error);
+
+            // Special case: Table not found is a "successful" connection but needs a warning.
+            if (error.code === '42P01') {
+                const successMessage = "Connection successful, but 'portal_users' table not found. Please run the setup script in the Supabase SQL editor.";
+                connectionStatus = { configured: true, message: successMessage };
+                supabase = tempClient; // Still set the client
+                isSupabaseConfigured = true;
+                return { success: true, message: successMessage };
+            }
+            
+            let message = error.message;
+            if (error.details) message += ` Details: ${error.details}`;
+            if (error.hint) message += ` Hint: ${error.hint}`;
+            
+            connectionStatus = { configured: false, message: `Connection failed: ${message}` };
             supabase = null;
             isSupabaseConfigured = false;
             return { success: false, message: connectionStatus.message };
         }
         
+        // Case 2: The request succeeded and there was no error. Perfect!
+        const successMessage = "Connection successful and credentials saved.";
+        connectionStatus = { configured: true, message: successMessage };
         supabase = tempClient;
         isSupabaseConfigured = true;
-        const successMessage = error?.code === '42P01'
-            ? "Connection successful, but 'portal_users' table not found. Please run the setup script in the Supabase SQL editor."
-            : "Connection successful and credentials saved.";
-
-        connectionStatus = { configured: true, message: successMessage };
         return { success: true, message: successMessage };
 
-    } catch (e: unknown) {
-        console.error("A critical error occurred during Supabase connection test:", e);
-
-        let errorMessage = "An unknown error occurred.";
-
+    } catch (e: unknown) { // Case 3: The request itself failed (e.g., network, CORS).
+        console.error("Supabase Network/Fetch Error:", e);
+        
+        let errorMessage = "An unknown network or configuration error occurred.";
         if (e instanceof Error) {
-            errorMessage = e.message;
-        } else if (e && typeof e === 'object') {
-            if ('message' in e && typeof (e as any).message === 'string') {
-                errorMessage = (e as any).message;
+            if (e.name === 'TypeError' && e.message.toLowerCase().includes('failed to fetch')) {
+                errorMessage = "Network Error: Failed to connect to the Supabase URL. Check your internet, verify the URL, and ensure your Supabase project's CORS settings are correct.";
             } else {
-                try { errorMessage = JSON.stringify(e); } catch { errorMessage = String(e); }
+                errorMessage = e.message;
             }
-        } else if (e) {
-            errorMessage = String(e);
         }
-
-        if (!errorMessage || errorMessage.trim() === '' || errorMessage.toLowerCase().includes('[object object]')) {
-            errorMessage = 'Network error. Please check your internet connection, Supabase URL, and CORS settings in your Supabase project.';
-        }
-
+        
         connectionStatus = { configured: false, message: `Connection failed: ${errorMessage}` };
         supabase = null;
         isSupabaseConfigured = false;
