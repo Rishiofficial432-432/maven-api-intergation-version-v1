@@ -1,4 +1,6 @@
 
+// FIX: Re-export local portal types to be consumed by other modules.
+export type { PortalSession, PortalAttendanceRecord } from '../types';
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
@@ -273,6 +275,49 @@ export const deleteCurriculumFile = async (fileId: string): Promise<void> => {
     return new Promise((resolve, reject) => {
         const request = store.delete(fileId);
         request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+};
+
+// --- Demo User Functions ---
+export const getDemoUser = async (role: 'teacher' | 'student'): Promise<PortalUser> => {
+    await initPortalDB();
+    const email = role === 'teacher' ? 'e.reed@university.edu' : 'a.johnson@university.edu';
+    
+    const store = getStore(STORES.USERS, 'readwrite');
+    const request = store.getAll();
+
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            const users = request.result as PortalUser[];
+            let user = users.find(u => u.email === email);
+
+            if (user) {
+                resolve(user);
+            } else {
+                // User doesn't exist, create them in IndexedDB
+                const newUser: PortalUser = role === 'teacher' ? {
+                    id: `demo-teacher-${crypto.randomUUID()}`,
+                    name: 'Dr. Evelyn Reed',
+                    email,
+                    role: 'teacher',
+                    approved: true,
+                } : {
+                    id: `demo-student-${crypto.randomUUID()}`,
+                    name: 'Alex Johnson',
+                    email,
+                    role: 'student',
+                    approved: true,
+                    enrollment_id: 'S12345',
+                    ug_number: 'UG67890',
+                    phone_number: '555-0101',
+                };
+                
+                const addRequest = store.add(newUser);
+                addRequest.onsuccess = () => resolve(newUser);
+                addRequest.onerror = () => reject(addRequest.error);
+            }
+        };
         request.onerror = () => reject(request.error);
     });
 };
