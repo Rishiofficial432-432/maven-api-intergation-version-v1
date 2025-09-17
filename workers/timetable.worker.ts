@@ -1,5 +1,4 @@
 
-
 import { Teacher, Subject, ClassInfo, Room, TimetableEntry } from '../types';
 
 interface WorkerData {

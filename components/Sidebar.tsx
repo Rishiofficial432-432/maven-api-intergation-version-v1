@@ -1,7 +1,3 @@
-
-
-
-
 import React from 'react';
 import { Page, View } from '../types';
 import { PlusIcon, FileTextIcon, BookIcon, LayoutGridIcon } from './Icons';

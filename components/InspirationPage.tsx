@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 // FIX: Corrected the import path for getBannerData from ../App to the correct module, ./db.
