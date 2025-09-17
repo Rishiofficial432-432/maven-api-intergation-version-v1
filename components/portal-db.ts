@@ -1,3 +1,4 @@
+
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
@@ -130,43 +131,40 @@ export const approveStudent = async (studentId: string): Promise<void> => {
     });
 };
 
-
 // --- Session Functions ---
 export const createSession = async (session: PortalSession): Promise<void> => {
     await initPortalDB();
-    // Clear any old sessions first
-    const clearStore = getStore(STORES.SESSIONS, 'readwrite');
-    const clearRequest = clearStore.clear();
-    
+    if (!session || !session.id) {
+        throw new Error("Invalid session object provided to createSession.");
+    }
+    const store = getStore(STORES.SESSIONS, 'readwrite');
     return new Promise((resolve, reject) => {
-        clearRequest.onsuccess = () => {
-            const addStore = getStore(STORES.SESSIONS, 'readwrite');
-            const addRequest = addStore.add(session);
-            addRequest.onsuccess = () => resolve();
-            addRequest.onerror = () => reject(addRequest.error);
-        };
-        clearRequest.onerror = () => reject(clearRequest.error);
+        const request = store.add(session);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
     });
 };
 
 export const getActiveSession = async (): Promise<PortalSession | null> => {
     await initPortalDB();
-    const store = getStore(STORES.SESSIONS, 'readonly');
-    const request = store.getAll();
-     return new Promise((resolve, reject) => {
+    const store = getStore(STORES.SESSIONS, 'readwrite'); // readwrite to clean up
+    return new Promise((resolve, reject) => {
+        const request = store.getAll();
         request.onsuccess = () => {
             const sessions = request.result as PortalSession[];
-            if (sessions.length > 0) {
-                 const session = sessions[0];
-                if (new Date(session.expires_at) > new Date()) {
-                    resolve(session);
-                } else {
-                    // Clean up expired session
-                    createSession({} as PortalSession).finally(() => resolve(null));
+            const now = new Date();
+            for (const session of sessions) {
+                if (session.is_active) {
+                    if (new Date(session.expires_at) > now) {
+                        return resolve(session);
+                    } else {
+                        // Expired session found, end it
+                        session.is_active = false;
+                        store.put(session);
+                    }
                 }
-            } else {
-                resolve(null);
             }
+            resolve(null); // No active, non-expired session found
         };
         request.onerror = () => reject(request.error);
     });
@@ -175,24 +173,46 @@ export const getActiveSession = async (): Promise<PortalSession | null> => {
 export const endActiveSession = async (): Promise<void> => {
     await initPortalDB();
     const store = getStore(STORES.SESSIONS, 'readwrite');
-    const request = store.clear();
-     return new Promise((resolve, reject) => {
-        request.onsuccess = () => resolve();
+    const request = store.getAll();
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            const sessions = request.result as PortalSession[];
+            const active = sessions.find(s => s.is_active);
+            if (active) {
+                active.is_active = false;
+                const updateRequest = store.put(active);
+                updateRequest.onsuccess = () => resolve();
+                updateRequest.onerror = () => reject(updateRequest.error);
+            } else {
+                resolve(); // No active session to end
+            }
+        };
         request.onerror = () => reject(request.error);
     });
 };
 
-
 // --- Attendance Functions ---
 export const logAttendance = async (record: Omit<PortalAttendanceRecord, 'id' | 'created_at'>): Promise<void> => {
     await initPortalDB();
-    const store = getStore(STORES.ATTENDANCE, 'readwrite');
-    const newRecord = { ...record, created_at: new Date().toISOString() };
+    const attendanceStore = getStore(STORES.ATTENDANCE, 'readwrite');
 
     return new Promise((resolve, reject) => {
-        const request = store.add(newRecord);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
+        const index = attendanceStore.index('session_id');
+        const range = IDBKeyRange.only(record.session_id);
+        const getRequest = index.getAll(range);
+
+        getRequest.onsuccess = () => {
+            const existingRecords = getRequest.result as PortalAttendanceRecord[];
+            if (existingRecords.some(r => r.student_id === record.student_id)) {
+                return reject(new Error("You have already checked in for this session."));
+            }
+
+            const newRecord = { ...record, created_at: new Date().toISOString() };
+            const addRequest = attendanceStore.add(newRecord);
+            addRequest.onsuccess = () => resolve();
+            addRequest.onerror = () => reject(addRequest.error);
+        };
+        getRequest.onerror = () => reject(getRequest.error);
     });
 };
 
@@ -201,38 +221,33 @@ export const getAttendanceForSession = async (sessionId: string): Promise<Portal
     const store = getStore(STORES.ATTENDANCE, 'readonly');
     const index = store.index('session_id');
     const request = index.getAll(sessionId);
-
     return new Promise((resolve, reject) => {
-        request.onsuccess = () => resolve(request.result as PortalAttendanceRecord[]);
+        request.onsuccess = () => resolve((request.result || []).sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         request.onerror = () => reject(request.error);
     });
 };
 
-// --- Curriculum File Functions ---
+// --- Curriculum Functions ---
 export const addCurriculumFile = async (fileInfo: CurriculumFile, fileBlob: Blob): Promise<void> => {
     await initPortalDB();
     const store = getStore(STORES.CURRICULUM, 'readwrite');
-    // In a real app, storing large blobs directly in the object store can be inefficient.
-    // For this local-first app, we'll store the blob along with the metadata.
-    const dataToStore = { ...fileInfo, blob: fileBlob };
     return new Promise((resolve, reject) => {
-        const request = store.put(dataToStore); // Use put to allow overwriting if needed
+        const dataToStore = { ...fileInfo, blob: fileBlob };
+        const request = store.put(dataToStore);
         request.onsuccess = () => resolve();
         request.onerror = () => reject(request.error);
     });
 };
 
-
 export const getCurriculumFiles = async (): Promise<CurriculumFile[]> => {
     await initPortalDB();
     const store = getStore(STORES.CURRICULUM, 'readonly');
+    const request = store.getAll();
     return new Promise((resolve, reject) => {
-        const request = store.getAll();
         request.onsuccess = () => {
-            // Remove the blob data for the list view to save memory
-            const files = request.result.map((file: any) => {
-                const { blob, ...fileInfo } = file;
-                return fileInfo;
+            const files = request.result.map((f: any) => {
+                const { blob, ...info } = f;
+                return info;
             });
             resolve(files.sort((a: CurriculumFile, b: CurriculumFile) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         };
@@ -243,9 +258,11 @@ export const getCurriculumFiles = async (): Promise<CurriculumFile[]> => {
 export const getCurriculumFileBlob = async (fileId: string): Promise<Blob | null> => {
     await initPortalDB();
     const store = getStore(STORES.CURRICULUM, 'readonly');
-     return new Promise((resolve, reject) => {
-        const request = store.get(fileId);
-        request.onsuccess = () => resolve((request.result as any)?.blob || null);
+    const request = store.get(fileId);
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            resolve(request.result?.blob || null);
+        };
         request.onerror = () => reject(request.error);
     });
 };
