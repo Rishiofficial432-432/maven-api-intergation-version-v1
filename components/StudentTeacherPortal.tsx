@@ -1,9 +1,7 @@
 
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile } from '../types';
 import { createUser, getUserByEmail, createSession, getActiveSession, endActiveSession, logAttendance, getAttendanceForSession, getPendingStudents, approveStudent, addCurriculumFile, getCurriculumFiles, getCurriculumFileBlob, deleteCurriculumFile } from './portal-db';
-// FIX: Added missing GraduationCap icon import from lucide-react.
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, Download, QrCode, UploadCloud, FileText, Check, GraduationCap } from 'lucide-react';
 import { useToast } from './Toast';
 import QRCode from 'qrcode';
@@ -152,80 +150,253 @@ const AuthScreen: React.FC<{ onLogin: (user: PortalUser) => void }> = ({ onLogin
 
 // --- DASHBOARDS ---
 const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = ({ user, onLogout }) => {
-    const [activeTab, setActiveTab] = useState<'session' | 'approvals' | 'curriculum'>('session');
-    
     const [activeSession, setActiveSession] = useState<PortalSession | null>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState('');
     const [liveAttendance, setLiveAttendance] = useState<PortalAttendanceRecord[]>([]);
     const [locationEnforced, setLocationEnforced] = useState(false);
-    const [radius, setRadius] = useState(100);
+    const [radius, setRadius] = useState(50);
     const [startingSession, setStartingSession] = useState(false);
-    const [teacherLocation, setTeacherLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-
     const [pendingStudents, setPendingStudents] = useState<PortalUser[]>([]);
-    const [loadingApprovals, setLoadingApprovals] = useState(false);
-    
+    const [loadingApprovals, setLoadingApprovals] = useState(true);
     const [curriculumFiles, setCurriculumFiles] = useState<CurriculumFile[]>([]);
     const [uploadingFile, setUploadingFile] = useState(false);
-
     const toast = useToast();
 
-    useEffect(() => {
-        if (activeTab === 'approvals') {
-            setLoadingApprovals(true);
-            getPendingStudents().then(setPendingStudents).finally(() => setLoadingApprovals(false));
+    const fetchDashboardData = useCallback(async () => {
+        setLoadingApprovals(true);
+        try {
+            const [students, files, session] = await Promise.all([
+                getPendingStudents(),
+                getCurriculumFiles(),
+                getActiveSession()
+            ]);
+            setPendingStudents(students);
+            setCurriculumFiles(files);
+            if (session) {
+                setActiveSession(session);
+                const attendance = await getAttendanceForSession(session.id);
+                setLiveAttendance(attendance);
+            }
+        } catch (error: any) {
+            toast.error(`Failed to load data: ${error.message}`);
+        } finally {
+            setLoadingApprovals(false);
         }
-        if (activeTab === 'curriculum') {
-            getCurriculumFiles().then(setCurriculumFiles);
-        }
-    }, [activeTab]);
+    }, [toast]);
 
+    useEffect(() => {
+        fetchDashboardData();
+    }, [fetchDashboardData]);
+    
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
             const { type, payload } = event.data;
             if (type === 'NEW_ATTENDANCE' && activeSession && payload.sessionId === activeSession.id) {
-                toast.success(`New student checked in!`);
+                toast.success(`${payload.record.student_name} just checked in!`);
                 setLiveAttendance(prev => [...prev, payload.record]);
             }
         };
         attendanceChannel.addEventListener('message', handleMessage);
         return () => attendanceChannel.removeEventListener('message', handleMessage);
     }, [activeSession, toast]);
-    
-     useEffect(() => { if (activeSession?.session_code) { QRCode.toDataURL(activeSession.session_code, { width: 256, margin: 2, color: { dark: '#FFFFFF', light: '#18181b' } }, (err, url) => { if (err) console.error(err); setQrCodeUrl(url); }); } }, [activeSession]);
 
-    const handleApproveStudent = async (studentId: string) => {
+    useEffect(() => {
+        if (activeSession?.session_code) {
+            QRCode.toDataURL(activeSession.session_code, { width: 256, margin: 1, color: { dark: '#f8fafc', light: '#111827' } }, (err, url) => {
+                if (err) console.error(err);
+                setQrCodeUrl(url);
+            });
+        }
+    }, [activeSession]);
+    
+    const handleStartSession = async () => {
+        setStartingSession(true);
         try {
-            await approveStudent(studentId);
-            setPendingStudents(prev => prev.filter(s => s.id !== studentId));
-            toast.success("Student approved successfully!");
+            let location: { latitude: number, longitude: number } | null = null;
+            if (locationEnforced) {
+                location = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+                        (err) => reject(new Error(getGeolocationErrorMessage(err)))
+                    );
+                });
+            }
+            const session_code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+            const newSession: PortalSession = {
+                id: crypto.randomUUID(),
+                teacher_id: user.id,
+                session_code,
+                expires_at,
+                is_active: true,
+                location_enforced: locationEnforced,
+                radius,
+                location
+            };
+            await createSession(newSession);
+            setActiveSession(newSession);
+            toast.success("New session started!");
         } catch (error: any) {
             toast.error(error.message);
+        } finally {
+            setStartingSession(false);
+        }
+    };
+
+    const handleEndSession = async () => {
+        if (!activeSession) return;
+        try {
+            await endActiveSession();
+            setActiveSession(null);
+            setLiveAttendance([]);
+            setQrCodeUrl('');
+            toast.info("Session has been ended.");
+        } catch (error: any) {
+            toast.error(error.message);
+        }
+    };
+    
+    const handleApproveStudent = async (studentId: string) => {
+        await approveStudent(studentId);
+        setPendingStudents(p => p.filter(s => s.id !== studentId));
+        toast.success("Student approved!");
+    };
+    
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingFile(true);
+        try {
+            const newFile: CurriculumFile = {
+                id: crypto.randomUUID(),
+                teacherId: user.id,
+                teacherName: user.name,
+                fileName: file.name,
+                fileType: file.type,
+                createdAt: new Date().toISOString()
+            };
+            await addCurriculumFile(newFile, file);
+            setCurriculumFiles(prev => [newFile, ...prev]);
+            toast.success("File uploaded successfully.");
+        } catch(err: any) {
+            toast.error(`Upload failed: ${err.message}`);
+        } finally {
+            setUploadingFile(false);
+        }
+    };
+    
+    const handleFileDelete = async (fileId: string) => {
+        if(window.confirm("Are you sure you want to delete this file?")) {
+            await deleteCurriculumFile(fileId);
+            setCurriculumFiles(f => f.filter(file => file.id !== fileId));
+            toast.success("File deleted.");
         }
     };
 
     return (
         <div className="flex-1 flex flex-col h-full bg-accent/20 text-foreground">
             <header className="p-4 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
-                <h1 className="text-xl font-bold">Teacher Dashboard</h1>
+                <h1 className="text-xl font-bold">Teacher Command Center</h1>
                 <div className="flex items-center gap-4">
                     <span className="text-sm text-muted-foreground hidden sm:block">Welcome, {user.name}</span>
                     <button onClick={onLogout} className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300"><LogOut size={16}/> Logout</button>
                 </div>
             </header>
             <main className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 space-y-6">
-                    <h2 className="text-xl font-bold">Session Control</h2>
-                    {/* Session UI Here */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-card border border-border rounded-xl p-6">
+                        <h2 className="text-2xl font-bold mb-4">Session Control</h2>
+                        {!activeSession ? (
+                            <div className="space-y-4 max-w-lg">
+                                <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                                    <label htmlFor="location-toggle" className="font-semibold flex items-center gap-2"><MapPin size={18}/> Enforce Location</label>
+                                    <button onClick={() => setLocationEnforced(!locationEnforced)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${locationEnforced ? 'bg-primary' : 'bg-input'}`}><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${locationEnforced ? 'translate-x-6' : 'translate-x-1'}`}/></button>
+                                </div>
+                                {locationEnforced && (
+                                    <div className="p-3 bg-secondary rounded-lg">
+                                        <label htmlFor="radius-slider" className="font-semibold">Check-in Radius: <span className="text-primary font-bold">{radius}m</span></label>
+                                        <input id="radius-slider" type="range" min="10" max="500" step="10" value={radius} onChange={e => setRadius(Number(e.target.value))} className="w-full h-2 bg-input rounded-lg appearance-none cursor-pointer mt-2"/>
+                                    </div>
+                                )}
+                                <button onClick={handleStartSession} disabled={startingSession} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+                                    {startingSession ? <><Loader className="animate-spin"/> Starting...</> : 'Start New Session'}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                                <div className="text-center bg-gray-900 rounded-lg p-2">
+                                    {qrCodeUrl ? <img src={qrCodeUrl} alt="QR Code" className="w-full max-w-[200px] mx-auto rounded-md"/> : <Loader className="animate-spin"/>}
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="p-3 bg-secondary rounded-lg">
+                                        <p className="text-sm text-muted-foreground">Session PIN</p>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-3xl font-mono tracking-widest">{activeSession.session_code}</p>
+                                            <button onClick={() => { navigator.clipboard.writeText(activeSession.session_code); toast.success("PIN Copied!"); }} className="p-2 hover:bg-accent rounded-md"><Copy size={18}/></button>
+                                        </div>
+                                    </div>
+                                    {activeSession.location_enforced && activeSession.location && (
+                                        <div className="p-3 bg-secondary rounded-lg">
+                                            <p className="text-sm font-semibold text-green-400 flex items-center gap-1"><ShieldCheck size={14}/> Location Enforcement: ON</p>
+                                            <p className="text-xs font-mono text-muted-foreground">Lat: {activeSession.location.latitude.toFixed(5)}, Lon: {activeSession.location.longitude.toFixed(5)}</p>
+                                        </div>
+                                    )}
+                                    <button onClick={handleEndSession} className="w-full bg-destructive/80 hover:bg-destructive text-destructive-foreground py-2 rounded-lg font-semibold">End Session</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    {activeSession && (
+                        <div className="bg-card border border-border rounded-xl p-6 animate-fade-in-up">
+                            <h2 className="text-2xl font-bold mb-4">Live Attendance Feed</h2>
+                            <div className="grid grid-cols-3 gap-4 mb-4 text-center">
+                                <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold text-primary">{liveAttendance.length}</p><p className="text-sm text-muted-foreground">Live Count</p></div>
+                                <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold">--</p><p className="text-sm text-muted-foreground">Total Students</p></div>
+                                <div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold">--%</p><p className="text-sm text-muted-foreground">Check-in Rate</p></div>
+                            </div>
+                            <div className="max-h-64 overflow-y-auto space-y-2">
+                                {liveAttendance.length > 0 ? liveAttendance.map(att => (
+                                    <div key={att.student_id} className="flex justify-between items-center p-2 bg-secondary rounded-md">
+                                        <div>
+                                            <p className="font-semibold">{att.student_name}</p>
+                                            <p className="text-xs text-muted-foreground">{att.enrollment_id}</p>
+                                        </div>
+                                        <p className="text-xs text-green-400 font-mono">{new Date(att.created_at).toLocaleTimeString()}</p>
+                                    </div>
+                                )) : <p className="text-center text-muted-foreground py-4">Waiting for students to check in...</p>}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="space-y-6">
                     <div className="bg-card border border-border rounded-xl p-6">
-                        <h3 className="font-bold mb-2">Pending Approvals</h3>
-                        {/* Approvals UI Here */}
+                        <h3 className="font-bold mb-4 flex items-center justify-between">Pending Approvals <RefreshCw size={16} onClick={fetchDashboardData} className="cursor-pointer hover:rotate-90 transition-transform"/></h3>
+                        <div className="max-h-48 overflow-y-auto space-y-2">
+                            {loadingApprovals ? <Loader className="animate-spin mx-auto"/> : pendingStudents.length > 0 ? pendingStudents.map(s => (
+                                <div key={s.id} className="p-2 bg-secondary rounded-md">
+                                    <p className="font-semibold text-sm">{s.name}</p>
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-xs text-muted-foreground">{s.email}</p>
+                                        <button onClick={() => handleApproveStudent(s.id)} className="p-1 bg-primary/20 text-primary rounded-md"><Check size={14}/></button>
+                                    </div>
+                                </div>
+                            )) : <p className="text-sm text-muted-foreground text-center">No pending students.</p>}
+                        </div>
                     </div>
                      <div className="bg-card border border-border rounded-xl p-6">
-                        <h3 className="font-bold mb-2">Curriculum Files</h3>
-                        {/* Curriculum UI Here */}
+                        <h3 className="font-bold mb-4">Curriculum Files</h3>
+                        <div className="max-h-48 overflow-y-auto space-y-2 mb-4">
+                           {curriculumFiles.map(f => (
+                                <div key={f.id} className="flex justify-between items-center p-2 bg-secondary rounded-md text-sm">
+                                    <p className="truncate pr-2">{f.fileName}</p>
+                                    <button onClick={() => handleFileDelete(f.id)} className="text-destructive/70 hover:text-destructive flex-shrink-0"><Trash2 size={14}/></button>
+                                </div>
+                           ))}
+                        </div>
+                        <label className="w-full text-center cursor-pointer bg-primary/20 text-primary px-4 py-2 rounded-md text-sm font-semibold block disabled:opacity-50">
+                            <input type="file" onChange={handleFileUpload} disabled={uploadingFile} className="hidden"/>
+                            {uploadingFile ? <Loader className="animate-spin mx-auto"/> : 'Upload New File'}
+                        </label>
                     </div>
                 </div>
             </main>
@@ -237,6 +408,47 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
     const [code, setCode] = useState('');
     const [checkingIn, setCheckingIn] = useState(false);
     const toast = useToast();
+    
+    const handleCheckIn = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (code.length !== 6) {
+            toast.error("Please enter a valid 6-digit code.");
+            return;
+        }
+        setCheckingIn(true);
+        try {
+            const session = await getActiveSession();
+            if (!session || session.session_code !== code) throw new Error("Invalid or expired session code.");
+
+            if (session.location_enforced) {
+                const studentLocation = await new Promise<{ lat: number, lon: number }>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                        (err) => reject(new Error(getGeolocationErrorMessage(err)))
+                    );
+                });
+                const distance = getDistance(session.location!.latitude, session.location!.longitude, studentLocation.lat, studentLocation.lon);
+                if (distance > session.radius!) throw new Error(`You are too far from the class (${Math.round(distance)}m). Required: <${session.radius}m.`);
+            }
+
+            const attendanceRecord = {
+                session_id: session.id,
+                student_id: user.id,
+                student_name: user.name,
+                enrollment_id: user.enrollment_id
+            };
+            
+            await logAttendance(attendanceRecord);
+            attendanceChannel.postMessage({ type: 'NEW_ATTENDANCE', payload: { record: { ...attendanceRecord, created_at: new Date().toISOString() }, sessionId: session.id } });
+            toast.success("Checked in successfully!");
+            setCode('');
+
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setCheckingIn(false);
+        }
+    };
 
     return (
         <div className="flex-1 flex flex-col h-full bg-accent/20 text-foreground">
@@ -248,27 +460,39 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void }> = (
                 </div>
             </header>
              <main className="flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 text-center">
-                        <h2 className="text-xl font-bold mb-4">Attendance Check-in</h2>
-                        <form className="space-y-4 max-w-sm mx-auto">
-                            <input type="text" placeholder="Enter 6-Digit Code" value={code} onChange={e => setCode(e.target.value.toUpperCase())} maxLength={6} className="w-full bg-input text-center text-2xl tracking-[0.5em] font-mono rounded-lg p-4"/>
-                            <button type="submit" className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold">Check In</button>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2 bg-card border border-border rounded-xl p-6 text-center shadow-lg">
+                        <h2 className="text-2xl font-bold mb-4">Attendance Check-in</h2>
+                        <p className="text-muted-foreground mb-6 max-w-sm mx-auto">Enter the 6-digit PIN provided by your teacher to mark your attendance.</p>
+                        <form onSubmit={handleCheckIn} className="space-y-4 max-w-xs mx-auto">
+                            <input type="text" placeholder="------" value={code} onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} maxLength={6} className="w-full bg-input text-center text-4xl tracking-[0.5em] font-mono rounded-lg p-4 border-2 border-transparent focus:border-primary focus:ring-0 transition-colors"/>
+                            <button type="submit" disabled={checkingIn} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold text-lg disabled:opacity-50 transition-all active:scale-95">
+                               {checkingIn ? <Loader className="animate-spin mx-auto"/> : 'Check In'}
+                            </button>
                         </form>
                     </div>
                     <div className="bg-card border border-border rounded-xl p-6">
-                        <h3 className="font-bold mb-2">Attendance Summary</h3>
-                        {/* Stats Here */}
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><BarChart2 size={18}/> Attendance Summary</h3>
+                        <div className="space-y-4 text-center">
+                            <div className="bg-secondary p-3 rounded-lg"><p className="text-3xl font-bold text-primary">92%</p><p className="text-sm text-muted-foreground">Overall Rate</p></div>
+                             <div className="bg-secondary p-3 rounded-lg"><p className="text-3xl font-bold">18/20</p><p className="text-sm text-muted-foreground">Sessions Attended</p></div>
+                        </div>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-card border border-border rounded-xl p-6">
-                        <h3 className="font-bold mb-2">Today's Schedule</h3>
-                         {/* Schedule Here */}
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><Calendar size={18}/> Today's Schedule</h3>
+                         <div className="space-y-2">
+                             <div className="p-3 bg-secondary rounded-lg"><p className="font-semibold">10:00 - History 101</p><p className="text-sm text-muted-foreground">Dr. Reed - Room 301</p></div>
+                             <div className="p-3 bg-secondary rounded-lg"><p className="font-semibold">14:00 - Physics 204</p><p className="text-sm text-muted-foreground">Dr. Anya - Lab B</p></div>
+                         </div>
                     </div>
                      <div className="bg-card border border-border rounded-xl p-6">
-                        <h3 className="font-bold mb-2">Recent Curriculum Files</h3>
-                         {/* Files Here */}
+                        <h3 className="font-bold mb-4 flex items-center gap-2"><Download size={18}/> Recent Curriculum Files</h3>
+                         <div className="space-y-2">
+                            <div className="p-3 bg-secondary rounded-lg flex justify-between items-center"><p className="font-semibold text-sm">Lecture_Notes_Week_5.pdf</p><button className="p-1.5 hover:bg-accent rounded-md"><Download size={16}/></button></div>
+                            <div className="p-3 bg-secondary rounded-lg flex justify-between items-center"><p className="font-semibold text-sm">Midterm_Study_Guide.docx</p><button className="p-1.5 hover:bg-accent rounded-md"><Download size={16}/></button></div>
+                         </div>
                     </div>
                 </div>
              </main>
