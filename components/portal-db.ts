@@ -1,7 +1,7 @@
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 3; // Incremented version for schema change
+const DB_VERSION = 3; // Keep version the same, the logic will handle the fix
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',
@@ -19,6 +19,9 @@ const initPortalDB = (): Promise<IDBDatabase> => {
 
     request.onupgradeneeded = (event) => {
       const dbInstance = request.result;
+      const transaction = (event.target as any).transaction;
+
+      // Version 1: Initial schema for users, sessions, and attendance
       if (event.oldVersion < 1) {
         if (!dbInstance.objectStoreNames.contains(STORES.USERS)) {
           dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
@@ -27,14 +30,24 @@ const initPortalDB = (): Promise<IDBDatabase> => {
           dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
         }
         if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
-          const store = dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
-          store.createIndex('session_id', 'session_id', { unique: false });
+          dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
         }
       }
+
+      // This block runs for any upgrade to version 3 (or higher) from an older version.
+      // This is the key fix: It ensures the index and new store are created correctly on upgrade.
       if (event.oldVersion < 3) {
-         if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) {
-            dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
-         }
+        // Fix/Add the attendance index if it's missing
+        if (dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
+            const attendanceStore = transaction.objectStore(STORES.ATTENDANCE);
+            if (!attendanceStore.indexNames.contains('session_id')) {
+                 attendanceStore.createIndex('session_id', 'session_id', { unique: false });
+            }
+        }
+        // Add the curriculum store
+        if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) {
+           dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
+        }
       }
     };
 
