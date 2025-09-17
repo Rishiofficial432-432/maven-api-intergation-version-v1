@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, X, Play, Pause, RotateCcw, Calendar, CheckSquare as CheckSquareIcon, List as ListIcon,
@@ -10,7 +11,7 @@ import {
   Copy, Check,
   ChevronLeft, ChevronRight, Download, Upload, GripVertical,
   Trophy, Smile, Quote as QuoteIcon, DollarSign,
-  BrainCircuit as BrainCircuitIcon, Wand2, Loader, ArrowLeft, CheckCircle
+  BrainCircuit as BrainCircuitIcon, Wand2, Loader, ArrowLeft, CheckCircle, TrendingUp, Activity, Coffee
 } from 'lucide-react';
 import RandomDecisionMaker from './RandomDecisionMaker';
 import { geminiAI } from './gemini';
@@ -259,47 +260,15 @@ interface MamDeskProps {
     onNewNote: (title: string, content?: string) => Page;
 }
 
-export const MamDesk: React.FC<MamDeskProps> = ({
-  activeTab,
-  tasks,
-  onAddTask,
-  onToggleTask,
-  onDeleteTask,
-  kanbanColumns,
-  setKanbanColumns,
-  onAddKanbanCard,
-  quickNotes,
-  setQuickNotes,
-  events,
-  onAddEvent,
-  habits,
-  setHabits,
-  personalQuotes,
-  setPersonalQuotes,
-  moodEntries,
-  setMoodEntries,
-  expenses,
-  setExpenses,
-  goals,
-  setGoals,
-  pomodoroTime,
-  pomodoroActive,
-  pomodoroSessions,
-  onTogglePomodoro,
-  onResetPomodoro,
-  decisionOptions,
-  setDecisionOptions,
-  decisionResult,
-  setDecisionResult,
-  isDecisionSpinning,
-  setIsDecisionSpinning,
-  currentDecisionSpin,
-  setCurrentDecisionSpin,
-  theme,
-  setTheme,
-  pages,
-  onNewNote
-}) => {
+export const MamDesk: React.FC<MamDeskProps> = (props) => {
+  const {
+    activeTab, tasks, onAddTask, onToggleTask, onDeleteTask, kanbanColumns, setKanbanColumns, onAddKanbanCard,
+    quickNotes, setQuickNotes, events, onAddEvent, habits, setHabits, personalQuotes, setPersonalQuotes, moodEntries,
+    setMoodEntries, expenses, setExpenses, goals, setGoals, pomodoroTime, pomodoroActive, pomodoroSessions, onTogglePomodoro,
+    onResetPomodoro, decisionOptions, setDecisionOptions, decisionResult, setDecisionResult, isDecisionSpinning,
+    setIsDecisionSpinning, currentDecisionSpin, setCurrentDecisionSpin, theme, setTheme, pages, onNewNote
+  } = props;
+
   const [newTask, setNewTask] = useState('');
   const [newKanbanTexts, setNewKanbanTexts] = useState({ todo: '', progress: '', done: '' });
   const [newNote, setNewNote] = useState('');
@@ -571,34 +540,202 @@ export const MamDesk: React.FC<MamDeskProps> = ({
     );
 };
   
-  const Personal = () => (
-    <div className={`grid grid-cols-1 md:grid-cols-2 gap-6`}>
-        <div className={`${cardClasses} p-4`}>
-            <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Trophy size={20}/> Goals</h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
-                {goals.map(g => <div key={g.id} className="p-2 bg-secondary rounded-md">{g.text}</div>)}
+const Personal = () => {
+    const [newGoal, setNewGoal] = useState('');
+    const [newQuote, setNewQuote] = useState('');
+    const [expenseDesc, setExpenseDesc] = useState('');
+    const [expenseAmount, setExpenseAmount] = useState('');
+    const [expenseCategory, setExpenseCategory] = useState('General');
+    const toast = useToast();
+
+    const handleAddGoal = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newGoal.trim()) return;
+        setGoals(prev => [...prev, { id: crypto.randomUUID(), text: newGoal, completed: false }]);
+        setNewGoal('');
+        toast.success("Goal added!");
+    };
+
+    const handleLogMood = (mood: string) => {
+        const today = new Date().toISOString().split('T')[0];
+        const newEntry = { id: crypto.randomUUID(), mood, date: today };
+        setMoodEntries(prev => [...prev.filter(e => e.date !== today), newEntry]);
+        toast.info(`Mood logged: ${mood}`);
+    };
+
+    const handleAddExpense = (e: React.FormEvent) => {
+        e.preventDefault();
+        const amount = parseFloat(expenseAmount);
+        if (!expenseDesc.trim() || isNaN(amount) || amount <= 0) {
+            toast.error("Invalid expense details.");
+            return;
+        }
+        const newExpense = { id: crypto.randomUUID(), description: expenseDesc, amount, category: expenseCategory, date: new Date().toISOString() };
+        setExpenses(prev => [...prev, newExpense]);
+        setExpenseDesc('');
+        setExpenseAmount('');
+        toast.success("Expense added!");
+    };
+
+    const handleAddQuote = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newQuote.trim()) return;
+        setPersonalQuotes(prev => [...prev, { id: crypto.randomUUID(), text: newQuote }]);
+        setNewQuote('');
+        toast.success("Quote saved!");
+    };
+
+    return (
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-6`}>
+            {/* Goals */}
+            <div className={`${cardClasses} p-4 flex flex-col`}>
+                <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Trophy size={20}/> Goals</h3>
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-2 flex-grow">
+                    {goals.map(g => <div key={g.id} className="p-2 bg-secondary rounded-md text-sm">{g.text}</div>)}
+                </div>
+                <form onSubmit={handleAddGoal} className="flex gap-2 mt-4 pt-4 border-t border-border">
+                    <input value={newGoal} onChange={e => setNewGoal(e.target.value)} placeholder="Add a new goal..." className="flex-1 bg-input p-2 rounded-md text-sm" />
+                    <button type="submit" className="bg-primary text-primary-foreground px-3 rounded-md"><Plus size={16}/></button>
+                </form>
+            </div>
+
+            {/* Mood Tracker */}
+            <div className={`${cardClasses} p-4`}>
+                <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Smile size={20}/> Mood Tracker</h3>
+                <p className="text-sm text-muted-foreground mb-4">How are you feeling today?</p>
+                <div className="flex justify-around mb-4">
+                    {['😄', '😊', '😐', '😢', '😴'].map(mood => (
+                        <button key={mood} onClick={() => handleLogMood(mood)} className="text-3xl hover:scale-125 transition-transform">{mood}</button>
+                    ))}
+                </div>
+                <div className="space-y-1 max-h-24 overflow-y-auto pr-2 text-sm">
+                    {[...moodEntries].reverse().slice(0, 3).map(m => <div key={m.id} className="p-1.5 bg-secondary rounded-md">{m.date}: {m.mood}</div>)}
+                </div>
+            </div>
+
+            {/* Expenses */}
+            <div className={`md:col-span-2 ${cardClasses} p-4 flex flex-col`}>
+                <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><DollarSign size={20}/> Recent Expenses</h3>
+                <div className="space-y-1 max-h-32 overflow-y-auto pr-2 flex-grow">
+                    {expenses.map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between text-sm"><span>{e.description} ({e.category})</span> <span className="font-semibold">${e.amount.toFixed(2)}</span></div>)}
+                </div>
+                <form onSubmit={handleAddExpense} className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border">
+                    <input value={expenseDesc} onChange={e => setExpenseDesc(e.target.value)} placeholder="Description" className="col-span-3 bg-input p-2 rounded-md text-sm" />
+                    <input type="number" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} placeholder="Amount" className="bg-input p-2 rounded-md text-sm" />
+                    <select value={expenseCategory} onChange={e => setExpenseCategory(e.target.value)} className="bg-input p-2 rounded-md text-sm">
+                        <option>General</option><option>Food</option><option>Transport</option><option>Bills</option><option>Fun</option>
+                    </select>
+                    <button type="submit" className="bg-primary text-primary-foreground px-3 rounded-md">Add</button>
+                </form>
+            </div>
+
+            {/* Quotes */}
+            <div className={`md:col-span-2 ${cardClasses} p-4 flex flex-col`}>
+                 <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><QuoteIcon size={20}/> Personal Quotes</h3>
+                 <div className="space-y-2 max-h-40 overflow-y-auto pr-2 italic flex-grow">
+                    {personalQuotes.map(q => <blockquote key={q.id} className="p-2 bg-secondary rounded-md border-l-4 border-primary text-sm">"{q.text}"</blockquote>)}
+                </div>
+                <form onSubmit={handleAddQuote} className="flex gap-2 mt-4 pt-4 border-t border-border">
+                    <input value={newQuote} onChange={e => setNewQuote(e.target.value)} placeholder="Add an inspiring quote..." className="flex-1 bg-input p-2 rounded-md text-sm" />
+                    <button type="submit" className="bg-primary text-primary-foreground px-3 rounded-md"><Plus size={16}/></button>
+                </form>
             </div>
         </div>
-        <div className={`${cardClasses} p-4`}>
-            <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Smile size={20}/> Mood Tracker</h3>
-             <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
-                {moodEntries.map(m => <div key={m.id} className="p-2 bg-secondary rounded-md">{m.date}: {m.mood}</div>)}
+    );
+  };
+  
+const Analytics = () => {
+    // Data processing
+    const completedTasks = tasks.filter(t => t.completed).length;
+    const pendingTasks = tasks.length - completedTasks;
+    const taskCompletionPercent = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+    
+    // Productivity Score
+    const last7Days = new Date();
+    last7Days.setDate(last7Days.getDate() - 7);
+    const tasksCompletedLastWeek = tasks.filter(t => t.completed && new Date(t.createdAt) > last7Days).length;
+    const habitsCompletedLastWeek = habits.reduce((sum, h) => sum + (h.history?.filter(day => new Date(day.date) > last7Days && day.completed).length || 0), 0);
+    const productivityScore = Math.min(100, Math.round((tasksCompletedLastWeek * 5 + habitsCompletedLastWeek * 2.5) / 2));
+
+
+    const expenseByCategory = expenses.reduce((acc, expense) => {
+        acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
+        return acc;
+    }, {} as Record<string, number>);
+    const maxExpense = Math.max(...Object.values(expenseByCategory), 0);
+
+    const DonutChart = ({ percentage, size = 100, strokeWidth = 10 }: { percentage: number, size?: number, strokeWidth?: number }) => {
+        const radius = (size - strokeWidth) / 2;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (percentage / 100) * circumference;
+
+        return (
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                <circle className="text-secondary" stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" r={radius} cx={size/2} cy={size/2} />
+                <circle className="text-primary" stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" r={radius} cx={size/2} cy={size/2}
+                    strokeDasharray={circumference} strokeDashoffset={offset}
+                    transform={`rotate(-90 ${size/2} ${size/2})`}
+                    style={{ transition: 'stroke-dashoffset 0.5s ease-in-out' }}
+                />
+                <text x="50%" y="50%" textAnchor="middle" dy=".3em" className="text-xl font-bold fill-current text-foreground">
+                    {percentage}%
+                </text>
+            </svg>
+        );
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className={`lg:col-span-2 ${cardClasses} p-6 flex flex-col items-center justify-center text-center`}>
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-2"><TrendingUp size={20}/> 7-Day Productivity Score</h3>
+                <p className="text-7xl font-bold text-primary">{productivityScore}</p>
+                <p className="text-sm text-muted-foreground mt-1">Based on tasks and habits</p>
+            </div>
+            <div className={`${cardClasses} p-6 flex flex-col items-center justify-center`}>
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-2"><CheckSquare size={20}/> Task Overview</h3>
+                <DonutChart percentage={taskCompletionPercent} />
+                 <p className="text-sm text-muted-foreground mt-2">{completedTasks} completed / {pendingTasks} pending</p>
+            </div>
+             <div className={`${cardClasses} p-6 flex flex-col items-center justify-center text-center`}>
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-2"><Coffee size={20}/> Pomodoro Focus</h3>
+                <p className="text-6xl font-bold text-primary">{pomodoroSessions}</p>
+                <p className="text-sm text-muted-foreground mt-1">Completed Sessions</p>
+            </div>
+             <div className={`lg:col-span-2 ${cardClasses} p-6`}>
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><Activity size={20}/> Habit Consistency</h3>
+                <div className="space-y-3">
+                    {habits.map(habit => (
+                        <div key={habit.id}>
+                            <div className="flex justify-between text-sm mb-1">
+                                <span className="font-semibold">{habit.name}</span>
+                                <span className="text-muted-foreground">{habit.streak} day streak</span>
+                            </div>
+                            <div className="w-full bg-secondary rounded-full h-2.5">
+                                <div className="bg-primary h-2.5 rounded-full" style={{ width: `${Math.min(100, (habit.streak / 30) * 100)}%` }}></div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+             <div className={`lg:col-span-2 ${cardClasses} p-6`}>
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-4"><DollarSign size={20}/> Financial Snapshot</h3>
+                 <div className="space-y-3">
+                    {Object.entries(expenseByCategory).map(([category, amount]) => (
+                        <div key={category}>
+                             <div className="flex justify-between text-sm mb-1">
+                                <span className="font-semibold">{category}</span>
+                                <span className="text-muted-foreground">${amount.toFixed(2)}</span>
+                            </div>
+                            <div className="w-full bg-secondary rounded-full h-4">
+                                <div className="bg-primary h-4 rounded-full" style={{ width: `${(amount / maxExpense) * 100}%` }}></div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
-        <div className={`md:col-span-2 ${cardClasses} p-4`}>
-            <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><DollarSign size={20}/> Recent Expenses</h3>
-             <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
-                {expenses.map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between"><span>{e.description} ({e.category})</span> <span>${e.amount.toFixed(2)}</span></div>)}
-            </div>
-        </div>
-        <div className={`md:col-span-2 ${cardClasses} p-4`}>
-             <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><QuoteIcon size={20}/> Personal Quotes</h3>
-             <div className="space-y-2 max-h-40 overflow-y-auto pr-2 italic">
-                {personalQuotes.map(q => <blockquote key={q.id} className="p-2 bg-secondary rounded-md border-l-4 border-primary">"{q.text}"</blockquote>)}
-            </div>
-        </div>
-    </div>
-  );
+    );
+};
 
   const renderContent = () => {
     switch (activeTab) {
@@ -611,7 +748,7 @@ export const MamDesk: React.FC<MamDeskProps> = ({
       case 'decision': return <RandomDecisionMaker options={decisionOptions} setOptions={setDecisionOptions} result={decisionResult} setResult={setDecisionResult} isSpinning={isDecisionSpinning} setIsSpinning={setIsDecisionSpinning} currentSpin={currentDecisionSpin} setCurrentSpin={setCurrentDecisionSpin} />;
       case 'notes': return <QuickNotes />;
       case 'habits': return <HabitTracker />;
-      case 'analytics': return <div className={`${cardClasses} p-6`}><h2 className="text-xl font-bold">Analytics</h2><p className="text-muted-foreground">Coming soon!</p></div>;
+      case 'analytics': return <Analytics />;
       case 'personal': return <Personal />;
       default: return <Dashboard />;
     }
