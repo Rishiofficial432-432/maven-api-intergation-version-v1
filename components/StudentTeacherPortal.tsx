@@ -67,15 +67,42 @@ const AuthScreen: React.FC<{ onLoginSuccess: (user: PortalUser) => void }> = ({ 
     
     const handleDemoLogin = async (demoRole: 'teacher' | 'student') => {
         setLoading(true);
+        const email = demoRole === 'teacher' ? 'e.reed@university.edu' : 'a.johnson@university.edu';
+        const password = 'password123';
+        
         try {
-            // NOTE: These demo users must be created in your Supabase project first.
-            const email = demoRole === 'teacher' ? 'e.reed@university.edu' : 'a.johnson@university.edu';
-            const password = 'password123'; // Use a secure, common password for both demo accounts.
+            // First, try to sign in
             const user = await Portal.signInUser(email, password);
             toast.success(`Logged in as Demo ${demoRole === 'teacher' ? 'Teacher' : 'Student'}.`);
             onLoginSuccess(user);
         } catch (error: any) {
-            toast.error(`Demo login failed: ${error.message}. Ensure demo accounts are set up in Supabase.`);
+            // If sign-in fails because the user doesn't exist, try to sign them up
+            if (error.message.includes('Invalid login credentials')) {
+                toast.info("Setting up demo account for the first time...");
+                try {
+                    const signupData = {
+                        name: demoRole === 'teacher' ? 'Dr. Evelyn Reed' : 'Alex Johnson',
+                        email: email,
+                        password: password,
+                        role: demoRole,
+                        enrollment_id: demoRole === 'student' ? 'S12345' : undefined,
+                        ug_number: demoRole === 'student' ? 'UG67890' : undefined,
+                        phone_number: demoRole === 'student' ? '555-0101' : undefined
+                    };
+                    
+                    await Portal.signUpUser(signupData);
+                    
+                    // Now, sign in with the newly created account
+                    const user = await Portal.signInUser(email, password);
+                    toast.success(`Demo account created! Logged in as Demo ${demoRole === 'teacher' ? 'Teacher' : 'Student'}.`);
+                    onLoginSuccess(user);
+
+                } catch (signupError: any) {
+                     toast.error(`Demo account setup failed: ${signupError.message}`);
+                }
+            } else {
+                toast.error(`Demo login failed: ${error.message}`);
+            }
         } finally {
             setLoading(false);
         }

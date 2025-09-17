@@ -1,3 +1,4 @@
+
 /*
 -- =================================================================
 -- MANDATORY SUPABASE PORTAL SCHEMA SETUP
@@ -64,11 +65,16 @@ begin
     new.raw_user_meta_data ->> 'enrollment_id',
     new.raw_user_meta_data ->> 'ug_number',
     new.raw_user_meta_data ->> 'phone_number',
-    (new.raw_user_meta_data ->> 'role') = 'teacher'
+    -- Teachers are approved by default. The specific demo student is also auto-approved.
+    (
+      (new.raw_user_meta_data ->> 'role') = 'teacher' OR
+      new.email = 'a.johnson@university.edu'
+    )
   );
   return new;
 end;
 $$;
+
 
 -- Trigger to execute the function after a new user signs up
 create or replace trigger on_auth_user_created
