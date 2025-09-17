@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PortalUser, CurriculumFile } from '../types';
 import * as Portal from './portal-supabase';
@@ -71,13 +72,16 @@ const AuthScreen: React.FC<{ onLoginSuccess: (user: PortalUser) => void }> = ({ 
         const password = 'password123';
         
         try {
-            // First, try to sign in
             const user = await Portal.signInUser(email, password);
-            toast.success(`Logged in as Demo ${demoRole === 'teacher' ? 'Teacher' : 'Student'}.`);
+            if (!user.approved) {
+                // This case should not happen for demo users due to the trigger, but it's good practice to check.
+                throw new Error(`Demo ${demoRole} account is not approved. Please check Supabase setup.`);
+            }
+            toast.success(`Logged in as Demo ${demoRole}.`);
             onLoginSuccess(user);
         } catch (error: any) {
-            // If sign-in fails because the user doesn't exist, try to sign them up
-            if (error.message.includes('Invalid login credentials')) {
+            if (error.message && error.message.includes('Invalid login credentials')) {
+                // Account likely doesn't exist, let's create it.
                 toast.info("Setting up demo account for the first time...");
                 try {
                     const signupData = {
@@ -92,16 +96,24 @@ const AuthScreen: React.FC<{ onLoginSuccess: (user: PortalUser) => void }> = ({ 
                     
                     await Portal.signUpUser(signupData);
                     
-                    // Now, sign in with the newly created account
+                    // Add a small delay to mitigate race condition with the profile creation trigger
+                    await new Promise(resolve => setTimeout(resolve, 1000)); 
+
                     const user = await Portal.signInUser(email, password);
-                    toast.success(`Demo account created! Logged in as Demo ${demoRole === 'teacher' ? 'Teacher' : 'Student'}.`);
+                    if (!user.approved) {
+                        throw new Error(`Newly created demo ${demoRole} account was not auto-approved.`);
+                    }
+                    toast.success(`Demo account created! Logged in as Demo ${demoRole}.`);
                     onLoginSuccess(user);
 
                 } catch (signupError: any) {
-                     toast.error(`Demo account setup failed: ${signupError.message}`);
+                     const message = signupError.message || 'An unknown error occurred during signup.';
+                     toast.error(`Demo account setup failed: ${message}`);
                 }
             } else {
-                toast.error(`Demo login failed: ${error.message}`);
+                // Handle other errors, like profile not found after signup or network errors.
+                const message = error.message || 'An unknown error occurred.';
+                toast.error(`Demo login failed: ${message}`);
             }
         } finally {
             setLoading(false);
