@@ -5,7 +5,7 @@ import { geminiAI } from './gemini';
 import { useToast } from './Toast';
 import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb, CheckSquare } from 'lucide-react';
 import Scheduler from './Scheduler';
-import CurriculumView from './SmartCurriculum.tsx';
+import CurriculumView from './SmartCurriculum';
 import TestsView from './TestsView';
 import ProgressView from './ProgressView';
 
