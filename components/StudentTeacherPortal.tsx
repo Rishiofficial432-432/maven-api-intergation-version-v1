@@ -5,7 +5,7 @@ import { PortalUser, CurriculumFile } from '../types';
 import * as Portal from './portal-supabase';
 import * as LocalPortal from './portal-db';
 import { supabase } from './supabase-config';
-import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, Download, QrCode, UploadCloud, FileText, Check, GraduationCap } from 'lucide-react';
+import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, Download, QrCode, UploadCloud, FileText, Check, GraduationCap, Hash } from 'lucide-react';
 import { useToast } from './Toast';
 import QRCode from 'qrcode';
 import { Session } from '@supabase/supabase-js';
@@ -75,20 +75,6 @@ const AuthScreen: React.FC<{ onLoginSuccess: (user: PortalUser) => void; onDemoL
                     <p className="text-muted-foreground mt-2">{viewMode === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
                 </div>
 
-                <div className="space-y-3 mb-4">
-                    <button onClick={() => onDemoLogin('teacher')} disabled={loading} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
-                        <UserIcon size={16}/> Demo Login as Teacher
-                    </button>
-                    <button onClick={() => onDemoLogin('student')} disabled={loading} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
-                        <GraduationCap size={16}/> Demo Login as Student
-                    </button>
-                </div>
-                 <div className="relative my-4 flex items-center">
-                    <div className="flex-grow border-t border-border"></div>
-                    <span className="flex-shrink mx-4 text-xs text-muted-foreground uppercase">Or continue with email</span>
-                    <div className="flex-grow border-t border-border"></div>
-                </div>
-
                 <form onSubmit={handleAuthAction} className="space-y-4">
                      {viewMode === 'signup' && (
                         <div className="relative"><UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"/><input type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" /></div>
@@ -103,9 +89,9 @@ const AuthScreen: React.FC<{ onLoginSuccess: (user: PortalUser) => void; onDemoL
                             </div>
                             {role === 'student' && (
                                 <div className="space-y-4 pt-2">
-                                    <input type="text" placeholder="Enrollment ID" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} required className="w-full bg-input border border-border rounded-lg px-4 py-2.5" />
-                                    <input type="text" placeholder="UG Number" value={ugNumber} onChange={e => setUgNumber(e.target.value)} required className="w-full bg-input border border-border rounded-lg px-4 py-2.5" />
-                                    <input type="tel" placeholder="Phone Number" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} required className="w-full bg-input border border-border rounded-lg px-4 py-2.5" />
+                                    <div className="relative"><FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"/><input type="text" placeholder="Enrollment ID" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" /></div>
+                                    <div className="relative"><Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"/><input type="text" placeholder="UG Number" value={ugNumber} onChange={e => setUgNumber(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" /></div>
+                                    <div className="relative"><Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"/><input type="tel" placeholder="Phone Number" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" /></div>
                                 </div>
                             )}
                         </>
@@ -116,6 +102,21 @@ const AuthScreen: React.FC<{ onLoginSuccess: (user: PortalUser) => void; onDemoL
                 </form>
                 <div className="text-center mt-6">
                     <button onClick={() => setViewMode(v => v === 'login' ? 'signup' : 'login')} className="text-sm text-primary hover:underline">{viewMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}</button>
+                </div>
+
+                <div className="relative my-6 flex items-center">
+                    <div className="flex-grow border-t border-border"></div>
+                    <span className="flex-shrink mx-4 text-xs text-muted-foreground uppercase">Or use a demo account</span>
+                    <div className="flex-grow border-t border-border"></div>
+                </div>
+
+                <div className="space-y-3">
+                    <button onClick={() => onDemoLogin('teacher')} disabled={loading} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
+                        <UserIcon size={16}/> Demo Login as Teacher
+                    </button>
+                    <button onClick={() => onDemoLogin('student')} disabled={loading} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
+                        <GraduationCap size={16}/> Demo Login as Student
+                    </button>
                 </div>
             </div>
         </div>
