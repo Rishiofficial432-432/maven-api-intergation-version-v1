@@ -185,28 +185,21 @@ export interface GeneratedCurriculum {
     weeklyBreakdown: CurriculumWeek[];
 }
 
-// --- New types for Tests and Progress feature ---
-
-export type QuestionType = 'mcq' | 'saq' | 'laq' | 'fillInBlanks';
-
+// New types for Tests and Progress feature
 export interface TestQuestion {
   id: string;
-  type: QuestionType;
   questionText: string;
-  options?: string[]; // Only for MCQ
-  correctAnswer: string; // For SAQ, LAQ, Fill-in-the-blanks, and the correct option text for MCQ
-  points: number;
+  options: string[];
+  correctAnswerIndex: number;
 }
 
 export interface Test {
   id: string;
   title: string;
-  teacherId: string;
-  status: 'draft' | 'published';
-  createdAt: string; // ISO timestamp
-  difficulty: 1 | 2 | 3;
-  sourceMaterialId?: string; // ID linking to the uploaded file in IndexedDB
+  subject: string;
+  dueDate: string; // YYYY-MM-DD
   questions: TestQuestion[];
+  teacherId: string;
 }
 
 export interface TestSubmission {
@@ -214,8 +207,8 @@ export interface TestSubmission {
   testId: string;
   studentId: string;
   studentName: string;
-  answers: { [questionId: string]: string }; // Map of question ID to the student's answer
-  score: number; // Percentage, calculated based on gradable questions
+  answers: number[]; // Array of selected option indices
+  score: number; // Percentage
   submittedAt: string; // ISO timestamp
   testTitle?: string;
 }
