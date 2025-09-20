@@ -1,3 +1,4 @@
+
 import { supabase, Database } from './supabase-config';
 import { PortalUser } from '../types';
 
@@ -24,7 +25,7 @@ export const signUpUser = async (userData: any) => {
             }
         }
     });
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -32,7 +33,7 @@ export const signInUser = async (email: string, password: string): Promise<Porta
     if (!supabase) throw new Error("Supabase client is not initialized.");
 
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    if (authError) throw authError;
+    if (authError) throw new Error(authError.message);
     if (!authData.user) throw new Error("Login failed, user not found.");
 
     const profile = await getUserProfile(authData.user.id);
@@ -43,7 +44,7 @@ export const getUserProfile = async (userId: string): Promise<PortalUser> => {
     if (!supabase) throw new Error("Supabase client is not initialized.");
 
     const { data, error } = await supabase.from('portal_users').select('*').eq('id', userId).single();
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     if (!data) throw new Error("User profile not found.");
     return data as PortalUser;
 };
@@ -52,7 +53,7 @@ export const getPendingStudents = async (): Promise<PortalUser[]> => {
     if (!supabase) throw new Error("Supabase client is not initialized.");
 
     const { data, error } = await supabase.from('portal_users').select('*').eq('role', 'student').eq('approved', false);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return (data as PortalUser[]) || [];
 };
 
@@ -60,7 +61,7 @@ export const approveStudent = async (studentId: string): Promise<void> => {
     if (!supabase) throw new Error("Supabase client is not initialized.");
     
     const { error } = await supabase.from('portal_users').update({ approved: true }).eq('id', studentId);
-    if (error) throw error;
+    if (error) throw new Error(error.message);
 };
 
 // --- SESSION MANAGEMENT ---
@@ -80,7 +81,7 @@ export const startSession = async (sessionData: { teacherId: string, locationEnf
         location: sessionData.location,
     }).select().single();
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data;
 };
 
@@ -95,7 +96,7 @@ export const getActiveSession = async (): Promise<Session | null> => {
         .order('created_at', { ascending: false })
         .limit(1);
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data?.[0] || null;
 };
 
@@ -105,7 +106,7 @@ export const endActiveSession = async (): Promise<void> => {
     const session = await getActiveSession();
     if (session) {
         const { error } = await supabase.from('portal_sessions').update({ is_active: false }).eq('id', session.id);
-        if (error) throw error;
+        if (error) throw new Error(error.message);
     }
 };
 
@@ -118,7 +119,7 @@ export const logAttendance = async (record: any): Promise<void> => {
         if (error.code === '23505') { // Unique constraint violation
             throw new Error("You have already checked in for this session.");
         }
-        throw error;
+        throw new Error(error.message);
     }
 };
 
@@ -129,7 +130,7 @@ export const getAttendanceForSession = async (sessionId: string): Promise<Attend
         .eq('session_id', sessionId)
         .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data || [];
 };
 
@@ -141,7 +142,7 @@ export const uploadCurriculumFile = async (teacherId: string, teacherName: strin
     
     const storagePath = `${teacherId}/${Date.now()}-${file.name}`;
     const { error: uploadError } = await supabase.storage.from('curriculum_uploads').upload(storagePath, file);
-    if (uploadError) throw uploadError;
+    if (uploadError) throw new Error(uploadError.message);
 
     const { error: dbError } = await supabase.from('curriculum_files').insert({
         teacher_id: teacherId,
@@ -154,14 +155,14 @@ export const uploadCurriculumFile = async (teacherId: string, teacherName: strin
     if (dbError) {
         // Attempt to clean up storage if DB insert fails
         await supabase.storage.from('curriculum_uploads').remove([storagePath]);
-        throw dbError;
+        throw new Error(dbError.message);
     }
 };
 
 export const getCurriculumFiles = async (): Promise<any[]> => {
     if (!supabase) throw new Error("Supabase client is not initialized.");
     const { data, error } = await supabase.from('curriculum_files').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return data || [];
 };
 
@@ -169,8 +170,8 @@ export const deleteCurriculumFile = async (fileId: string, storagePath: string):
     if (!supabase) throw new Error("Supabase client is not initialized.");
 
     const { error: storageError } = await supabase.storage.from('curriculum_uploads').remove([storagePath]);
-    if (storageError) throw storageError;
+    if (storageError) throw new Error(storageError.message);
 
     const { error: dbError } = await supabase.from('curriculum_files').delete().eq('id', fileId);
-    if (dbError) throw dbError;
+    if (dbError) throw new Error(dbError.message);
 };

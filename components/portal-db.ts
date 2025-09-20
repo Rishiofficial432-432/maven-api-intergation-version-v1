@@ -24,7 +24,11 @@ const initPortalDB = (): Promise<IDBDatabase> => {
 
     request.onupgradeneeded = (event) => {
       const dbInstance = request.result;
-      const transaction = (event.target as any).transaction;
+      const transaction = request.transaction;
+      if (!transaction) {
+          console.error("Version change transaction is null. Upgrade failed.");
+          return;
+      }
 
       if (event.oldVersion < 1) {
         if (!dbInstance.objectStoreNames.contains(STORES.USERS)) dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
