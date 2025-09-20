@@ -458,11 +458,22 @@ const StudentTeacherPortal: React.FC = () => {
     
     if (demoUser) {
         const dashboard = demoUser.role === 'teacher' ? <TeacherDashboard user={demoUser} onLogout={handleDemoLogout} isDemo={true} /> : <StudentDashboard user={demoUser} onLogout={handleDemoLogout} isDemo={true} />;
-        return <LocationGuard onLogout={handleDemoLogout}>{dashboard}</LocationGuard>;
+        return dashboard;
     }
     
     if (!supabase) {
-         return <div className="flex-1 flex items-center justify-center text-center p-8"><div className="bg-card p-6 rounded-lg border border-border"><h2 className="text-xl font-bold">Portal Offline</h2><p className="text-muted-foreground mt-2">Supabase is not configured. Real features are disabled, but you can still use the demo mode.</p><div className="mt-4"><button onClick={() => handleDemoLogin('teacher')} className="bg-primary text-primary-foreground px-4 py-2 rounded-lg">Launch Teacher Demo</button></div></div></div>;
+         return (
+            <div className="flex-1 flex items-center justify-center text-center p-8">
+                <div className="bg-card p-6 rounded-lg border border-border max-w-sm">
+                    <h2 className="text-xl font-bold">Portal Offline</h2>
+                    <p className="text-muted-foreground mt-2">Supabase is not configured. Real features are disabled, but you can still use the demo mode.</p>
+                    <div className="mt-4 flex flex-col gap-3">
+                        <button onClick={() => handleDemoLogin('teacher')} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">Launch Teacher Demo</button>
+                        <button onClick={() => handleDemoLogin('student')} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">Launch Student Demo</button>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     if (!user) return <AuthScreen onLoginSuccess={setUser} onDemoLogin={handleDemoLogin} />;
