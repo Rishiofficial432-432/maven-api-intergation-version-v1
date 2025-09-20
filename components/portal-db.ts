@@ -276,22 +276,33 @@ export const getDemoUser = async (role: 'teacher' | 'student'): Promise<PortalUs
     await initPortalDB();
     const email = role === 'teacher' ? 'e.reed@university.edu' : 'a.johnson@university.edu';
     
-    const store = getStore(STORES.USERS, 'readwrite');
-    const users = await getAllFromStore<PortalUser>(STORES.USERS);
-    let user = users.find(u => u.email === email);
-
-    if (user) return user;
-
-    const newUser: PortalUser = role === 'teacher' ? {
-        id: `demo-teacher-${crypto.randomUUID()}`, name: 'Dr. Evelyn Reed', email, role: 'teacher', approved: true,
-    } : {
-        id: `demo-student-${crypto.randomUUID()}`, name: 'Alex Johnson', email, role: 'student', approved: true,
-        enrollment_id: 'S12345', ug_number: 'UG67890', phone_number: '555-0101',
-    };
-    
-    const addRequest = store.add(newUser);
     return new Promise((resolve, reject) => {
-        addRequest.onsuccess = () => resolve(newUser);
-        addRequest.onerror = () => reject(addRequest.error);
+        const transaction = db.transaction(STORES.USERS, 'readwrite');
+        const store = transaction.objectStore(STORES.USERS);
+        const getAllRequest = store.getAll();
+
+        transaction.onerror = () => reject(transaction.error);
+
+        getAllRequest.onsuccess = () => {
+            const users = getAllRequest.result as PortalUser[];
+            const user = users.find(u => u.email === email);
+
+            if (user) {
+                resolve(user);
+                return;
+            }
+
+            // User doesn't exist, create it within the same transaction
+            const newUser: PortalUser = role === 'teacher' ? {
+                id: `demo-teacher-${crypto.randomUUID()}`, name: 'Dr. Evelyn Reed', email, role: 'teacher', approved: true,
+            } : {
+                id: `demo-student-${crypto.randomUUID()}`, name: 'Alex Johnson', email, role: 'student', approved: true,
+                enrollment_id: 'S12345', ug_number: 'UG67890', phone_number: '555-0101',
+            };
+
+            const addRequest = store.add(newUser);
+            addRequest.onsuccess = () => resolve(newUser);
+            // The transaction's onerror will handle addRequest errors
+        };
     });
 };

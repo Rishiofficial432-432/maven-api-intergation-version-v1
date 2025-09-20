@@ -31,96 +31,6 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     return R * c; // in metres
 }
 
-// --- AUTH SCREEN ---
-const AuthScreen: React.FC<{ onLoginSuccess: (user: PortalUser) => void; onDemoLogin: (role: 'teacher' | 'student') => void; }> = ({ onLoginSuccess, onDemoLogin }) => {
-    const [viewMode, setViewMode] = useState<'login' | 'signup'>('login');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [name, setName] = useState('');
-    const [enrollmentId, setEnrollmentId] = useState('');
-    const [ugNumber, setUgNumber] = useState('');
-    const [phoneNumber, setPhoneNumber] = useState('');
-    const [role, setRole] = useState<'student' | 'teacher'>('student');
-    const [loading, setLoading] = useState(false);
-    const toast = useToast();
-
-    const handleAuthAction = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        try {
-            if (viewMode === 'login') {
-                const user = await Portal.signInUser(email, password);
-                if (!user.approved) {
-                    throw new Error("Account pending teacher approval.");
-                }
-                toast.success("Logged in successfully!");
-                onLoginSuccess(user);
-            } else {
-                await Portal.signUpUser({ name, email, password, role, enrollment_id: enrollmentId, ug_number: ugNumber, phone_number: phoneNumber });
-                toast.success(role === 'student' ? "Signup successful! A teacher must approve your account before you can log in." : "Teacher account created! You can now log in.");
-                setViewMode('login');
-            }
-        } catch (error: any) {
-            toast.error(error.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    return (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/20 animate-fade-in-up">
-            <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-lg p-8">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold flex items-center justify-center gap-2"><ClipboardList/> Student/Teacher Portal</h1>
-                    <p className="text-muted-foreground mt-2">{viewMode === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
-                </div>
-
-                <div className="space-y-3 mb-4">
-                    <button onClick={() => onDemoLogin('teacher')} disabled={loading} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
-                        <UserIcon size={16}/> Demo Login as Teacher
-                    </button>
-                    <button onClick={() => onDemoLogin('student')} disabled={loading} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">
-                        <GraduationCap size={16}/> Demo Login as Student
-                    </button>
-                </div>
-                 <div className="relative my-4 flex items-center">
-                    <div className="flex-grow border-t border-border"></div>
-                    <span className="flex-shrink mx-4 text-xs text-muted-foreground uppercase">Or continue with email</span>
-                    <div className="flex-grow border-t border-border"></div>
-                </div>
-
-                <form onSubmit={handleAuthAction} className="space-y-4">
-                     {viewMode === 'signup' && (
-                        <div className="relative"><UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"/><input type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" /></div>
-                    )}
-                    <div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"/><input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" /></div>
-                     <div className="relative"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground"/><input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required className="w-full bg-input border border-border rounded-lg pl-10 pr-4 py-2.5" /></div>
-                    {viewMode === 'signup' && (
-                        <>
-                            <div className="flex gap-4 p-1 bg-secondary rounded-lg">
-                                <button type="button" onClick={() => setRole('student')} className={`flex-1 p-2 rounded-md text-sm font-semibold transition-colors ${role === 'student' ? 'bg-primary text-primary-foreground shadow' : 'hover:bg-accent'}`}>I am a Student</button>
-                                <button type="button" onClick={() => setRole('teacher')} className={`flex-1 p-2 rounded-md text-sm font-semibold transition-colors ${role === 'teacher' ? 'bg-primary text-primary-foreground shadow' : 'hover:bg-accent'}`}>I am a Teacher</button>
-                            </div>
-                            {role === 'student' && (
-                                <div className="space-y-4 pt-2">
-                                    <input type="text" placeholder="Enrollment ID" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} required className="w-full bg-input border border-border rounded-lg px-4 py-2.5" />
-                                    <input type="text" placeholder="UG Number" value={ugNumber} onChange={e => setUgNumber(e.target.value)} required className="w-full bg-input border border-border rounded-lg px-4 py-2.5" />
-                                    <input type="tel" placeholder="Phone Number" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} required className="w-full bg-input border border-border rounded-lg px-4 py-2.5" />
-                                </div>
-                            )}
-                        </>
-                    )}
-                    <button type="submit" disabled={loading} className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center disabled:opacity-50 transition-colors hover:bg-primary/90">
-                        {loading ? <Loader className="animate-spin"/> : (viewMode === 'login' ? 'Sign In' : 'Create Account')}
-                    </button>
-                </form>
-                <div className="text-center mt-6">
-                    <button onClick={() => setViewMode(v => v === 'login' ? 'signup' : 'login')} className="text-sm text-primary hover:underline">{viewMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}</button>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 // --- DASHBOARDS ---
 const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDemo?: boolean }> = ({ user, onLogout, isDemo }) => {
@@ -244,9 +154,13 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
     };
     
     const handleApproveStudent = async (studentId: string) => {
-        await PortalAPI.approveStudent(studentId);
-        setPendingStudents(p => p.filter(s => s.id !== studentId));
-        toast.success("Student approved!");
+        try {
+            await PortalAPI.approveStudent(studentId);
+            setPendingStudents(p => p.filter(s => s.id !== studentId));
+            toast.success("Student approved!");
+        } catch (error: any) {
+            toast.error(`Failed to approve student: ${error.message}`);
+        }
     };
     
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,13 +186,17 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
     
     const handleFileDelete = async (fileId: string, storagePath?: string) => {
         if(window.confirm("Are you sure you want to delete this file?")) {
-            if(isDemo) {
-                 await (PortalAPI as typeof LocalPortal).deleteCurriculumFile(fileId);
-            } else {
-                 await (PortalAPI as typeof Portal).deleteCurriculumFile(fileId, storagePath!);
+            try {
+                if(isDemo) {
+                     await (PortalAPI as typeof LocalPortal).deleteCurriculumFile(fileId);
+                } else {
+                     await (PortalAPI as typeof Portal).deleteCurriculumFile(fileId, storagePath!);
+                }
+                setCurriculumFiles(f => f.filter(file => file.id !== fileId));
+                toast.success("File deleted.");
+            } catch (error: any) {
+                toast.error(`Failed to delete file: ${error.message}`);
             }
-            setCurriculumFiles(f => f.filter(file => file.id !== fileId));
-            toast.success("File deleted.");
         }
     };
 
@@ -410,6 +328,32 @@ const LocationGuard: React.FC<{ onLogout: () => void, children: React.ReactNode 
     return <>{children}</>;
 }
 
+// --- PORTAL ENTRY SCREEN ---
+const PortalEntryScreen: React.FC<{ onSelectRole: (role: 'teacher' | 'student') => void; isOffline?: boolean }> = ({ onSelectRole, isOffline = false }) => {
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/20 animate-fade-in-up">
+            <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-lg p-8 text-center">
+                <ClipboardList className="mx-auto h-12 w-12 text-primary mb-4" />
+                <h1 className="text-3xl font-bold">Academics Hub Portal</h1>
+                <p className="text-muted-foreground mt-2 mb-8">
+                    {isOffline 
+                        ? "The portal's cloud features are offline. You can still explore the local demo environment."
+                        : "Choose a role to enter the demo environment. This is a local simulation. Real users with configured credentials will be logged in automatically."
+                    }
+                </p>
+                <div className="space-y-4">
+                    <button onClick={() => onSelectRole('teacher')} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-lg">
+                        <UserIcon size={20}/> Enter as Teacher
+                    </button>
+                    <button onClick={() => onSelectRole('student')} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-lg">
+                        <GraduationCap size={20}/> Enter as Student
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN PORTAL COMPONENT ---
 const StudentTeacherPortal: React.FC = () => {
     const [user, setUser] = useState<PortalUser | null>(null);
@@ -435,7 +379,7 @@ const StudentTeacherPortal: React.FC = () => {
             const demoProfile = await LocalPortal.getDemoUser(role);
             sessionStorage.setItem('demo-role', role);
             setDemoUser(demoProfile);
-            toast.success(`Entered demo mode as ${role}. This is a local simulation.`);
+            toast.success(`Entered demo mode as ${role}.`);
         } catch(error: any) {
             toast.error(`Could not start demo mode: ${error.message}`);
         } finally {
@@ -461,25 +405,16 @@ const StudentTeacherPortal: React.FC = () => {
         return dashboard;
     }
     
+    if (user) {
+        const dashboard = user.role === 'teacher' ? <TeacherDashboard user={user} onLogout={handleLogout} /> : <StudentDashboard user={user} onLogout={handleLogout} />;
+        return <LocationGuard onLogout={handleLogout}>{dashboard}</LocationGuard>;
+    }
+    
     if (!supabase) {
-         return (
-            <div className="flex-1 flex items-center justify-center text-center p-8">
-                <div className="bg-card p-6 rounded-lg border border-border max-w-sm">
-                    <h2 className="text-xl font-bold">Portal Offline</h2>
-                    <p className="text-muted-foreground mt-2">Supabase is not configured. Real features are disabled, but you can still use the demo mode.</p>
-                    <div className="mt-4 flex flex-col gap-3">
-                        <button onClick={() => handleDemoLogin('teacher')} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">Launch Teacher Demo</button>
-                        <button onClick={() => handleDemoLogin('student')} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2">Launch Student Demo</button>
-                    </div>
-                </div>
-            </div>
-        );
+        return <PortalEntryScreen onSelectRole={handleDemoLogin} isOffline={true} />;
     }
 
-    if (!user) return <AuthScreen onLoginSuccess={setUser} onDemoLogin={handleDemoLogin} />;
-    
-    const dashboard = user.role === 'teacher' ? <TeacherDashboard user={user} onLogout={handleLogout} /> : <StudentDashboard user={user} onLogout={handleLogout} />;
-    return <LocationGuard onLogout={handleLogout}>{dashboard}</LocationGuard>;
+    return <PortalEntryScreen onSelectRole={handleDemoLogin} />;
 };
 
 export default StudentTeacherPortal;
