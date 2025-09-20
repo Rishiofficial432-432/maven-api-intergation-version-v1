@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { PortalUser, Test, TestQuestion, TestSubmission } from '../types';
+import { PortalUser, Test, TestQuestion, TestSubmission, QuestionType } from '../types';
 import * as LocalPortal from './portal-db';
 import { useToast } from './Toast';
-import { Loader, Plus, Trash2, Send, ChevronLeft, Check, X, CheckSquare, Clock, FileText } from 'lucide-react';
+import { Loader, Plus, Trash2, Send, ChevronLeft, Check, X, CheckSquare, Clock, FileText, Wand2, UploadCloud } from 'lucide-react';
+import { geminiAI } from './gemini';
+import { Type } from '@google/genai';
 
 // For the demo, we need to get the current user from the demo login logic.
-// In a real app, this would come from a global context.
 const useDemoUser = (): [PortalUser | null, boolean] => {
     const [user, setUser] = useState<PortalUser | null>(null);
     const [loading, setLoading] = useState(true);
@@ -39,7 +40,7 @@ const useDemoUser = (): [PortalUser | null, boolean] => {
 
 const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => void }> = ({ test, student, onFinish }) => {
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [answers, setAnswers] = useState<number[]>(Array(test.questions.length).fill(-1));
+    const [answers, setAnswers] = useState<(number | string | null)[]>(Array(test.questions.length).fill(null));
     const [isSubmitting, setIsSubmitting] = useState(false);
     const toast = useToast();
 
@@ -50,21 +51,42 @@ const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => voi
             return newAnswers;
         });
     };
+    
+    const handleTextAnswerChange = (text: string) => {
+         setAnswers(prev => {
+            const newAnswers = [...prev];
+            newAnswers[currentQuestionIndex] = text;
+            return newAnswers;
+        });
+    };
 
     const handleSubmit = async () => {
-        if (answers.includes(-1)) {
+        if (answers.some(a => a === null || a === '')) {
             toast.error("Please answer all questions before submitting.");
             return;
         }
         
         setIsSubmitting(true);
         let correctCount = 0;
+        let autoGradedCount = 0;
+
         test.questions.forEach((q, i) => {
-            if (q.correctAnswerIndex === answers[i]) {
-                correctCount++;
+            if (q.type === 'MCQ') {
+                autoGradedCount++;
+                if (q.correctAnswerIndex === answers[i]) {
+                    correctCount++;
+                }
+            } else if (q.type === 'Fill') {
+                autoGradedCount++;
+                const correctAnswer = q.correctAnswer.trim().toLowerCase();
+                const studentAnswer = (answers[i] as string || '').trim().toLowerCase();
+                if (correctAnswer === studentAnswer) {
+                    correctCount++;
+                }
             }
         });
-        const score = Math.round((correctCount / test.questions.length) * 100);
+        
+        const score = autoGradedCount > 0 ? Math.round((correctCount / autoGradedCount) * 100) : 100; // If no auto-graded, score 100
         
         const submission: Omit<TestSubmission, 'id'> = {
             testId: test.id,
@@ -78,7 +100,7 @@ const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => voi
 
         try {
             await LocalPortal.submitTest(submission);
-            toast.success(`Test submitted! Your score: ${score}%`);
+            toast.success(`Test submitted! Your auto-graded score: ${score}%`);
             onFinish();
         } catch (e: any) {
             toast.error(`Submission failed: ${e.message}`);
@@ -96,16 +118,21 @@ const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => voi
                 <div className="my-4">
                     <p className="font-semibold text-lg">{currentQuestionIndex + 1}. {currentQuestion.questionText}</p>
                     <div className="space-y-2 mt-4">
-                        {currentQuestion.options.map((option, i) => {
-                            const isSelected = answers[currentQuestionIndex] === i;
-                            return (
-                                <button key={i} onClick={() => handleAnswerSelect(i)}
-                                    className={`w-full text-left p-3 rounded-md border-2 transition-colors flex items-center justify-between ${isSelected ? 'border-primary bg-primary/10' : 'border-border bg-secondary hover:bg-secondary/80'}`}>
-                                    <span>{option}</span>
-                                    {isSelected && <Check size={20} className="text-primary" />}
-                                </button>
-                            );
-                        })}
+                        {currentQuestion.type === 'MCQ' && currentQuestion.options.map((option, i) => (
+                             <button key={i} onClick={() => handleAnswerSelect(i)}
+                                className={`w-full text-left p-3 rounded-md border-2 transition-colors flex items-center justify-between ${answers[currentQuestionIndex] === i ? 'border-primary bg-primary/10' : 'border-border bg-secondary hover:bg-secondary/80'}`}>
+                                <span>{option}</span>
+                                {answers[currentQuestionIndex] === i && <Check size={20} className="text-primary" />}
+                            </button>
+                        ))}
+                        {(currentQuestion.type === 'SAQ' || currentQuestion.type === 'LAQ') && (
+                            <textarea value={answers[currentQuestionIndex] as string || ''} onChange={(e) => handleTextAnswerChange(e.target.value)}
+                                className="w-full bg-input p-2 rounded-md" rows={currentQuestion.type === 'LAQ' ? 6 : 3} />
+                        )}
+                         {currentQuestion.type === 'Fill' && (
+                            <input type="text" value={answers[currentQuestionIndex] as string || ''} onChange={(e) => handleTextAnswerChange(e.target.value)}
+                                className="w-full bg-input p-2 rounded-md" placeholder="Your answer..." />
+                        )}
                     </div>
                 </div>
                 <div className="flex justify-between items-center">
@@ -185,76 +212,163 @@ const StudentTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
     );
 };
 
+const simulateFileExtraction = async (file: File): Promise<string> => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return `Summary of "${file.name}": This document contains key concepts related to its title, including definitions, examples, and main arguments suitable for generating test questions.`;
+};
 
-const CreateTestForm: React.FC<{ teacher: PortalUser, onBack: () => void, onTestCreated: () => void }> = ({ teacher, onBack, onTestCreated }) => {
-    const [title, setTitle] = useState('');
-    const [subject, setSubject] = useState('');
-    const [dueDate, setDueDate] = useState('');
-    const [questions, setQuestions] = useState<Partial<TestQuestion>[]>([{ questionText: '', options: ['', '', '', ''], correctAnswerIndex: 0 }]);
+
+const CreateTestWithAI: React.FC<{ teacher: PortalUser, onBack: () => void, onTestCreated: () => void }> = ({ teacher, onBack, onTestCreated }) => {
+    const [step, setStep] = useState<'config' | 'review'>('config');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const toast = useToast();
 
-    const handleQuestionChange = (index: number, field: keyof TestQuestion, value: any) => {
-        const newQuestions = [...questions];
-        (newQuestions[index] as any)[field] = value;
-        setQuestions(newQuestions);
+    // Config state
+    const [file, setFile] = useState<File | null>(null);
+    const [difficulty, setDifficulty] = useState(2);
+    const [counts, setCounts] = useState({ MCQ: 5, SAQ: 3, LAQ: 1, Fill: 3 });
+
+    // Review state
+    const [testDetails, setTestDetails] = useState<{ title: string, subject: string, dueDate: string }>({ title: '', subject: '', dueDate: '' });
+    const [questions, setQuestions] = useState<TestQuestion[]>([]);
+
+    const handleFileChange = (files: FileList | null) => {
+        if (files && files[0]) setFile(files[0]);
+    };
+
+    const handleGenerate = async () => {
+        if (!file || !geminiAI) {
+            toast.error("Please upload a file and ensure AI is configured.");
+            return;
+        }
+        setIsLoading(true);
+        const fileSummary = await simulateFileExtraction(file);
+        
+        const prompt = `Based on the following document summary, generate a test.
+Document Summary: ${fileSummary}
+Difficulty: ${['Easy', 'Medium', 'Hard'][difficulty-1]}
+Required Questions:
+- ${counts.MCQ} Multiple-Choice Questions
+- ${counts.SAQ} Short Answer Questions
+- ${counts.LAQ} Long Answer Questions
+- ${counts.Fill} Fill-in-the-Blank Questions
+Return a single JSON object.`;
+
+        const schema = {
+            type: Type.OBJECT,
+            properties: {
+                questions: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            type: { type: Type.STRING, enum: ['MCQ', 'SAQ', 'LAQ', 'Fill'] },
+                            questionText: { type: Type.STRING },
+                            // MCQ specific
+                            options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            correctAnswerIndex: { type: Type.NUMBER },
+                            // SAQ/LAQ specific
+                            modelAnswer: { type: Type.STRING },
+                            // Fill specific
+                            correctAnswer: { type: Type.STRING },
+                        }
+                    }
+                }
+            }
+        };
+
+        try {
+            const response = await geminiAI.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt, config: { responseMimeType: 'application/json', responseSchema: schema }});
+            const result = JSON.parse(response.text);
+            const generatedQs = (result.questions || []).map((q: any) => ({ ...q, id: crypto.randomUUID() }));
+            setQuestions(generatedQs);
+            setTestDetails({ title: `Test for ${file.name.split('.')[0]}`, subject: 'Auto-Generated', dueDate: '' });
+            setStep('review');
+        } catch (e: any) {
+            toast.error(`AI generation failed: ${e.message}`);
+        } finally {
+            setIsLoading(false);
+        }
     };
     
-    const handleOptionChange = (qIndex: number, oIndex: number, value: string) => {
-        const newQuestions = [...questions];
-        newQuestions[qIndex].options![oIndex] = value;
-        setQuestions(newQuestions);
-    };
-
-    const addQuestion = () => setQuestions([...questions, { questionText: '', options: ['', '', '', ''], correctAnswerIndex: 0 }]);
-    const removeQuestion = (index: number) => setQuestions(questions.filter((_, i) => i !== index));
-
-    const handleSaveTest = async () => {
-        const newTest: Test = {
+    const handlePublish = async () => {
+        const test: Test = {
             id: crypto.randomUUID(),
-            title, subject, dueDate,
             teacherId: teacher.id,
-            questions: questions.map(q => ({
-                id: crypto.randomUUID(),
-                questionText: q.questionText || '',
-                options: q.options || [],
-                correctAnswerIndex: q.correctAnswerIndex || 0,
-            })),
+            title: testDetails.title,
+            subject: testDetails.subject,
+            dueDate: testDetails.dueDate,
+            questions: questions,
         };
-        await LocalPortal.createTest(newTest);
-        toast.success("Test created successfully!");
+        await LocalPortal.createTest(test);
+        toast.success("Test published successfully!");
         onTestCreated();
     };
 
-    return (
-        <div className="bg-card border border-border rounded-xl p-6 animate-fade-in-up">
-            <button onClick={onBack} className="flex items-center gap-2 text-sm text-primary mb-4"><ChevronLeft size={16}/> Back to Tests</button>
-            <div className="space-y-4">
-                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Test Title" className="w-full bg-input p-2 rounded-md"/>
-                 <input type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" className="w-full bg-input p-2 rounded-md"/>
-                 <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full bg-input p-2 rounded-md"/>
-            </div>
-             <h3 className="font-bold my-4">Questions</h3>
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-                {questions.map((q, qIndex) => (
-                    <div key={qIndex} className="bg-secondary p-4 rounded-lg border border-border/50">
-                        <div className="flex justify-between items-center"><label className="font-semibold">Question {qIndex + 1}</label><button onClick={() => removeQuestion(qIndex)} aria-label="Delete question"><Trash2 size={16} className="text-destructive"/></button></div>
-                        <textarea value={q.questionText} onChange={e => handleQuestionChange(qIndex, 'questionText', e.target.value)} placeholder="Question text..." className="w-full bg-input p-2 mt-2 rounded-md"/>
-                        <div className="grid grid-cols-2 gap-2 mt-2">
-                            {q.options?.map((opt, oIndex) => (
-                                <div key={oIndex} className="flex items-center gap-2">
-                                    <input type="radio" name={`correct-${qIndex}`} checked={q.correctAnswerIndex === oIndex} onChange={() => handleQuestionChange(qIndex, 'correctAnswerIndex', oIndex)}/>
-                                    <input type="text" value={opt} onChange={e => handleOptionChange(qIndex, oIndex, e.target.value)} placeholder={`Option ${oIndex + 1}`} className="w-full bg-input p-2 rounded-md"/>
-                                </div>
-                            ))}
+
+    if (step === 'review') {
+        return (
+            <div className="bg-card border border-border rounded-xl p-6 animate-fade-in-up">
+                <button onClick={() => setStep('config')} className="flex items-center gap-2 text-sm text-primary mb-4"><ChevronLeft size={16}/> Back to Config</button>
+                <h3 className="text-xl font-bold mb-4">Review & Finalize Test</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <input type="text" value={testDetails.title} onChange={e => setTestDetails(d => ({...d, title: e.target.value}))} placeholder="Test Title" className="w-full bg-input p-2 rounded-md"/>
+                    <input type="text" value={testDetails.subject} onChange={e => setTestDetails(d => ({...d, subject: e.target.value}))} placeholder="Subject" className="w-full bg-input p-2 rounded-md"/>
+                    <input type="date" value={testDetails.dueDate} onChange={e => setTestDetails(d => ({...d, dueDate: e.target.value}))} className="w-full bg-input p-2 rounded-md"/>
+                </div>
+                <div className="space-y-4 max-h-[50vh] overflow-y-auto p-2">
+                    {questions.map((q, qIndex) => (
+                        <div key={q.id} className="bg-secondary p-3 rounded-lg">
+                            <p className="font-semibold">Q{qIndex+1} ({q.type}): {q.questionText}</p>
+                            {/* Further UI for editing options can be added here */}
                         </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
+                <button onClick={handlePublish} className="mt-4 w-full p-3 bg-primary text-primary-foreground rounded-md font-bold">Publish Test</button>
             </div>
-            <button onClick={addQuestion} className="mt-4 w-full p-2 bg-secondary rounded-md text-sm font-semibold">Add Question</button>
-            <button onClick={handleSaveTest} className="mt-4 w-full p-3 bg-primary text-primary-foreground rounded-md font-bold">Save Test</button>
+        );
+    }
+
+
+    return (
+        <div className="bg-card border border-border rounded-xl p-6">
+            <button onClick={onBack} className="flex items-center gap-2 text-sm text-primary mb-4"><ChevronLeft size={16}/> Back to Tests</button>
+            <div className="space-y-6">
+                <div>
+                     <label className="font-semibold text-muted-foreground block mb-2">1. Upload Study Material</label>
+                     <div onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFileChange(e.dataTransfer.files);}}
+                        className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-primary bg-primary/10' : 'border-border'}`}
+                        onClick={() => document.getElementById('test-file-upload')?.click()}>
+                        <input type="file" id="test-file-upload" className="hidden" onChange={(e) => handleFileChange(e.target.files)} />
+                        <UploadCloud size={32} className="text-muted-foreground mb-2"/>
+                        {file ? <p className="text-sm font-semibold text-primary">{file.name}</p> : <p className="text-sm text-muted-foreground">Drop PDF, PPTX, or DOCX</p>}
+                     </div>
+                </div>
+                <div>
+                    <label className="font-semibold text-muted-foreground block mb-2">2. Set Difficulty: {['Easy', 'Medium', 'Hard'][difficulty-1]}</label>
+                    <input type="range" min="1" max="3" value={difficulty} onChange={e => setDifficulty(Number(e.target.value))} className="w-full" />
+                </div>
+                <div>
+                    <label className="font-semibold text-muted-foreground block mb-2">3. Configure Question Types</label>
+                    <div className="grid grid-cols-2 gap-4">
+                        {(['MCQ', 'SAQ', 'LAQ', 'Fill'] as QuestionType[]).map(type => (
+                            <div key={type} className="flex items-center gap-2 bg-secondary p-2 rounded-md">
+                                <label className="flex-1 text-sm">{type}</label>
+                                <input type="number" value={counts[type]} onChange={e => setCounts(c => ({...c, [type]: Number(e.target.value)}))} min="0" className="w-16 bg-input p-1 rounded-md text-center"/>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                 <button onClick={handleGenerate} disabled={isLoading || !file}
+                    className="w-full mt-4 p-3 bg-primary text-primary-foreground rounded-md font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+                    {isLoading ? <><Loader size={20} className="animate-spin" /> Generating...</> : <><Wand2 size={20}/> Generate Questions with AI</>}
+                </button>
+            </div>
         </div>
     );
 };
+
 
 const TeacherTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
     const [view, setView] = useState<'list' | 'create' | 'results'>('list');
@@ -282,7 +396,7 @@ const TeacherTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
     if (loading) return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary"/></div>;
 
     if (view === 'create') {
-        return <CreateTestForm teacher={user} onBack={() => setView('list')} onTestCreated={() => { setView('list'); fetchData(); }} />;
+        return <CreateTestWithAI teacher={user} onBack={() => setView('list')} onTestCreated={() => { setView('list'); fetchData(); }} />;
     }
     
     if (view === 'results' && selectedTest) {
@@ -306,7 +420,7 @@ const TeacherTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
         <div className="bg-card border border-border rounded-xl p-6">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-xl">My Tests ({tests.length})</h3>
-                <button onClick={() => setView('create')} className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-semibold flex items-center gap-2"><Plus size={16}/> Create Test</button>
+                <button onClick={() => setView('create')} className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-semibold flex items-center gap-2"><Plus size={16}/> Create AI Test</button>
             </div>
             <div className="space-y-3 max-h-96 overflow-y-auto">
                 {tests.map(test => (

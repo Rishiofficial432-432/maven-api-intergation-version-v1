@@ -186,12 +186,37 @@ export interface GeneratedCurriculum {
 }
 
 // New types for Tests and Progress feature
-export interface TestQuestion {
+export type QuestionType = 'MCQ' | 'SAQ' | 'LAQ' | 'Fill';
+
+export interface BaseQuestion {
   id: string;
   questionText: string;
+  type: QuestionType;
+}
+
+export interface MCQQuestion extends BaseQuestion {
+  type: 'MCQ';
   options: string[];
   correctAnswerIndex: number;
 }
+
+export interface SAQQuestion extends BaseQuestion {
+  type: 'SAQ';
+  modelAnswer?: string;
+}
+
+export interface LAQQuestion extends BaseQuestion {
+  type: 'LAQ';
+  modelAnswer?: string;
+}
+
+export interface FillQuestion extends BaseQuestion {
+  type: 'Fill';
+  correctAnswer: string;
+}
+
+export type TestQuestion = MCQQuestion | SAQQuestion | LAQQuestion | FillQuestion;
+
 
 export interface Test {
   id: string;
@@ -207,8 +232,8 @@ export interface TestSubmission {
   testId: string;
   studentId: string;
   studentName: string;
-  answers: number[]; // Array of selected option indices
-  score: number; // Percentage
+  answers: (number | string | null)[]; // Array of selected option indices or text answers
+  score: number; // Percentage on auto-graded questions
   submittedAt: string; // ISO timestamp
   testTitle?: string;
 }
