@@ -11,19 +11,22 @@ const useDemoUser = (): [PortalUser | null, boolean] => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // This is a simplified way to get the demo user.
-        // It checks for a 'teacher' and then a 'student' demo user.
         const fetchUser = async () => {
+            setLoading(true);
             try {
-                const teacher = await LocalPortal.getUserByEmail('e.reed@university.edu');
-                if (teacher) {
+                const demoRole = sessionStorage.getItem('demo-role');
+                if (demoRole === 'teacher') {
+                    const teacher = await LocalPortal.getDemoUser('teacher');
                     setUser(teacher);
-                } else {
-                    const student = await LocalPortal.getUserByEmail('a.johnson@university.edu');
+                } else if (demoRole === 'student') {
+                    const student = await LocalPortal.getDemoUser('student');
                     setUser(student);
+                } else {
+                    setUser(null);
                 }
             } catch (e) {
                 console.error("Could not fetch demo user", e);
+                setUser(null);
             } finally {
                 setLoading(false);
             }

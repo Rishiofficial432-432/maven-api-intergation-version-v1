@@ -9,16 +9,24 @@ const useDemoUser = (): [PortalUser | null, boolean] => {
     const [loading, setLoading] = useState(true);
     useEffect(() => {
         const fetchUser = async () => {
+            setLoading(true);
             try {
-                // Prioritize teacher, then student for demo purposes
-                const teacher = await LocalPortal.getUserByEmail('e.reed@university.edu');
-                if (teacher) setUser(teacher);
-                else {
-                    const student = await LocalPortal.getUserByEmail('a.johnson@university.edu');
+                const demoRole = sessionStorage.getItem('demo-role');
+                if (demoRole === 'teacher') {
+                    const teacher = await LocalPortal.getDemoUser('teacher');
+                    setUser(teacher);
+                } else if (demoRole === 'student') {
+                    const student = await LocalPortal.getDemoUser('student');
                     setUser(student);
+                } else {
+                    setUser(null);
                 }
-            } catch (e) { console.error("Could not fetch demo user", e); }
-            finally { setLoading(false); }
+            } catch (e) {
+                console.error("Could not fetch demo user", e);
+                setUser(null);
+            } finally {
+                setLoading(false);
+            }
         };
         fetchUser();
     }, []);

@@ -433,6 +433,7 @@ const StudentTeacherPortal: React.FC = () => {
         setLoading(true);
         try {
             const demoProfile = await LocalPortal.getDemoUser(role);
+            sessionStorage.setItem('demo-role', role);
             setDemoUser(demoProfile);
             toast.success(`Entered demo mode as ${role}. This is a local simulation.`);
         } catch(error: any) {
@@ -442,8 +443,8 @@ const StudentTeacherPortal: React.FC = () => {
         }
     };
     
-    const handleLogout = async () => { if (supabase) await supabase.auth.signOut(); setUser(null); };
-    const handleDemoLogout = () => { setDemoUser(null); toast.info("Exited demo mode."); };
+    const handleLogout = async () => { if (supabase) await supabase.auth.signOut(); sessionStorage.removeItem('demo-role'); setUser(null); };
+    const handleDemoLogout = () => { setDemoUser(null); sessionStorage.removeItem('demo-role'); toast.info("Exited demo mode."); };
     
     if (loading) return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary" size={32}/></div>;
     
