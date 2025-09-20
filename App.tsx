@@ -243,9 +243,19 @@ const App: React.FC = () => {
     }
 
     const remainingPages = pages.filter(p => p.id !== id);
-    setPages(remainingPages);
+    // Sort remaining pages by creation date, newest first, for predictable navigation
+    const sortedRemainingPages = remainingPages.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    setPages(sortedRemainingPages);
+
     if (activePageId === id) {
-      setActivePageId(remainingPages.length > 0 ? remainingPages[0].id : null);
+      // Select the newest page if one exists, otherwise null
+      const newActivePageId = sortedRemainingPages.length > 0 ? sortedRemainingPages[0].id : null;
+      setActivePageId(newActivePageId);
+      if (newActivePageId) {
+          localStorage.setItem('maven-last-page-id', newActivePageId);
+      } else {
+          localStorage.removeItem('maven-last-page-id');
+      }
     }
   };
 

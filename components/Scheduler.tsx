@@ -119,7 +119,6 @@ const Scheduler: React.FC = () => {
         setTimetable(null);
     
         try {
-            // FIX: Use `import.meta.url` to correctly resolve the worker path in production builds.
             const worker = new Worker(new URL('../workers/timetable.worker.ts', import.meta.url), { type: 'module' });
         
             worker.onmessage = (event) => {
@@ -282,7 +281,7 @@ Your response must be a JSON object containing a single key "schedule", which is
                              {rooms.map(item => (
                                 <div key={item.id} className="bg-card/50 p-2 rounded-md flex justify-between items-center text-sm">
                                     <span>{item.name} (Cap: {item.capacity})</span>
-                                    <button onClick={() => setRooms(rooms.filter(r => r.id !== item.id))} className="text-destructive/70 hover:text-destructive"><Trash2 size={14}/></button>
+                                    <button onClick={() => setRooms(rooms.filter(r => r.id !== item.id))} className="text-destructive/70 hover:text-destructive" aria-label="Delete room"><Trash2 size={14}/></button>
                                 </div>
                             ))}
                         </div>

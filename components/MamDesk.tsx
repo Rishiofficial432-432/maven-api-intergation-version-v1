@@ -372,7 +372,7 @@ export const MamDesk: React.FC<MamDeskProps> = (props) => {
                 {task.completed ? <CheckSquare className="text-green-500" /> : <Square className="text-muted-foreground" />}
               </button>
               <span className={`flex-1 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>{task.text}</span>
-              <button onClick={() => onDeleteTask(task.id)} className="text-muted-foreground hover:text-destructive"><X size={16} /></button>
+              <button onClick={() => onDeleteTask(task.id)} className="text-muted-foreground hover:text-destructive" aria-label="Delete task"><X size={16} /></button>
             </div>
           ))}
         </div>
@@ -469,7 +469,7 @@ export const MamDesk: React.FC<MamDeskProps> = (props) => {
                 {quickNotes.map(note => (
                     <div key={note.id} className="p-3 bg-secondary rounded-lg flex justify-between items-start">
                         <p className="flex-1 pr-2">{note.text}</p>
-                        <button onClick={() => setQuickNotes(prev => prev.filter(n => n.id !== note.id))} className="text-muted-foreground hover:text-destructive"><X size={16}/></button>
+                        <button onClick={() => setQuickNotes(prev => prev.filter(n => n.id !== note.id))} className="text-muted-foreground hover:text-destructive" aria-label="Delete quick note"><X size={16}/></button>
                     </div>
                 ))}
             </div>

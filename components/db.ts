@@ -24,7 +24,7 @@ export const initDB = (): Promise<boolean> => {
 
     request.onerror = () => {
       console.error('IndexedDB error:', request.error);
-      reject(false);
+      reject(new Error(`IndexedDB failed to open: ${request.error?.message}`));
     };
   });
 };

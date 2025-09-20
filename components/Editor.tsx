@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Page } from '../types';
 import CommandPalette from './AiToolbar';
@@ -124,9 +125,7 @@ const useDebounce = (callback: (...args: any[]) => void, delay: number) => {
     };
 };
 
-// FIX: The component was incomplete, missing its implementation and return statement, which caused the build error.
-// The file was truncated. This completes the component with necessary logic and JSX.
-// Also, it's changed to a named export to resolve a circular dependency with App.tsx.
+// Component changed to a named export to resolve a circular dependency with App.tsx.
 export const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage, onNewPage }) => {
   const [title, setTitle] = useState(page.title);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -255,7 +254,7 @@ export const Editor: React.FC<EditorProps> = ({ page, onUpdatePage, onDeletePage
                         {tool.icon}
                     </a>
                 ))}
-                 <button onClick={() => onDeletePage(page.id)} className="text-muted-foreground hover:text-destructive transition-colors" title="Delete Page">
+                 <button onClick={() => onDeletePage(page.id)} className="text-muted-foreground hover:text-destructive transition-colors" title="Delete Page" aria-label="Delete page">
                     <TrashIcon className="w-4 h-4" />
                 </button>
             </div>

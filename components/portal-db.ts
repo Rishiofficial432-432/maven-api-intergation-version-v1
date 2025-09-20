@@ -3,7 +3,7 @@ export type { PortalSession, PortalAttendanceRecord } from '../types';
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 7; // FIX: Incremented version to be > existing version 6
+const DB_VERSION = 7;
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',

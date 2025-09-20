@@ -1,4 +1,5 @@
 
+
 /*
 -- =================================================================
 -- MANDATORY SUPABASE PORTAL SCHEMA SETUP
@@ -185,8 +186,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-// FIX: Updated the Database interface to be in sync with the SQL schema.
-// This adds the curriculum_files table and includes missing fields in portal_users.
 export interface Database {
   public: {
     Tables: {

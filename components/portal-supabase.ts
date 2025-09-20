@@ -1,8 +1,6 @@
 import { supabase, Database } from './supabase-config';
 import { PortalUser } from '../types';
 
-// FIX: Changed type definitions to be derived from the Database interface.
-// This is a more stable way to define types and avoids complex inference that was causing errors.
 export type Session = Database['public']['Tables']['portal_sessions']['Row'];
 export type AttendanceRecord = Database['public']['Tables']['portal_attendance']['Row'];
 

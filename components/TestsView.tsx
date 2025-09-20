@@ -223,7 +223,7 @@ const CreateTestForm: React.FC<{ teacher: PortalUser, onBack: () => void, onTest
             <div className="space-y-4 max-h-96 overflow-y-auto">
                 {questions.map((q, qIndex) => (
                     <div key={qIndex} className="bg-secondary p-4 rounded-lg border border-border/50">
-                        <div className="flex justify-between items-center"><label className="font-semibold">Question {qIndex + 1}</label><button onClick={() => removeQuestion(qIndex)}><Trash2 size={16} className="text-destructive"/></button></div>
+                        <div className="flex justify-between items-center"><label className="font-semibold">Question {qIndex + 1}</label><button onClick={() => removeQuestion(qIndex)} aria-label="Delete question"><Trash2 size={16} className="text-destructive"/></button></div>
                         <textarea value={q.questionText} onChange={e => handleQuestionChange(qIndex, 'questionText', e.target.value)} placeholder="Question text..." className="w-full bg-input p-2 mt-2 rounded-md"/>
                         <div className="grid grid-cols-2 gap-2 mt-2">
                             {q.options?.map((opt, oIndex) => (

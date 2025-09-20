@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PortalUser, CurriculumFile } from '../types';
 import * as Portal from './portal-supabase';
@@ -30,6 +31,10 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     return R * c; // in metres
 }
 
+const isGpsLocation = (location: any): location is { latitude: number; longitude: number } => {
+    return location && typeof location.latitude === 'number' && typeof location.longitude === 'number';
+};
+
 
 // --- DASHBOARDS ---
 const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDemo?: boolean }> = ({ user, onLogout, isDemo }) => {
@@ -57,7 +62,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
             setPendingStudents(students);
             setCurriculumFiles(files);
             if (session) {
-                setActiveSession(session as any);
+                setActiveSession(session);
                 const attendance = await PortalAPI.getAttendanceForSession(session.id);
                 setLiveAttendance(attendance);
             }
@@ -97,8 +102,6 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
         }
     }, [activeSession]);
     
-    // FIX: Refactored to use an if/else block for type safety.
-    // This prevents TypeScript from creating a problematic union type for sessionData.
     const handleStartSession = async () => {
         setStartingSession(true);
         try {
@@ -228,7 +231,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
                                 <div className="text-center bg-gray-900 rounded-lg p-2"><img src={qrCodeUrl} alt="QR Code" className="w-full max-w-[200px] mx-auto rounded-md"/></div>
                                 <div className="space-y-3">
                                     <div className="p-3 bg-secondary rounded-lg"><p className="text-sm text-muted-foreground">Session PIN</p><div className="flex items-center justify-between"><p className="text-3xl font-mono tracking-widest">{activeSession.session_code}</p><button onClick={() => { activeSession.session_code && navigator.clipboard.writeText(activeSession.session_code); toast.success("PIN Copied!"); }} className="p-2 hover:bg-accent rounded-md"><Copy size={18}/></button></div></div>
-                                    {activeSession.location_enforced && activeSession.location && (<div className="p-3 bg-secondary rounded-lg"><p className="text-sm font-semibold text-green-400 flex items-center gap-1"><ShieldCheck size={14}/> Location Enforcement: ON</p><p className="text-xs font-mono text-muted-foreground">Lat: {(activeSession.location as any).latitude.toFixed(5)}, Lon: {(activeSession.location as any).longitude.toFixed(5)}</p></div>)}
+                                    {activeSession.location_enforced && isGpsLocation(activeSession.location) && (<div className="p-3 bg-secondary rounded-lg"><p className="text-sm font-semibold text-green-400 flex items-center gap-1"><ShieldCheck size={14}/> Location Enforcement: ON</p><p className="text-xs font-mono text-muted-foreground">Lat: {activeSession.location.latitude.toFixed(5)}, Lon: {activeSession.location.longitude.toFixed(5)}</p></div>)}
                                     <button onClick={handleEndSession} className="w-full bg-destructive/80 hover:bg-destructive text-destructive-foreground py-2 rounded-lg font-semibold">End Session</button>
                                 </div>
                             </div>
@@ -246,7 +249,7 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
                 </div>
                 <div className="space-y-6">
                     <div className="bg-card border border-border rounded-xl p-6"><h3 className="font-bold mb-4 flex items-center justify-between">Pending Approvals <RefreshCw size={16} onClick={fetchDashboardData} className="cursor-pointer hover:rotate-90 transition-transform"/></h3><div className="max-h-48 overflow-y-auto space-y-2">{loadingApprovals ? <Loader className="animate-spin mx-auto"/> : pendingStudents.length > 0 ? pendingStudents.map(s => (<div key={s.id} className="p-2 bg-secondary rounded-md"><p className="font-semibold text-sm">{s.name}</p><div className="flex justify-between items-center"><p className="text-xs text-muted-foreground">{s.email}</p><button onClick={() => handleApproveStudent(s.id)} className="p-1 bg-primary/20 text-primary rounded-md"><Check size={14}/></button></div></div>)) : <p className="text-sm text-muted-foreground text-center">No pending students.</p>}</div></div>
-                     <div className="bg-card border border-border rounded-xl p-6"><h3 className="font-bold mb-4">Curriculum Files</h3><div className="max-h-48 overflow-y-auto space-y-2 mb-4">{curriculumFiles.map(f => (<div key={f.id} className="flex justify-between items-center p-2 bg-secondary rounded-md text-sm"><p className="truncate pr-2">{f.fileName || f.file_name}</p><button onClick={() => handleFileDelete(f.id, f.storage_path)} className="text-destructive/70 hover:text-destructive flex-shrink-0"><Trash2 size={14}/></button></div>))}</div><label className="w-full text-center cursor-pointer bg-primary/20 text-primary px-4 py-2 rounded-md text-sm font-semibold block disabled:opacity-50"><input type="file" onChange={handleFileUpload} disabled={uploadingFile} className="hidden"/>{uploadingFile ? <Loader className="animate-spin mx-auto"/> : 'Upload New File'}</label></div>
+                     <div className="bg-card border border-border rounded-xl p-6"><h3 className="font-bold mb-4">Curriculum Files</h3><div className="max-h-48 overflow-y-auto space-y-2 mb-4">{curriculumFiles.map(f => (<div key={f.id} className="flex justify-between items-center p-2 bg-secondary rounded-md text-sm"><p className="truncate pr-2">{f.fileName || f.file_name}</p><button onClick={() => handleFileDelete(f.id, f.storage_path)} className="text-destructive/70 hover:text-destructive flex-shrink-0" aria-label="Delete file"><Trash2 size={14}/></button></div>))}</div><label className="w-full text-center cursor-pointer bg-primary/20 text-primary px-4 py-2 rounded-md text-sm font-semibold block disabled:opacity-50"><input type="file" onChange={handleFileUpload} disabled={uploadingFile} className="hidden"/>{uploadingFile ? <Loader className="animate-spin mx-auto"/> : 'Upload New File'}</label></div>
                 </div>
             </main>
         </div>
@@ -268,15 +271,15 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
             if (!session || session.session_code?.toUpperCase() !== code.toUpperCase()) throw new Error("Invalid or expired session code.");
 
             if (session.location_enforced) {
-                 if(!session.location) throw new Error("Session is location enforced, but teacher location is missing.");
+                 if(!isGpsLocation(session.location)) throw new Error("Session is location enforced, but teacher location is missing.");
                 const studentLocation = await new Promise<{ lat: number, lon: number }>((resolve, reject) => {
                     navigator.geolocation.getCurrentPosition(
                         (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
                         (err) => reject(new Error(getGeolocationErrorMessage(err)))
                     );
                 });
-                const teacherLoc = session.location as { latitude: number, longitude: number };
-                const distance = getDistance(teacherLoc.latitude, teacherLoc.longitude, studentLocation.lat, studentLocation.lon);
+                
+                const distance = getDistance(session.location.latitude, session.location.longitude, studentLocation.lat, studentLocation.lon);
                 if (distance > session.radius!) throw new Error(`You are too far from the class (${Math.round(distance)}m). Required: <${session.radius}m.`);
             }
 
