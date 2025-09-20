@@ -443,8 +443,16 @@ const StudentTeacherPortal: React.FC = () => {
         }
     };
     
-    const handleLogout = async () => { if (supabase) await supabase.auth.signOut(); sessionStorage.removeItem('demo-role'); setUser(null); };
-    const handleDemoLogout = () => { setDemoUser(null); sessionStorage.removeItem('demo-role'); toast.info("Exited demo mode."); };
+    const handleLogout = async () => { 
+        if (supabase) await supabase.auth.signOut(); 
+        sessionStorage.removeItem('demo-role'); 
+        setUser(null); 
+    };
+    const handleDemoLogout = () => { 
+        setDemoUser(null); 
+        sessionStorage.removeItem('demo-role'); 
+        toast.info("Exited demo mode."); 
+    };
     
     if (loading) return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary" size={32}/></div>;
     
