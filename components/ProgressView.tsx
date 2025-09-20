@@ -133,9 +133,29 @@ const TeacherProgressView: React.FC = () => {
                         <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold text-primary">{averageScore}%</p><p className="text-sm text-muted-foreground">Average Score</p></div>
                         <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold text-primary">N/A</p><p className="text-sm text-muted-foreground">Class Rank</p></div>
                     </div>
-                    <div className="mt-6">
-                        <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><TrendingUp/> Score Over Time</h3>
-                        <ProgressChart submissions={submissions} />
+                     <div className="mt-6">
+                        <h3 className="text-xl font-semibold mb-4">Submission Details</h3>
+                        <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                            {submissions.length > 0 ? (
+                                submissions
+                                    .sort((a,b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+                                    .map(sub => (
+                                    <div key={sub.id} className="bg-secondary p-4 rounded-lg flex justify-between items-center">
+                                        <div>
+                                            <p className="font-semibold">{sub.testTitle}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Submitted on: {new Date(sub.submittedAt).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        <p className={`font-bold text-2xl ${sub.score >= 80 ? 'text-green-400' : sub.score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                            {sub.score}%
+                                        </p>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-center text-muted-foreground py-4">No tests submitted by this student yet.</p>
+                            )}
+                        </div>
                     </div>
                 </div>
             ) : <p className="text-center text-muted-foreground py-8">No students found or selected.</p>}
