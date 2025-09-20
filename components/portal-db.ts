@@ -3,7 +3,7 @@ export type { PortalSession, PortalAttendanceRecord } from '../types';
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 4; // Incremented version for new stores
+const DB_VERSION = 5; // Incremented version for new stores
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',
@@ -11,6 +11,7 @@ const STORES = {
   CURRICULUM: 'curriculum_files',
   TESTS: 'tests',
   SUBMISSIONS: 'submissions',
+  UNIT_MATERIALS: 'unit_materials',
 };
 
 let db: IDBDatabase;
@@ -23,29 +24,40 @@ const initPortalDB = (): Promise<IDBDatabase> => {
 
     request.onupgradeneeded = (event) => {
       const dbInstance = request.result;
-      const transaction = (event.target as any).transaction;
+      const transaction = request.transaction;
+      if (!transaction) {
+          console.error("Upgrade transaction is null, cannot proceed.");
+          return;
+      }
+      
+      const existingStores = dbInstance.objectStoreNames;
 
-      if (event.oldVersion < 1) {
-        if (!dbInstance.objectStoreNames.contains(STORES.USERS)) dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
-        if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
-        if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
+      if (!existingStores.contains(STORES.USERS)) dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
+      if (!existingStores.contains(STORES.SESSIONS)) dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
+      
+      if (!existingStores.contains(STORES.ATTENDANCE)) {
+          const attendanceStore = dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
+          attendanceStore.createIndex('session_id', 'session_id', { unique: false });
+      } else {
+           const attendanceStore = transaction.objectStore(STORES.ATTENDANCE);
+           if(!attendanceStore.indexNames.contains('session_id')) attendanceStore.createIndex('session_id', 'session_id', { unique: false });
       }
 
-      if (event.oldVersion < 3) {
-        if (dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
-            const attendanceStore = transaction.objectStore(STORES.ATTENDANCE);
-            if (!attendanceStore.indexNames.contains('session_id')) attendanceStore.createIndex('session_id', 'session_id', { unique: false });
-        }
-        if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
+      if (!existingStores.contains(STORES.CURRICULUM)) dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
+      if (!existingStores.contains(STORES.TESTS)) dbInstance.createObjectStore(STORES.TESTS, { keyPath: 'id' });
+      
+      if (!existingStores.contains(STORES.SUBMISSIONS)) {
+          const submissionStore = dbInstance.createObjectStore(STORES.SUBMISSIONS, { keyPath: 'id', autoIncrement: true });
+          submissionStore.createIndex('studentId', 'studentId', { unique: false });
+          submissionStore.createIndex('testId', 'testId', { unique: false });
+      } else {
+          const submissionStore = transaction.objectStore(STORES.SUBMISSIONS);
+          if(!submissionStore.indexNames.contains('studentId')) submissionStore.createIndex('studentId', 'studentId', { unique: false });
+          if(!submissionStore.indexNames.contains('testId')) submissionStore.createIndex('testId', 'testId', { unique: false });
       }
-
-      if (event.oldVersion < 4) {
-        if (!dbInstance.objectStoreNames.contains(STORES.TESTS)) dbInstance.createObjectStore(STORES.TESTS, { keyPath: 'id' });
-        if (!dbInstance.objectStoreNames.contains(STORES.SUBMISSIONS)) {
-            const submissionStore = dbInstance.createObjectStore(STORES.SUBMISSIONS, { keyPath: 'id', autoIncrement: true });
-            submissionStore.createIndex('studentId', 'studentId', { unique: false });
-            submissionStore.createIndex('testId', 'testId', { unique: false });
-        }
+      
+      if (!existingStores.contains(STORES.UNIT_MATERIALS)) {
+        dbInstance.createObjectStore(STORES.UNIT_MATERIALS);
       }
     };
 
@@ -224,11 +236,37 @@ export const deleteCurriculumFile = async (fileId: string): Promise<void> => {
     return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
 };
 
+// --- Unit Material Functions (for AI Test Generation) ---
+export const addUnitMaterial = async (id: string, fileBlob: Blob): Promise<void> => {
+    await initPortalDB();
+    const store = getStore(STORES.UNIT_MATERIALS, 'readwrite');
+    const request = store.put(fileBlob, id);
+    return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
+};
+
+export const getUnitMaterialBlob = async (id: string): Promise<Blob | null> => {
+    await initPortalDB();
+    const store = getStore(STORES.UNIT_MATERIALS, 'readonly');
+    const request = store.get(id);
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+
 // --- Test & Submission Functions ---
-export const createTest = async (test: Test): Promise<void> => {
+export const saveTest = async (test: Test): Promise<void> => {
     await initPortalDB();
     const store = getStore(STORES.TESTS, 'readwrite');
-    const request = store.add(test);
+    const request = store.put(test); // Use put to allow saving drafts
+    return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
+};
+
+export const deleteTest = async (testId: string): Promise<void> => {
+    await initPortalDB();
+    const store = getStore(STORES.TESTS, 'readwrite');
+    const request = store.delete(testId);
     return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
 };
 
