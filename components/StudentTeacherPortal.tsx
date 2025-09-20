@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PortalUser, CurriculumFile } from '../types';
 import * as Portal from './portal-supabase';
@@ -381,7 +380,9 @@ const StudentTeacherPortal: React.FC = () => {
             setDemoUser(demoProfile);
             toast.success(`Entered demo mode as ${role}.`);
         } catch(error: any) {
-            toast.error(`Could not start demo mode: ${error.message}`);
+            const errorMessage = error?.message || 'An unknown database error occurred. Please check browser settings or try a different browser.';
+            toast.error(`Could not start demo mode: ${errorMessage}`);
+            console.error("Demo login failed:", error);
         } finally {
             setLoading(false);
         }

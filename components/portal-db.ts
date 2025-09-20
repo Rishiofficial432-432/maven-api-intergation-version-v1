@@ -1,3 +1,4 @@
+
 // FIX: Re-export local portal types to be consumed by other modules.
 export type { PortalSession, PortalAttendanceRecord } from '../types';
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission } from '../types';
@@ -50,7 +51,10 @@ const initPortalDB = (): Promise<IDBDatabase> => {
     };
 
     request.onsuccess = () => { db = request.result; resolve(db); };
-    request.onerror = () => { console.error('IndexedDB error:', request.error); reject('IndexedDB error'); };
+    request.onerror = () => {
+        console.error('IndexedDB error:', request.error);
+        reject(new Error(`IndexedDB failed to open: ${request.error?.message || 'Unknown error'}. This can happen in private browsing or if storage is disabled.`));
+    };
   });
 };
 
@@ -281,7 +285,10 @@ export const getDemoUser = async (role: 'teacher' | 'student'): Promise<PortalUs
         const store = transaction.objectStore(STORES.USERS);
         const getAllRequest = store.getAll();
 
-        transaction.onerror = () => reject(transaction.error);
+        transaction.onerror = () => {
+            console.error('IDB Transaction error:', transaction.error);
+            reject(new Error(`Database transaction failed: ${transaction.error?.message || 'Unknown error'}`));
+        };
 
         getAllRequest.onsuccess = () => {
             const users = getAllRequest.result as PortalUser[];
