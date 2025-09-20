@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PortalUser, TestSubmission, Test } from '../types';
 import * as LocalPortal from './portal-db';
-import { Loader, BarChart2, User, CheckSquare, Percent, TrendingUp } from 'lucide-react';
+import { Loader, BarChart2, User, CheckSquare, Percent, TrendingUp, ArrowDown, ArrowUp } from 'lucide-react';
 
 // Simplified demo user hook
 const useDemoUser = (): [PortalUser | null, boolean] => {
@@ -53,17 +53,73 @@ const ProgressChart: React.FC<{ submissions: TestSubmission[] }> = ({ submission
 
 const StudentProgressView: React.FC<{ user: PortalUser }> = ({ user }) => {
     const [submissions, setSubmissions] = useState<TestSubmission[]>([]);
+    const [tests, setTests] = useState<Test[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    type EnrichedSubmission = TestSubmission & { subject: string };
+    // FIX: Define a type for sortable keys to ensure type safety in the sort function.
+    type SortableKey = 'testTitle' | 'subject' | 'score' | 'submittedAt';
+
+    const [sortConfig, setSortConfig] = useState<{ key: SortableKey; direction: 'asc' | 'desc' }>({ key: 'submittedAt', direction: 'desc' });
+    const [filterSubject, setFilterSubject] = useState<string>('');
+
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
-            const subs = await LocalPortal.getSubmissionsForStudent(user.id);
+            const [subs, allTests] = await Promise.all([
+                LocalPortal.getSubmissionsForStudent(user.id),
+                LocalPortal.getAllFromStore<Test>('tests'),
+            ]);
             setSubmissions(subs);
+            setTests(allTests);
             setLoading(false);
         };
         fetchData();
     }, [user.id]);
+    
+    const { displayedSubmissions, uniqueSubjects } = useMemo(() => {
+        const testMap = new Map(tests.map(t => [t.id, t]));
+        const submissionsWithSubjects: EnrichedSubmission[] = submissions.map(sub => ({
+            ...sub,
+            subject: testMap.get(sub.testId)?.subject || 'N/A'
+        }));
+
+        const subjects = [...new Set(submissionsWithSubjects.map(s => s.subject))].sort();
+
+        let filtered = submissionsWithSubjects;
+        if (filterSubject) {
+            filtered = filtered.filter(s => s.subject === filterSubject);
+        }
+
+        const sorted = [...filtered].sort((a, b) => {
+            const key = sortConfig.key;
+
+            let comparison = 0;
+            // FIX: Use direct property access for type safety, resolving the overload error.
+            if (key === 'score') {
+                comparison = a.score - b.score;
+            } else if (key === 'submittedAt') {
+                comparison = new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
+            } else { // 'testTitle' or 'subject'
+                const aVal = a[key] || '';
+                const bVal = b[key] || '';
+                comparison = String(aVal).localeCompare(String(bVal));
+            }
+            
+            return sortConfig.direction === 'asc' ? comparison : -comparison;
+        });
+
+        return { displayedSubmissions: sorted, uniqueSubjects: subjects };
+    }, [submissions, tests, sortConfig, filterSubject]);
+
+    const requestSort = (key: SortableKey) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
     
     const averageScore = submissions.length > 0 ? Math.round(submissions.reduce((acc, s) => acc + s.score, 0) / submissions.length) : 0;
     const testsAttempted = submissions.length;
@@ -81,6 +137,52 @@ const StudentProgressView: React.FC<{ user: PortalUser }> = ({ user }) => {
             <div>
                 <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><TrendingUp/> Score Over Time</h3>
                 <ProgressChart submissions={submissions} />
+            </div>
+            <div className="mt-8">
+                <h3 className="text-xl font-semibold mb-4">Test History</h3>
+                <div className="flex justify-end mb-4">
+                    <select
+                        value={filterSubject}
+                        onChange={(e) => setFilterSubject(e.target.value)}
+                        className="bg-secondary border border-border rounded-md px-3 py-2 text-sm"
+                    >
+                        <option value="">All Subjects</option>
+                        {uniqueSubjects.map(subject => (
+                            <option key={subject} value={subject}>{subject}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-border">
+                    <table className="min-w-full divide-y divide-border">
+                        <thead className="bg-secondary/50">
+                            <tr>
+                                {([
+                                    { key: 'testTitle', label: 'Test Title' },
+                                    { key: 'subject', label: 'Subject' },
+                                    { key: 'score', label: 'Score' },
+                                    { key: 'submittedAt', label: 'Date Submitted' }
+                                ] as { key: SortableKey, label: string }[]).map(({ key, label }) => (
+                                    <th key={key} scope="col" className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                        <button onClick={() => requestSort(key)} className="flex items-center gap-1 hover:text-foreground">
+                                            {label}
+                                            {sortConfig.key === key && (sortConfig.direction === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />)}
+                                        </button>
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="bg-card divide-y divide-border">
+                            {displayedSubmissions.map((sub) => (
+                                <tr key={sub.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">{sub.testTitle}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{sub.subject}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">{sub.score}%</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{new Date(sub.submittedAt).toLocaleDateString()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
