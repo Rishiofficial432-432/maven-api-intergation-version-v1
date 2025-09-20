@@ -214,6 +214,7 @@ export interface Test {
   teacherId: string;
   difficulty: 1 | 2 | 3;
   sourceMaterialId?: string;
+  status?: 'draft' | 'published';
 }
 
 export interface TestSubmission {

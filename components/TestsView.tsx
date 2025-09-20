@@ -4,7 +4,7 @@ import * as LocalPortal from './portal-db';
 import { useToast } from './Toast';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
-import { Loader, Plus, Trash2, Send, ChevronLeft, Check, X, CheckSquare, Clock, FileText, UploadCloud, Wand2, ArrowRight } from 'lucide-react';
+import { Loader, Plus, Trash2, Send, ChevronLeft, Check, X, CheckSquare, Clock, FileText, UploadCloud, Wand2, ArrowRight, Edit, Save } from 'lucide-react';
 
 // For the demo, we need to get the current user from the demo login logic.
 const useDemoUser = (): [PortalUser | null, boolean] => {
@@ -132,7 +132,7 @@ const StudentTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
         const submissions = await LocalPortal.getSubmissionsForStudent(user.id);
         const completedTestIds = new Set(submissions.map(s => s.testId));
         
-        setPendingTests(allTests.filter(t => !completedTestIds.has(t.id)));
+        setPendingTests(allTests.filter(t => t.status === 'published' && !completedTestIds.has(t.id)));
         setCompletedTests(submissions);
         setLoading(false);
     }, [user.id]);
@@ -152,15 +152,32 @@ const StudentTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
 
 // --- TEACHER COMPONENTS ---
 
-const TestCreator: React.FC<{ teacher: PortalUser, onBack: () => void, onTestCreated: () => void }> = ({ teacher, onBack, onTestCreated }) => {
+const TestCreator: React.FC<{ teacher: PortalUser, onFinish: () => void, testToEdit: Test | null }> = ({ teacher, onFinish, testToEdit }) => {
     const [step, setStep] = useState(1);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [materialFile, setMaterialFile] = useState<File | null>(null);
     const [formState, setFormState] = useState({ title: '', subject: '', dueDate: '', difficulty: 2 as (1 | 2 | 3), mcq: 5, saq: 3, laq: 2, fill: 2 });
     const [generatedQuestions, setGeneratedQuestions] = useState<TestQuestion[]>([]);
-    const [sourceMaterial, setSourceMaterial] = useState<UnitMaterial | null>(null);
+    const [sourceMaterialId, setSourceMaterialId] = useState<string | undefined>(undefined);
     const toast = useToast();
+
+    useEffect(() => {
+        if (testToEdit) {
+            setFormState({
+                title: testToEdit.title, subject: testToEdit.subject, dueDate: testToEdit.dueDate,
+                difficulty: testToEdit.difficulty,
+                mcq: testToEdit.questions.filter(q=>q.questionType==='mcq').length,
+                saq: testToEdit.questions.filter(q=>q.questionType==='saq').length,
+                laq: testToEdit.questions.filter(q=>q.questionType==='laq').length,
+                fill: testToEdit.questions.filter(q=>q.questionType==='fill-in-the-blank').length,
+            });
+            setGeneratedQuestions(testToEdit.questions);
+            setSourceMaterialId(testToEdit.sourceMaterialId);
+            setStep(2); // Jump directly to review step when editing
+        }
+    }, [testToEdit]);
 
     const handleFileChange = (files: FileList | null) => {
         if (files && files[0]) setMaterialFile(files[0]);
@@ -172,7 +189,7 @@ const TestCreator: React.FC<{ teacher: PortalUser, onBack: () => void, onTestCre
         setIsGenerating(true);
         try {
             const materialInfo = await LocalPortal.addUnitMaterial({ fileName: materialFile.name, fileType: materialFile.type, teacherId: teacher.id }, materialFile);
-            setSourceMaterial(materialInfo);
+            setSourceMaterialId(materialInfo.id);
 
             const fileContent = await simulateFileExtraction(materialFile);
             const prompt = `You are an expert test creator. Based on the following document and parameters, generate a test.
@@ -198,17 +215,20 @@ Response must be a JSON object with a "questions" array. For MCQs, provide 4 opt
         finally { setIsGenerating(false); }
     };
 
-    const handlePublish = async () => {
+    const handleSave = async (status: 'draft' | 'published') => {
+        setIsSaving(true);
         const newTest: Test = {
-            id: crypto.randomUUID(),
+            id: testToEdit?.id || crypto.randomUUID(),
             title: formState.title, subject: formState.subject, dueDate: formState.dueDate,
             teacherId: teacher.id, difficulty: formState.difficulty,
             questions: generatedQuestions,
-            sourceMaterialId: sourceMaterial?.id
+            sourceMaterialId: sourceMaterialId,
+            status: status,
         };
-        await LocalPortal.createTest(newTest);
-        toast.success("Test published successfully!");
-        onTestCreated();
+        await LocalPortal.saveTest(newTest);
+        toast.success(`Test ${status === 'draft' ? 'saved as draft' : 'published'}!`);
+        setIsSaving(false);
+        onFinish();
     };
 
     const handleQuestionTextChange = (id: string, newText: string) => {
@@ -227,15 +247,18 @@ Response must be a JSON object with a "questions" array. For MCQs, provide 4 opt
                 ))}
             </div>
             <div className="flex gap-4 mt-6">
-                <button onClick={() => setStep(1)} className="flex-1 py-2 bg-secondary rounded-md">Back</button>
-                <button onClick={handlePublish} className="flex-1 py-2 bg-primary text-primary-foreground rounded-md">Publish Test</button>
+                <button onClick={() => setStep(1)} className="flex-1 py-2 bg-secondary rounded-md" disabled={isSaving}>Back</button>
+                <button onClick={() => handleSave('draft')} className="flex-1 py-2 bg-secondary rounded-md flex items-center justify-center gap-2" disabled={isSaving}><Save size={16}/> Save Draft</button>
+                <button onClick={() => handleSave('published')} className="flex-1 py-2 bg-primary text-primary-foreground rounded-md flex items-center justify-center gap-2" disabled={isSaving}>
+                    {isSaving ? <Loader className="animate-spin" /> : <><Send size={16}/> Publish Test</>}
+                </button>
             </div>
         </div>;
     }
 
     return (
         <div className="bg-card border border-border rounded-xl p-6 animate-fade-in-up">
-            <button onClick={onBack} className="flex items-center gap-2 text-sm text-primary mb-4"><ChevronLeft size={16}/> Back to Tests</button>
+            <button onClick={onFinish} className="flex items-center gap-2 text-sm text-primary mb-4"><ChevronLeft size={16}/> Back to Tests</button>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Left Column: Config */}
                 <div className="space-y-4">
@@ -275,8 +298,10 @@ const TeacherTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
     const [view, setView] = useState<'list' | 'create' | 'results'>('list');
     const [tests, setTests] = useState<Test[]>([]);
     const [selectedTest, setSelectedTest] = useState<Test | null>(null);
+    const [editingTest, setEditingTest] = useState<Test | null>(null);
     const [submissions, setSubmissions] = useState<TestSubmission[]>([]);
     const [loading, setLoading] = useState(true);
+    const toast = useToast();
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -294,10 +319,26 @@ const TeacherTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
         setView('results');
     };
 
+    const handleEditDraft = (test: Test) => {
+        setEditingTest(test);
+        setView('create');
+    };
+
+    const handleDeleteDraft = async (testId: string) => {
+        if (window.confirm("Are you sure you want to delete this draft?")) {
+            await LocalPortal.deleteTest(testId);
+            toast.success("Draft deleted.");
+            fetchData();
+        }
+    };
+    
+    const drafts = tests.filter(t => t.status === 'draft');
+    const publishedTests = tests.filter(t => t.status === 'published' || t.status === undefined);
+
     if (loading) return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary"/></div>;
 
     if (view === 'create') {
-        return <TestCreator teacher={user} onBack={() => setView('list')} onTestCreated={() => { setView('list'); fetchData(); }} />;
+        return <TestCreator teacher={user} testToEdit={editingTest} onFinish={() => { setView('list'); setEditingTest(null); fetchData(); }} />;
     }
     
     if (view === 'results' && selectedTest) {
@@ -305,9 +346,28 @@ const TeacherTestsView: React.FC<{ user: PortalUser }> = ({ user }) => {
     }
     
     return (
-        <div className="bg-card border border-border rounded-xl p-6">
-            <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-xl">My Tests ({tests.length})</h3><button onClick={() => setView('create')} className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-semibold flex items-center gap-2"><Plus size={16}/> Create Test</button></div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">{tests.map(test => (<div key={test.id} className="bg-secondary p-3 rounded-md"><p className="font-semibold">{test.title}</p><div className="flex justify-between items-center text-sm text-muted-foreground"><span>{test.subject} - {test.questions.length} questions</span><button onClick={() => viewResults(test)} className="px-3 py-1 bg-accent rounded-md text-xs">View Results</button></div></div>))}</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-card border border-border rounded-xl p-6">
+                 <h3 className="font-bold text-xl mb-4">My Drafts ({drafts.length})</h3>
+                 <div className="space-y-3 max-h-96 overflow-y-auto">
+                     {drafts.map(test => (
+                        <div key={test.id} className="bg-secondary p-3 rounded-md">
+                            <p className="font-semibold">{test.title}</p>
+                            <div className="flex justify-between items-center text-sm text-muted-foreground mt-1">
+                                <span>{test.subject}</span>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => handleEditDraft(test)} className="p-1.5 hover:bg-accent rounded-md"><Edit size={14}/></button>
+                                    <button onClick={() => handleDeleteDraft(test.id)} className="p-1.5 hover:bg-accent text-destructive rounded-md"><Trash2 size={14}/></button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                 </div>
+            </div>
+             <div className="bg-card border border-border rounded-xl p-6">
+                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-xl">Published Tests ({publishedTests.length})</h3><button onClick={() => setView('create')} className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-semibold flex items-center gap-2"><Plus size={16}/> Create Test</button></div>
+                <div className="space-y-3 max-h-96 overflow-y-auto">{publishedTests.map(test => (<div key={test.id} className="bg-secondary p-3 rounded-md"><p className="font-semibold">{test.title}</p><div className="flex justify-between items-center text-sm text-muted-foreground"><span>{test.subject} - {test.questions.length} questions</span><button onClick={() => viewResults(test)} className="px-3 py-1 bg-accent rounded-md text-xs">View Results</button></div></div>))}</div>
+            </div>
         </div>
     );
 };

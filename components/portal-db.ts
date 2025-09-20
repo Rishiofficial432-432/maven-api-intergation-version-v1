@@ -232,10 +232,17 @@ export const deleteCurriculumFile = async (fileId: string): Promise<void> => {
 };
 
 // --- Test & Submission Functions ---
-export const createTest = async (test: Test): Promise<void> => {
+export const saveTest = async (test: Test): Promise<void> => {
     await initPortalDB();
     const store = getStore(STORES.TESTS, 'readwrite');
-    const request = store.add(test);
+    const request = store.put(test); // Use put to allow creating and updating
+    return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
+};
+
+export const deleteTest = async (testId: string): Promise<void> => {
+    await initPortalDB();
+    const store = getStore(STORES.TESTS, 'readwrite');
+    const request = store.delete(testId);
     return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
 };
 

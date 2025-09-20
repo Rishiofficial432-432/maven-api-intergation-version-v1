@@ -108,8 +108,6 @@ const TeacherProgressView: React.FC = () => {
     }, [selectedStudentId]);
     
     const selectedStudent = students.find(s => s.id === selectedStudentId);
-    const averageScore = submissions.length > 0 ? Math.round(submissions.reduce((acc, s) => acc + s.score, 0) / submissions.length) : 0;
-    const testsAttempted = submissions.length;
 
     if (loading) return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary"/></div>;
 
@@ -128,14 +126,9 @@ const TeacherProgressView: React.FC = () => {
             
             {selectedStudent ? (
                 <div className="animate-fade-in-up">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold text-primary">{testsAttempted}</p><p className="text-sm text-muted-foreground">Tests Attempted</p></div>
-                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold text-primary">{averageScore}%</p><p className="text-sm text-muted-foreground">Average Score</p></div>
-                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold text-primary">N/A</p><p className="text-sm text-muted-foreground">Class Rank</p></div>
-                    </div>
-                     <div className="mt-6">
-                        <h3 className="text-xl font-semibold mb-4">Submission Details</h3>
-                        <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    <div className="mt-6">
+                        <h3 className="text-xl font-semibold mb-4">Submission Details for {selectedStudent.name}</h3>
+                        <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
                             {submissions.length > 0 ? (
                                 submissions
                                     .sort((a,b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
