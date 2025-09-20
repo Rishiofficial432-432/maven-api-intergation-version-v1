@@ -119,8 +119,8 @@ const Scheduler: React.FC = () => {
         setTimetable(null);
     
         try {
-            const workerUrl = new URL('/workers/timetable.worker.ts', window.location.origin);
-            const worker = new Worker(workerUrl.href, { type: 'module' });
+            // FIX: Use `import.meta.url` to correctly resolve the worker path in production builds.
+            const worker = new Worker(new URL('../workers/timetable.worker.ts', import.meta.url), { type: 'module' });
         
             worker.onmessage = (event) => {
                 const { success, schedule, error } = event.data;
