@@ -3,7 +3,7 @@ export type { PortalSession, PortalAttendanceRecord } from '../types';
 import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission, UnitMaterial } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 5; // Incremented version for new stores
+const DB_VERSION = 6; // Incremented version to trigger the new, robust upgrade logic
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',
@@ -26,37 +26,43 @@ const initPortalDB = (): Promise<IDBDatabase> => {
       const dbInstance = request.result;
       const transaction = request.transaction;
       if (!transaction) {
-          console.error("Version change transaction is null. Upgrade failed.");
+          console.error("Version change transaction is null during upgrade. Aborting.");
           return;
       }
 
-      if (event.oldVersion < 1) {
-        if (!dbInstance.objectStoreNames.contains(STORES.USERS)) dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
-        if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
-        if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
+      // --- Create missing object stores ---
+      // This declarative approach is more robust than checking oldVersion.
+      if (!dbInstance.objectStoreNames.contains(STORES.USERS)) {
+        dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
+      }
+      if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) {
+        dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
+      }
+      if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
+        const store = dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('session_id', 'session_id', { unique: false });
+      }
+      if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) {
+        dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
+      }
+      if (!dbInstance.objectStoreNames.contains(STORES.TESTS)) {
+        dbInstance.createObjectStore(STORES.TESTS, { keyPath: 'id' });
+      }
+      if (!dbInstance.objectStoreNames.contains(STORES.SUBMISSIONS)) {
+        const store = dbInstance.createObjectStore(STORES.SUBMISSIONS, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('studentId', 'studentId', { unique: false });
+        store.createIndex('testId', 'testId', { unique: false });
+      }
+      if (!dbInstance.objectStoreNames.contains(STORES.UNIT_MATERIALS)) {
+        dbInstance.createObjectStore(STORES.UNIT_MATERIALS, { keyPath: 'id' });
       }
 
-      if (event.oldVersion < 3) {
-        if (dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
-            const attendanceStore = transaction.objectStore(STORES.ATTENDANCE);
-            if (!attendanceStore.indexNames.contains('session_id')) attendanceStore.createIndex('session_id', 'session_id', { unique: false });
-        }
-        if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
-      }
-
-      if (event.oldVersion < 4) {
-        if (!dbInstance.objectStoreNames.contains(STORES.TESTS)) dbInstance.createObjectStore(STORES.TESTS, { keyPath: 'id' });
-        if (!dbInstance.objectStoreNames.contains(STORES.SUBMISSIONS)) {
-            const submissionStore = dbInstance.createObjectStore(STORES.SUBMISSIONS, { keyPath: 'id', autoIncrement: true });
-            submissionStore.createIndex('studentId', 'studentId', { unique: false });
-            submissionStore.createIndex('testId', 'testId', { unique: false });
-        }
-      }
-      
-      if (event.oldVersion < 5) {
-        if (!dbInstance.objectStoreNames.contains(STORES.UNIT_MATERIALS)) {
-            dbInstance.createObjectStore(STORES.UNIT_MATERIALS, { keyPath: 'id' });
-        }
+      // --- Handle index upgrades for users with older DB versions ---
+      if (dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
+          const store = transaction.objectStore(STORES.ATTENDANCE);
+          if (!store.indexNames.contains('session_id')) {
+              store.createIndex('session_id', 'session_id', { unique: false });
+          }
       }
     };
 
