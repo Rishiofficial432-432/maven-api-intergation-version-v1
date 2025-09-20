@@ -108,6 +108,8 @@ const TeacherProgressView: React.FC = () => {
     }, [selectedStudentId]);
     
     const selectedStudent = students.find(s => s.id === selectedStudentId);
+    const averageScore = submissions.length > 0 ? Math.round(submissions.reduce((acc, s) => acc + s.score, 0) / submissions.length) : 0;
+    const testsAttempted = submissions.length;
 
     if (loading) return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary"/></div>;
 
@@ -126,29 +128,14 @@ const TeacherProgressView: React.FC = () => {
             
             {selectedStudent ? (
                 <div className="animate-fade-in-up">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold text-primary">{testsAttempted}</p><p className="text-sm text-muted-foreground">Tests Attempted</p></div>
+                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold text-primary">{averageScore}%</p><p className="text-sm text-muted-foreground">Average Score</p></div>
+                        <div className="bg-secondary p-4 rounded-lg"><p className="text-3xl font-bold text-primary">N/A</p><p className="text-sm text-muted-foreground">Class Rank</p></div>
+                    </div>
                     <div className="mt-6">
-                        <h3 className="text-xl font-semibold mb-4">Submission Details for {selectedStudent.name}</h3>
-                        <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
-                            {submissions.length > 0 ? (
-                                submissions
-                                    .sort((a,b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-                                    .map(sub => (
-                                    <div key={sub.id} className="bg-secondary p-4 rounded-lg flex justify-between items-center">
-                                        <div>
-                                            <p className="font-semibold">{sub.testTitle}</p>
-                                            <p className="text-sm text-muted-foreground">
-                                                Submitted on: {new Date(sub.submittedAt).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                        <p className={`font-bold text-2xl ${sub.score >= 80 ? 'text-green-400' : sub.score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                            {sub.score}%
-                                        </p>
-                                    </div>
-                                ))
-                            ) : (
-                                <p className="text-center text-muted-foreground py-4">No tests submitted by this student yet.</p>
-                            )}
-                        </div>
+                        <h3 className="text-xl font-semibold mb-2 flex items-center gap-2"><TrendingUp/> Score Over Time</h3>
+                        <ProgressChart submissions={submissions} />
                     </div>
                 </div>
             ) : <p className="text-center text-muted-foreground py-8">No students found or selected.</p>}

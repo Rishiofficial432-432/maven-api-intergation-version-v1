@@ -1,9 +1,9 @@
 // FIX: Re-export local portal types to be consumed by other modules.
 export type { PortalSession, PortalAttendanceRecord } from '../types';
-import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission, UnitMaterial } from '../types';
+import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 6; // Incremented version to trigger the new, robust upgrade logic
+const DB_VERSION = 4; // Incremented version for new stores
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',
@@ -11,7 +11,6 @@ const STORES = {
   CURRICULUM: 'curriculum_files',
   TESTS: 'tests',
   SUBMISSIONS: 'submissions',
-  UNIT_MATERIALS: 'unit_materials',
 };
 
 let db: IDBDatabase;
@@ -24,45 +23,29 @@ const initPortalDB = (): Promise<IDBDatabase> => {
 
     request.onupgradeneeded = (event) => {
       const dbInstance = request.result;
-      const transaction = request.transaction;
-      if (!transaction) {
-          console.error("Version change transaction is null during upgrade. Aborting.");
-          return;
+      const transaction = (event.target as any).transaction;
+
+      if (event.oldVersion < 1) {
+        if (!dbInstance.objectStoreNames.contains(STORES.USERS)) dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
+        if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
+        if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
       }
 
-      // --- Create missing object stores ---
-      // This declarative approach is more robust than checking oldVersion.
-      if (!dbInstance.objectStoreNames.contains(STORES.USERS)) {
-        dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) {
-        dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
-        const store = dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('session_id', 'session_id', { unique: false });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) {
-        dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.TESTS)) {
-        dbInstance.createObjectStore(STORES.TESTS, { keyPath: 'id' });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.SUBMISSIONS)) {
-        const store = dbInstance.createObjectStore(STORES.SUBMISSIONS, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('studentId', 'studentId', { unique: false });
-        store.createIndex('testId', 'testId', { unique: false });
-      }
-      if (!dbInstance.objectStoreNames.contains(STORES.UNIT_MATERIALS)) {
-        dbInstance.createObjectStore(STORES.UNIT_MATERIALS, { keyPath: 'id' });
+      if (event.oldVersion < 3) {
+        if (dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
+            const attendanceStore = transaction.objectStore(STORES.ATTENDANCE);
+            if (!attendanceStore.indexNames.contains('session_id')) attendanceStore.createIndex('session_id', 'session_id', { unique: false });
+        }
+        if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
       }
 
-      // --- Handle index upgrades for users with older DB versions ---
-      if (dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
-          const store = transaction.objectStore(STORES.ATTENDANCE);
-          if (!store.indexNames.contains('session_id')) {
-              store.createIndex('session_id', 'session_id', { unique: false });
-          }
+      if (event.oldVersion < 4) {
+        if (!dbInstance.objectStoreNames.contains(STORES.TESTS)) dbInstance.createObjectStore(STORES.TESTS, { keyPath: 'id' });
+        if (!dbInstance.objectStoreNames.contains(STORES.SUBMISSIONS)) {
+            const submissionStore = dbInstance.createObjectStore(STORES.SUBMISSIONS, { keyPath: 'id', autoIncrement: true });
+            submissionStore.createIndex('studentId', 'studentId', { unique: false });
+            submissionStore.createIndex('testId', 'testId', { unique: false });
+        }
       }
     };
 
@@ -242,17 +225,10 @@ export const deleteCurriculumFile = async (fileId: string): Promise<void> => {
 };
 
 // --- Test & Submission Functions ---
-export const saveTest = async (test: Test): Promise<void> => {
+export const createTest = async (test: Test): Promise<void> => {
     await initPortalDB();
     const store = getStore(STORES.TESTS, 'readwrite');
-    const request = store.put(test); // Use put to allow creating and updating
-    return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
-};
-
-export const deleteTest = async (testId: string): Promise<void> => {
-    await initPortalDB();
-    const store = getStore(STORES.TESTS, 'readwrite');
-    const request = store.delete(testId);
+    const request = store.add(test);
     return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
 };
 
@@ -317,36 +293,5 @@ export const getDemoUser = async (role: 'teacher' | 'student'): Promise<PortalUs
     return new Promise((resolve, reject) => {
         addRequest.onsuccess = () => resolve(newUser);
         addRequest.onerror = () => reject(addRequest.error);
-    });
-};
-
-
-// --- Unit Material Functions ---
-export const addUnitMaterial = async (materialInfo: Omit<UnitMaterial, 'createdAt' | 'id'>, fileBlob: Blob): Promise<UnitMaterial> => {
-    await initPortalDB();
-    const store = getStore(STORES.UNIT_MATERIALS, 'readwrite');
-    const materialWithBlob = {
-        ...materialInfo,
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        blob: fileBlob,
-    };
-    const request = store.put(materialWithBlob);
-    return new Promise((res, rej) => {
-        request.onsuccess = () => {
-            const { blob, ...info } = materialWithBlob;
-            res(info);
-        };
-        request.onerror = () => rej(request.error);
-    });
-};
-
-export const getUnitMaterialBlob = async (materialId: string): Promise<Blob | null> => {
-    await initPortalDB();
-    const store = getStore(STORES.UNIT_MATERIALS, 'readonly');
-    const request = store.get(materialId);
-    return new Promise((resolve, reject) => {
-        request.onsuccess = () => resolve(request.result?.blob || null);
-        request.onerror = () => reject(request.error);
     });
 };
