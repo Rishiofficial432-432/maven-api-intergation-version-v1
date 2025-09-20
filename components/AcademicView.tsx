@@ -1,14 +1,15 @@
-
 import React, { useState, useEffect } from 'react';
 import StudentTeacherPortal from './StudentTeacherPortal';
 import { Goal, CalendarEvent, Page } from '../types';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
-import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb } from 'lucide-react';
+import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb, CheckSquare } from 'lucide-react';
 import Scheduler from './Scheduler';
 import CurriculumView from './SmartCurriculum.tsx';
+import TestsView from './TestsView';
+import ProgressView from './ProgressView';
 
-type AcademicViewTab = 'portal' | 'routine' | 'scheduler' | 'curriculum';
+type AcademicViewTab = 'portal' | 'routine' | 'scheduler' | 'curriculum' | 'tests' | 'progress';
 
 interface AcademicViewProps {
     goals: Goal[];
@@ -133,6 +134,8 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
         { id: 'routine', label: 'Daily Routine', icon: CalendarCheck },
         { id: 'scheduler', label: 'Scheduler', icon: Clock },
         { id: 'curriculum', label: 'Curriculum', icon: Lightbulb },
+        { id: 'tests', label: 'Tests', icon: CheckSquare },
+        { id: 'progress', label: 'Progress', icon: BarChart2 },
     ];
 
     const renderContent = () => {
@@ -145,6 +148,10 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
                 return <Scheduler />;
             case 'curriculum':
                 return <CurriculumView />;
+            case 'tests':
+                return <TestsView />;
+            case 'progress':
+                return <ProgressView />;
             default:
                 return <StudentTeacherPortal />;
         }

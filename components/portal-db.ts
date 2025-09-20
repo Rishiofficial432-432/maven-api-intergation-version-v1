@@ -1,15 +1,16 @@
-
 // FIX: Re-export local portal types to be consumed by other modules.
 export type { PortalSession, PortalAttendanceRecord } from '../types';
-import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile } from '../types';
+import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 3; // Keep version the same, the logic will handle the fix
+const DB_VERSION = 4; // Incremented version for new stores
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',
   ATTENDANCE: 'attendance',
   CURRICULUM: 'curriculum_files',
+  TESTS: 'tests',
+  SUBMISSIONS: 'submissions',
 };
 
 let db: IDBDatabase;
@@ -24,51 +25,50 @@ const initPortalDB = (): Promise<IDBDatabase> => {
       const dbInstance = request.result;
       const transaction = (event.target as any).transaction;
 
-      // Version 1: Initial schema for users, sessions, and attendance
       if (event.oldVersion < 1) {
-        if (!dbInstance.objectStoreNames.contains(STORES.USERS)) {
-          dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
-        }
-        if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) {
-          dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
-        }
-        if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
-          dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
-        }
+        if (!dbInstance.objectStoreNames.contains(STORES.USERS)) dbInstance.createObjectStore(STORES.USERS, { keyPath: 'id' });
+        if (!dbInstance.objectStoreNames.contains(STORES.SESSIONS)) dbInstance.createObjectStore(STORES.SESSIONS, { keyPath: 'id' });
+        if (!dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) dbInstance.createObjectStore(STORES.ATTENDANCE, { keyPath: 'id', autoIncrement: true });
       }
 
-      // This block runs for any upgrade to version 3 (or higher) from an older version.
-      // This is the key fix: It ensures the index and new store are created correctly on upgrade.
       if (event.oldVersion < 3) {
-        // Fix/Add the attendance index if it's missing
         if (dbInstance.objectStoreNames.contains(STORES.ATTENDANCE)) {
             const attendanceStore = transaction.objectStore(STORES.ATTENDANCE);
-            if (!attendanceStore.indexNames.contains('session_id')) {
-                 attendanceStore.createIndex('session_id', 'session_id', { unique: false });
-            }
+            if (!attendanceStore.indexNames.contains('session_id')) attendanceStore.createIndex('session_id', 'session_id', { unique: false });
         }
-        // Add the curriculum store
-        if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) {
-           dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
+        if (!dbInstance.objectStoreNames.contains(STORES.CURRICULUM)) dbInstance.createObjectStore(STORES.CURRICULUM, { keyPath: 'id' });
+      }
+
+      if (event.oldVersion < 4) {
+        if (!dbInstance.objectStoreNames.contains(STORES.TESTS)) dbInstance.createObjectStore(STORES.TESTS, { keyPath: 'id' });
+        if (!dbInstance.objectStoreNames.contains(STORES.SUBMISSIONS)) {
+            const submissionStore = dbInstance.createObjectStore(STORES.SUBMISSIONS, { keyPath: 'id', autoIncrement: true });
+            submissionStore.createIndex('studentId', 'studentId', { unique: false });
+            submissionStore.createIndex('testId', 'testId', { unique: false });
         }
       }
     };
 
-    request.onsuccess = () => {
-      db = request.result;
-      resolve(db);
-    };
-
-    request.onerror = () => {
-      console.error('IndexedDB error:', request.error);
-      reject('IndexedDB error');
-    };
+    request.onsuccess = () => { db = request.result; resolve(db); };
+    request.onerror = () => { console.error('IndexedDB error:', request.error); reject('IndexedDB error'); };
   });
 };
 
 const getStore = (storeName: string, mode: IDBTransactionMode) => {
     const transaction = db.transaction(storeName, mode);
     return transaction.objectStore(storeName);
+};
+
+// Generic get all from store
+// FIX: Export `getAllFromStore` to make it accessible to other modules that need to query the local database.
+export const getAllFromStore = async <T>(storeName: string): Promise<T[]> => {
+    await initPortalDB();
+    const store = getStore(storeName, 'readonly');
+    const request = store.getAll();
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result as T[]);
+        request.onerror = () => reject(request.error);
+    });
 };
 
 // --- User Functions ---
@@ -83,34 +83,23 @@ export const createUser = async (user: PortalUser): Promise<void> => {
 };
 
 export const getUserByEmail = async (email: string): Promise<PortalUser | null> => {
-    await initPortalDB();
-    const store = getStore(STORES.USERS, 'readonly');
-    const request = store.getAll();
-    return new Promise((resolve, reject) => {
-        request.onsuccess = () => {
-            const users = request.result as PortalUser[];
-            const user = users.find(u => u.email === email);
-            if (user && user.role === 'student' && !user.approved) {
-              reject(new Error("Account pending teacher approval."));
-              return;
-            }
-            resolve(user || null);
-        };
-        request.onerror = () => reject(request.error);
-    });
+    const users = await getAllFromStore<PortalUser>(STORES.USERS);
+    const user = users.find(u => u.email === email);
+    if (user && user.role === 'student' && !user.approved) {
+        throw new Error("Account pending teacher approval.");
+    }
+    return user || null;
 };
 
+export const getStudents = async (): Promise<PortalUser[]> => {
+    const users = await getAllFromStore<PortalUser>(STORES.USERS);
+    return users.filter(u => u.role === 'student' && u.approved);
+};
+
+
 export const getPendingStudents = async (): Promise<PortalUser[]> => {
-    await initPortalDB();
-    const store = getStore(STORES.USERS, 'readonly');
-    const request = store.getAll();
-    return new Promise((resolve, reject) => {
-        request.onsuccess = () => {
-            const users = request.result as PortalUser[];
-            resolve(users.filter(u => u.role === 'student' && !u.approved));
-        };
-        request.onerror = () => reject(request.error);
-    });
+    const users = await getAllFromStore<PortalUser>(STORES.USERS);
+    return users.filter(u => u.role === 'student' && !u.approved);
 };
 
 export const approveStudent = async (studentId: string): Promise<void> => {
@@ -149,48 +138,27 @@ export const createSession = async (session: PortalSession): Promise<void> => {
 
 export const getActiveSession = async (): Promise<PortalSession | null> => {
     await initPortalDB();
-    const store = getStore(STORES.SESSIONS, 'readwrite'); // readwrite to clean up
-    return new Promise((resolve, reject) => {
-        const request = store.getAll();
-        request.onsuccess = () => {
-            const sessions = request.result as PortalSession[];
-            const now = new Date();
-            for (const session of sessions) {
-                if (session.is_active) {
-                    if (new Date(session.expires_at) > now) {
-                        return resolve(session);
-                    } else {
-                        // Expired session found, end it
-                        session.is_active = false;
-                        store.put(session);
-                    }
-                }
-            }
-            resolve(null); // No active, non-expired session found
-        };
-        request.onerror = () => reject(request.error);
-    });
+    const store = getStore(STORES.SESSIONS, 'readwrite');
+    const sessions = await getAllFromStore<PortalSession>(STORES.SESSIONS);
+    const now = new Date();
+    for (const session of sessions) {
+        if (session.is_active) {
+            if (new Date(session.expires_at) > now) return session;
+            session.is_active = false;
+            store.put(session);
+        }
+    }
+    return null;
 };
 
 export const endActiveSession = async (): Promise<void> => {
-    await initPortalDB();
-    const store = getStore(STORES.SESSIONS, 'readwrite');
-    const request = store.getAll();
-    return new Promise((resolve, reject) => {
-        request.onsuccess = () => {
-            const sessions = request.result as PortalSession[];
-            const active = sessions.find(s => s.is_active);
-            if (active) {
-                active.is_active = false;
-                const updateRequest = store.put(active);
-                updateRequest.onsuccess = () => resolve();
-                updateRequest.onerror = () => reject(updateRequest.error);
-            } else {
-                resolve(); // No active session to end
-            }
-        };
-        request.onerror = () => reject(request.error);
-    });
+    const activeSession = await getActiveSession();
+    if (activeSession) {
+        activeSession.is_active = false;
+        const store = getStore(STORES.SESSIONS, 'readwrite');
+        const req = store.put(activeSession);
+        return new Promise((res, rej) => { req.onsuccess = () => res(); req.onerror = () => rej(req.error); });
+    }
 };
 
 // --- Attendance Functions ---
@@ -198,23 +166,16 @@ export const logAttendance = async (record: Omit<PortalAttendanceRecord, 'id' | 
     await initPortalDB();
     const attendanceStore = getStore(STORES.ATTENDANCE, 'readwrite');
 
+    const allAttendance = await getAttendanceForSession(record.session_id);
+    if (allAttendance.some(r => r.student_id === record.student_id)) {
+        throw new Error("You have already checked in for this session.");
+    }
+    
+    const newRecord = { ...record, created_at: new Date().toISOString() };
+    const addRequest = attendanceStore.add(newRecord);
     return new Promise((resolve, reject) => {
-        const index = attendanceStore.index('session_id');
-        const range = IDBKeyRange.only(record.session_id);
-        const getRequest = index.getAll(range);
-
-        getRequest.onsuccess = () => {
-            const existingRecords = getRequest.result as PortalAttendanceRecord[];
-            if (existingRecords.some(r => r.student_id === record.student_id)) {
-                return reject(new Error("You have already checked in for this session."));
-            }
-
-            const newRecord = { ...record, created_at: new Date().toISOString() };
-            const addRequest = attendanceStore.add(newRecord);
-            addRequest.onsuccess = () => resolve();
-            addRequest.onerror = () => reject(addRequest.error);
-        };
-        getRequest.onerror = () => reject(getRequest.error);
+        addRequest.onsuccess = () => resolve();
+        addRequest.onerror = () => reject(addRequest.error);
     });
 };
 
@@ -233,28 +194,17 @@ export const getAttendanceForSession = async (sessionId: string): Promise<Portal
 export const addCurriculumFile = async (fileInfo: CurriculumFile, fileBlob: Blob): Promise<void> => {
     await initPortalDB();
     const store = getStore(STORES.CURRICULUM, 'readwrite');
-    return new Promise((resolve, reject) => {
-        const dataToStore = { ...fileInfo, blob: fileBlob };
-        const request = store.put(dataToStore);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
+    const dataToStore = { ...fileInfo, blob: fileBlob };
+    const request = store.put(dataToStore);
+    return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
 };
 
 export const getCurriculumFiles = async (): Promise<CurriculumFile[]> => {
-    await initPortalDB();
-    const store = getStore(STORES.CURRICULUM, 'readonly');
-    const request = store.getAll();
-    return new Promise((resolve, reject) => {
-        request.onsuccess = () => {
-            const files = request.result.map((f: any) => {
-                const { blob, ...info } = f;
-                return info;
-            });
-            resolve(files.sort((a: CurriculumFile, b: CurriculumFile) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-        };
-        request.onerror = () => reject(request.error);
-    });
+    const files = await getAllFromStore<any>(STORES.CURRICULUM);
+    return files.map((f: any) => {
+        const { blob, ...info } = f;
+        return info;
+    }).sort((a: CurriculumFile, b: CurriculumFile) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 };
 
 export const getCurriculumFileBlob = async (fileId: string): Promise<Blob | null> => {
@@ -262,9 +212,7 @@ export const getCurriculumFileBlob = async (fileId: string): Promise<Blob | null
     const store = getStore(STORES.CURRICULUM, 'readonly');
     const request = store.get(fileId);
     return new Promise((resolve, reject) => {
-        request.onsuccess = () => {
-            resolve(request.result?.blob || null);
-        };
+        request.onsuccess = () => resolve(request.result?.blob || null);
         request.onerror = () => reject(request.error);
     });
 };
@@ -272,12 +220,56 @@ export const getCurriculumFileBlob = async (fileId: string): Promise<Blob | null
 export const deleteCurriculumFile = async (fileId: string): Promise<void> => {
     await initPortalDB();
     const store = getStore(STORES.CURRICULUM, 'readwrite');
-    return new Promise((resolve, reject) => {
-        const request = store.delete(fileId);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
+    const request = store.delete(fileId);
+    return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
+};
+
+// --- Test & Submission Functions ---
+export const createTest = async (test: Test): Promise<void> => {
+    await initPortalDB();
+    const store = getStore(STORES.TESTS, 'readwrite');
+    const request = store.add(test);
+    return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
+};
+
+export const getTestsForTeacher = async (teacherId: string): Promise<Test[]> => {
+    const tests = await getAllFromStore<Test>(STORES.TESTS);
+    return tests.filter(t => t.teacherId === teacherId);
+};
+
+export const getTestById = async (testId: string): Promise<Test | null> => {
+    await initPortalDB();
+    const store = getStore(STORES.TESTS, 'readonly');
+    const request = store.get(testId);
+    return new Promise((res, rej) => {
+        request.onsuccess = () => res(request.result || null);
+        request.onerror = () => rej(request.error);
     });
 };
+
+export const submitTest = async (submission: Omit<TestSubmission, 'id'>): Promise<void> => {
+    await initPortalDB();
+    const store = getStore(STORES.SUBMISSIONS, 'readwrite');
+    const request = store.add(submission);
+     return new Promise((res, rej) => { request.onsuccess = () => res(); request.onerror = () => rej(request.error); });
+};
+
+export const getSubmissionsForStudent = async (studentId: string): Promise<TestSubmission[]> => {
+    await initPortalDB();
+    const store = getStore(STORES.SUBMISSIONS, 'readonly');
+    const index = store.index('studentId');
+    const request = index.getAll(studentId);
+    return new Promise((res, rej) => { request.onsuccess = () => res(request.result || []); request.onerror = () => rej(request.error); });
+};
+
+export const getSubmissionsForTest = async (testId: string): Promise<TestSubmission[]> => {
+    await initPortalDB();
+    const store = getStore(STORES.SUBMISSIONS, 'readonly');
+    const index = store.index('testId');
+    const request = index.getAll(testId);
+    return new Promise((res, rej) => { request.onsuccess = () => res(request.result || []); request.onerror = () => rej(request.error); });
+};
+
 
 // --- Demo User Functions ---
 export const getDemoUser = async (role: 'teacher' | 'student'): Promise<PortalUser> => {
@@ -285,39 +277,21 @@ export const getDemoUser = async (role: 'teacher' | 'student'): Promise<PortalUs
     const email = role === 'teacher' ? 'e.reed@university.edu' : 'a.johnson@university.edu';
     
     const store = getStore(STORES.USERS, 'readwrite');
-    const request = store.getAll();
+    const users = await getAllFromStore<PortalUser>(STORES.USERS);
+    let user = users.find(u => u.email === email);
 
+    if (user) return user;
+
+    const newUser: PortalUser = role === 'teacher' ? {
+        id: `demo-teacher-${crypto.randomUUID()}`, name: 'Dr. Evelyn Reed', email, role: 'teacher', approved: true,
+    } : {
+        id: `demo-student-${crypto.randomUUID()}`, name: 'Alex Johnson', email, role: 'student', approved: true,
+        enrollment_id: 'S12345', ug_number: 'UG67890', phone_number: '555-0101',
+    };
+    
+    const addRequest = store.add(newUser);
     return new Promise((resolve, reject) => {
-        request.onsuccess = () => {
-            const users = request.result as PortalUser[];
-            let user = users.find(u => u.email === email);
-
-            if (user) {
-                resolve(user);
-            } else {
-                // User doesn't exist, create them in IndexedDB
-                const newUser: PortalUser = role === 'teacher' ? {
-                    id: `demo-teacher-${crypto.randomUUID()}`,
-                    name: 'Dr. Evelyn Reed',
-                    email,
-                    role: 'teacher',
-                    approved: true,
-                } : {
-                    id: `demo-student-${crypto.randomUUID()}`,
-                    name: 'Alex Johnson',
-                    email,
-                    role: 'student',
-                    approved: true,
-                    enrollment_id: 'S12345',
-                    ug_number: 'UG67890',
-                    phone_number: '555-0101',
-                };
-                
-                const addRequest = store.add(newUser);
-                addRequest.onsuccess = () => resolve(newUser);
-                addRequest.onerror = () => reject(addRequest.error);
-            }
-        };
-        request.onerror = () => reject(request.error);
+        addRequest.onsuccess = () => resolve(newUser);
+        addRequest.onerror = () => reject(addRequest.error);
     });
 };

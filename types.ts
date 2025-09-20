@@ -184,3 +184,31 @@ export interface GeneratedCurriculum {
     learningObjectives: string[];
     weeklyBreakdown: CurriculumWeek[];
 }
+
+// New types for Tests and Progress feature
+export interface TestQuestion {
+  id: string;
+  questionText: string;
+  options: string[];
+  correctAnswerIndex: number;
+}
+
+export interface Test {
+  id: string;
+  title: string;
+  subject: string;
+  dueDate: string; // YYYY-MM-DD
+  questions: TestQuestion[];
+  teacherId: string;
+}
+
+export interface TestSubmission {
+  id: string;
+  testId: string;
+  studentId: string;
+  studentName: string;
+  answers: number[]; // Array of selected option indices
+  score: number; // Percentage
+  submittedAt: string; // ISO timestamp
+  testTitle?: string;
+}
