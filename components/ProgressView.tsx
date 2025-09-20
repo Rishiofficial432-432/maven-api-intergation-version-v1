@@ -57,7 +57,6 @@ const StudentProgressView: React.FC<{ user: PortalUser }> = ({ user }) => {
     const [loading, setLoading] = useState(true);
     
     type EnrichedSubmission = TestSubmission & { subject: string };
-    // FIX: Define a type for sortable keys to ensure type safety in the sort function.
     type SortableKey = 'testTitle' | 'subject' | 'score' | 'submittedAt';
 
     const [sortConfig, setSortConfig] = useState<{ key: SortableKey; direction: 'asc' | 'desc' }>({ key: 'submittedAt', direction: 'desc' });
@@ -96,7 +95,6 @@ const StudentProgressView: React.FC<{ user: PortalUser }> = ({ user }) => {
             const key = sortConfig.key;
 
             let comparison = 0;
-            // FIX: Use direct property access for type safety, resolving the overload error.
             if (key === 'score') {
                 comparison = a.score - b.score;
             } else if (key === 'submittedAt') {

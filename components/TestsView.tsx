@@ -40,6 +40,7 @@ const useDemoUser = (): [PortalUser | null, boolean] => {
 const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => void }> = ({ test, student, onFinish }) => {
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<number[]>(Array(test.questions.length).fill(-1));
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const toast = useToast();
 
     const handleAnswerSelect = (optionIndex: number) => {
@@ -56,6 +57,7 @@ const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => voi
             return;
         }
         
+        setIsSubmitting(true);
         let correctCount = 0;
         test.questions.forEach((q, i) => {
             if (q.correctAnswerIndex === answers[i]) {
@@ -80,6 +82,8 @@ const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => voi
             onFinish();
         } catch (e: any) {
             toast.error(`Submission failed: ${e.message}`);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -92,12 +96,16 @@ const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => voi
                 <div className="my-4">
                     <p className="font-semibold text-lg">{currentQuestionIndex + 1}. {currentQuestion.questionText}</p>
                     <div className="space-y-2 mt-4">
-                        {currentQuestion.options.map((option, i) => (
-                            <button key={i} onClick={() => handleAnswerSelect(i)}
-                                className={`w-full text-left p-3 rounded-md border-2 transition-colors ${answers[currentQuestionIndex] === i ? 'border-primary bg-primary/10' : 'border-border bg-secondary hover:bg-secondary/80'}`}>
-                                {option}
-                            </button>
-                        ))}
+                        {currentQuestion.options.map((option, i) => {
+                            const isSelected = answers[currentQuestionIndex] === i;
+                            return (
+                                <button key={i} onClick={() => handleAnswerSelect(i)}
+                                    className={`w-full text-left p-3 rounded-md border-2 transition-colors flex items-center justify-between ${isSelected ? 'border-primary bg-primary/10' : 'border-border bg-secondary hover:bg-secondary/80'}`}>
+                                    <span>{option}</span>
+                                    {isSelected && <Check size={20} className="text-primary" />}
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
                 <div className="flex justify-between items-center">
@@ -105,7 +113,13 @@ const TestTaker: React.FC<{ test: Test, student: PortalUser, onFinish: () => voi
                         className="px-4 py-2 bg-secondary rounded-md disabled:opacity-50">Previous</button>
                     <span>Question {currentQuestionIndex + 1} of {test.questions.length}</span>
                     {currentQuestionIndex === test.questions.length - 1 ? (
-                        <button onClick={handleSubmit} className="px-4 py-2 bg-primary text-primary-foreground rounded-md flex items-center gap-2"><Send size={16}/> Submit</button>
+                        <button onClick={handleSubmit} disabled={isSubmitting} className="px-4 py-2 bg-primary text-primary-foreground rounded-md flex items-center gap-2 disabled:opacity-50">
+                             {isSubmitting ? (
+                                <><Loader size={16} className="animate-spin" /> Submitting...</>
+                            ) : (
+                                <><Send size={16} /> Submit</>
+                            )}
+                        </button>
                     ) : (
                         <button onClick={() => setCurrentQuestionIndex(i => Math.min(test.questions.length - 1, i + 1))}
                             className="px-4 py-2 bg-secondary rounded-md">Next</button>
