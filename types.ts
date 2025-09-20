@@ -186,11 +186,23 @@ export interface GeneratedCurriculum {
 }
 
 // New types for Tests and Progress feature
+export type QuestionType = 'mcq' | 'saq' | 'laq' | 'fill-in-the-blank';
+
+export interface UnitMaterial {
+  id: string;
+  fileName: string;
+  fileType: string;
+  teacherId: string;
+  createdAt: string;
+}
+
 export interface TestQuestion {
   id: string;
+  questionType: QuestionType;
   questionText: string;
-  options: string[];
-  correctAnswerIndex: number;
+  options?: string[];
+  correctAnswerIndex?: number;
+  correctAnswerText?: string; // For fill-in-the-blank
 }
 
 export interface Test {
@@ -200,6 +212,8 @@ export interface Test {
   dueDate: string; // YYYY-MM-DD
   questions: TestQuestion[];
   teacherId: string;
+  difficulty: 1 | 2 | 3;
+  sourceMaterialId?: string;
 }
 
 export interface TestSubmission {
@@ -207,8 +221,8 @@ export interface TestSubmission {
   testId: string;
   studentId: string;
   studentName: string;
-  answers: number[]; // Array of selected option indices
-  score: number; // Percentage
+  answers: (number | string)[]; // Array of selected option indices or text answers
+  score: number; // Percentage, only based on MCQs for now
   submittedAt: string; // ISO timestamp
   testTitle?: string;
 }

@@ -1,9 +1,9 @@
 // FIX: Re-export local portal types to be consumed by other modules.
 export type { PortalSession, PortalAttendanceRecord } from '../types';
-import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission } from '../types';
+import { PortalUser, PortalSession, PortalAttendanceRecord, CurriculumFile, Test, TestSubmission, UnitMaterial } from '../types';
 
 const DB_NAME = 'MavenPortalDB';
-const DB_VERSION = 4; // Incremented version for new stores
+const DB_VERSION = 5; // Incremented version for new stores
 const STORES = {
   USERS: 'users',
   SESSIONS: 'sessions',
@@ -11,6 +11,7 @@ const STORES = {
   CURRICULUM: 'curriculum_files',
   TESTS: 'tests',
   SUBMISSIONS: 'submissions',
+  UNIT_MATERIALS: 'unit_materials',
 };
 
 let db: IDBDatabase;
@@ -45,6 +46,12 @@ const initPortalDB = (): Promise<IDBDatabase> => {
             const submissionStore = dbInstance.createObjectStore(STORES.SUBMISSIONS, { keyPath: 'id', autoIncrement: true });
             submissionStore.createIndex('studentId', 'studentId', { unique: false });
             submissionStore.createIndex('testId', 'testId', { unique: false });
+        }
+      }
+      
+      if (event.oldVersion < 5) {
+        if (!dbInstance.objectStoreNames.contains(STORES.UNIT_MATERIALS)) {
+            dbInstance.createObjectStore(STORES.UNIT_MATERIALS, { keyPath: 'id' });
         }
       }
     };
@@ -293,5 +300,36 @@ export const getDemoUser = async (role: 'teacher' | 'student'): Promise<PortalUs
     return new Promise((resolve, reject) => {
         addRequest.onsuccess = () => resolve(newUser);
         addRequest.onerror = () => reject(addRequest.error);
+    });
+};
+
+
+// --- Unit Material Functions ---
+export const addUnitMaterial = async (materialInfo: Omit<UnitMaterial, 'createdAt' | 'id'>, fileBlob: Blob): Promise<UnitMaterial> => {
+    await initPortalDB();
+    const store = getStore(STORES.UNIT_MATERIALS, 'readwrite');
+    const materialWithBlob = {
+        ...materialInfo,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        blob: fileBlob,
+    };
+    const request = store.put(materialWithBlob);
+    return new Promise((res, rej) => {
+        request.onsuccess = () => {
+            const { blob, ...info } = materialWithBlob;
+            res(info);
+        };
+        request.onerror = () => rej(request.error);
+    });
+};
+
+export const getUnitMaterialBlob = async (materialId: string): Promise<Blob | null> => {
+    await initPortalDB();
+    const store = getStore(STORES.UNIT_MATERIALS, 'readonly');
+    const request = store.get(materialId);
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result?.blob || null);
+        request.onerror = () => reject(request.error);
     });
 };
