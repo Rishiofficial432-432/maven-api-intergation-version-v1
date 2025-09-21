@@ -63,7 +63,7 @@ export interface CalendarEvent {
     title: string;
     date: string; // YYYY-MM-DD
     time: string; // HH:MM
-    type?: 'class' | 'exam' | 'event' | 'holiday';
+    type?: 'class' | 'exam' | 'event' | 'holiday' | 'class_test';
 }
 
 export interface Habit {
