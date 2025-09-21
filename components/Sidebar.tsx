@@ -11,7 +11,7 @@ interface SidebarProps {
   pages: Page[];
   activePageId: string | null;
   onSelectPage: (id: string) => void;
-  onNewPage: (title?: string) => Page;
+  onNewPage: () => void;
   view: View;
   setView: (view: View) => void;
   activeTab: string;
@@ -143,7 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <>
             <div className="p-3">
               <button
-                onClick={() => onNewPage()}
+                onClick={onNewPage}
                 className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors duration-200 shadow-[0_0_20px_rgba(100,100,255,0.2)] focus:outline-none focus:ring-2 focus:ring-ring`}
                 aria-label="Create new page"
                 title="New Page"

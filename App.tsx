@@ -25,6 +25,8 @@ import {
   MoodEntry, Expense, Goal, KanbanItem, GeneratedCurriculum
 } from './types';
 import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
+import TemplateLibrary from './components/TemplateLibrary';
+import { NoteTemplate } from './components/templates';
 
 
 const App: React.FC = () => {
@@ -76,6 +78,9 @@ const App: React.FC = () => {
   // Search Palette State
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   
+  // Template Library State
+  const [isTemplateLibraryOpen, setIsTemplateLibraryOpen] = useState(false);
+
   // App Load State
   const [hasEntered, setHasEntered] = useState(sessionStorage.getItem('maven-has-entered') === 'true');
   const toast = useToast();
@@ -202,6 +207,16 @@ const App: React.FC = () => {
     setActivePageId(newPage.id);
     setView('notes');
     return newPage;
+  };
+
+  const handleCreateBlankPage = () => {
+    handleNewPage();
+    setIsTemplateLibraryOpen(false);
+  };
+
+  const handleCreateFromTemplate = (template: NoteTemplate) => {
+    handleNewPage(template.title, template.content);
+    setIsTemplateLibraryOpen(false);
   };
 
   const onUpdatePage = (id: string, updates: Partial<Omit<Page, 'id'>>) => {
@@ -800,9 +815,9 @@ const App: React.FC = () => {
     if (appViews.includes(view)) {
       const AppViewComponent = {
         notes: activePage ? (
-          <Editor key={activePage.id} page={activePage} onUpdatePage={onUpdatePage} onDeletePage={onDeletePage} onNewPage={handleNewPage}/>
+          <Editor key={activePage.id} page={activePage} onUpdatePage={onUpdatePage} onDeletePage={onDeletePage} onNewPage={() => handleNewPage()}/>
         ) : (
-          <WelcomePlaceholder onNewPage={handleNewPage} />
+          <WelcomePlaceholder onNewPage={() => handleNewPage()} />
         ),
         journal: <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />,
         documind: <InteractiveMindMap onNewNote={handleNewPage} />,
@@ -931,7 +946,7 @@ const App: React.FC = () => {
     }
     
     // Fallback to a non-scrolling Welcome view if no view matches
-    return <WelcomePlaceholder onNewPage={handleNewPage} />;
+    return <WelcomePlaceholder onNewPage={() => handleNewPage()} />;
   }
 
   return (
@@ -940,7 +955,7 @@ const App: React.FC = () => {
         pages={pages}
         activePageId={activePageId}
         onSelectPage={onSelectPage}
-        onNewPage={handleNewPage}
+        onNewPage={() => setIsTemplateLibraryOpen(true)}
         view={view}
         setView={setView}
         activeTab={activeDashboardTab}
@@ -995,6 +1010,12 @@ const App: React.FC = () => {
         pages={pages}
         onSelectPage={onSelectPage}
         onNewNote={handleNewPage}
+      />
+      <TemplateLibrary
+        isOpen={isTemplateLibraryOpen}
+        onClose={() => setIsTemplateLibraryOpen(false)}
+        onSelectTemplate={handleCreateFromTemplate}
+        onNewBlankPage={handleCreateBlankPage}
       />
        <style>{`
         @keyframes fade-in-up {
