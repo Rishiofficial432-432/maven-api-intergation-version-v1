@@ -4,13 +4,16 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Page } from '../types';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
-import { Search, X, Loader, FileText, AlertTriangle } from 'lucide-react';
+import { Search, X, Loader, FileText, AlertTriangle, Save } from 'lucide-react';
+import { useToast } from './Toast';
+
 
 interface SearchPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   pages: Page[];
   onSelectPage: (id: string) => void;
+  onNewNote: (title: string, content?: string) => void;
 }
 
 interface SearchResult {
@@ -23,11 +26,12 @@ interface SearchResult {
   }[];
 }
 
-const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose, pages, onSelectPage }) => {
+const SearchPalette: React.FC<SearchPaletteProps> = ({ isOpen, onClose, pages, onSelectPage, onNewNote }) => {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SearchResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (!isOpen) {
@@ -112,6 +116,27 @@ Your response MUST be in a strict JSON format. Do not add any text before or aft
       onSelectPage(id);
       onClose();
   }
+  
+  const handleSaveSummary = () => {
+    if (!result || !result.summary) return;
+    
+    const title = `AI Search Summary: "${query}"`;
+    
+    let content = `<h2>Summary</h2><p>${result.summary}</p>`;
+    
+    if (result.source_notes && result.source_notes.length > 0) {
+        content += `<h2>Sources</h2><ul>`;
+        result.source_notes.forEach(note => {
+            content += `<li><strong>${note.title}</strong>: <em>"...${note.snippet}..."</em></li>`;
+        });
+        content += `</ul>`;
+    }
+    
+    onNewNote(title, content);
+    toast.success("Summary saved as a new note.");
+    onClose();
+};
+
 
   if (!isOpen) return null;
 
@@ -157,7 +182,12 @@ Your response MUST be in a strict JSON format. Do not add any text before or aft
             {result && (
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-semibold text-muted-foreground mb-2">Answer</h3>
+                        <div className="flex justify-between items-center mb-2">
+                             <h3 className="text-sm font-semibold text-muted-foreground">Answer</h3>
+                             <button onClick={handleSaveSummary} className="flex items-center gap-1 px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80">
+                                <Save size={12}/> Save to Note
+                            </button>
+                        </div>
                         <p className="text-foreground/90 leading-relaxed">{result.summary}</p>
                     </div>
                     {result.source_notes && result.source_notes.length > 0 && (

@@ -805,7 +805,7 @@ const App: React.FC = () => {
           <WelcomePlaceholder onNewPage={handleNewPage} />
         ),
         journal: <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />,
-        documind: <InteractiveMindMap />,
+        documind: <InteractiveMindMap onNewNote={handleNewPage} />,
         workspace: <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />,
         academics: <AcademicView 
             goals={goals} 
@@ -994,6 +994,7 @@ const App: React.FC = () => {
         onClose={() => setIsSearchOpen(false)}
         pages={pages}
         onSelectPage={onSelectPage}
+        onNewNote={handleNewPage}
       />
        <style>{`
         @keyframes fade-in-up {

@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Upload, FileText, ZoomIn, ZoomOut, RotateCcw, BrainCircuit, X, Plus, Loader } from 'lucide-react';
+import { Upload, FileText, ZoomIn, ZoomOut, RotateCcw, BrainCircuit, X, Plus, Loader, Save } from 'lucide-react';
 import { geminiAI } from './gemini';
+import { Page } from '../types';
+import { useToast } from './Toast';
 
 // Helper function for text wrapping
 function wrapText(text: string, maxWidthChars: number): string[] {
@@ -306,9 +308,12 @@ const simulatePPTExtraction = async (file: File): Promise<string> => {
 `;
 };
 
+interface InteractiveMindMapProps {
+    onNewNote: (title: string, content?: string) => Page;
+}
 
 // Main Component
-const InteractiveMindMap: React.FC = () => {
+const InteractiveMindMap: React.FC<InteractiveMindMapProps> = ({ onNewNote }) => {
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [mindMapData, setMindMapData] = useState<MindMapData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -327,6 +332,7 @@ const InteractiveMindMap: React.FC = () => {
   const [tempNodeText, setTempNodeText] = useState('');
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const toast = useToast();
 
   const resetView = () => {
     setZoom(1);
@@ -485,6 +491,18 @@ const InteractiveMindMap: React.FC = () => {
         }));
         setSelectedNode(updatedNode);
     };
+    
+    const handleSaveExplanation = () => {
+        if (!explanation || !selectedNode) {
+            toast.error("No explanation to save.");
+            return;
+        }
+        const title = `DocuMind Explanation: ${selectedNode.text}`;
+        const content = `<blockquote>${explanation}</blockquote><p><em>This explanation was generated from the document: ${documentFile?.name || 'Unknown'}</em></p>`;
+        onNewNote(title, content);
+        toast.success("Explanation saved to notes!");
+    };
+
 
     const handleWheel = (e: React.WheelEvent) => {
         e.preventDefault();
@@ -689,7 +707,14 @@ const InteractiveMindMap: React.FC = () => {
                             </div>
                             
                             <div className="flex-1 overflow-y-auto text-sm text-foreground/90 border-t border-border pt-4 mt-2">
-                                <h4 className="font-semibold text-sm mb-2 text-muted-foreground">AI Explanation</h4>
+                                <div className="flex justify-between items-center mb-2">
+                                    <h4 className="font-semibold text-sm text-muted-foreground">AI Explanation</h4>
+                                    {!isExplaining && explanation && (
+                                        <button onClick={handleSaveExplanation} className="flex items-center gap-1 text-xs px-2 py-1 bg-accent rounded-md hover:bg-accent/80">
+                                            <Save size={12} /> Save
+                                        </button>
+                                    )}
+                                </div>
                                 {isExplaining ? <div className="flex items-center gap-2"><Loader className="w-4 h-4 animate-spin"/> Generating...</div> : <p className="whitespace-pre-wrap leading-relaxed">{explanation}</p>}
                             </div>
                         </div>

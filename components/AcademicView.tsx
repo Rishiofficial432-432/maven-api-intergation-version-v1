@@ -3,7 +3,7 @@ import StudentTeacherPortal from './StudentTeacherPortal';
 import { Goal, CalendarEvent, Page, GeneratedCurriculum } from '../types';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
-import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb, CheckSquare, Calendar } from 'lucide-react';
+import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb, CheckSquare, Calendar, Save } from 'lucide-react';
 import Scheduler from './Scheduler';
 import CurriculumView from './SmartCurriculum';
 import TestsView from './TestsView';
@@ -31,7 +31,8 @@ const DailyRoutineGenerator: React.FC<{
     events: CalendarEvent[];
     routine: string;
     setRoutine: (routine: string) => void;
-}> = ({ goals, events, routine, setRoutine }) => {
+    onNewNote: (title: string, content?: string) => Page;
+}> = ({ goals, events, routine, setRoutine, onNewNote }) => {
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
 
@@ -82,6 +83,19 @@ Crucial Instruction: The output MUST be plain text only. Do not use any markdown
             setIsLoading(false);
         }
     };
+    
+    const handleSaveToNotes = () => {
+        if (!routine) {
+            toast.error("No routine to save.");
+            return;
+        }
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
+        const title = `Daily Routine for ${today}`;
+        const content = `<pre><code>${routine}</code></pre>`;
+        onNewNote(title, content);
+        toast.success("Routine saved to your notes!");
+    };
+
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full">
@@ -114,8 +128,16 @@ Crucial Instruction: The output MUST be plain text only. Do not use any markdown
                     Generate Today's Routine
                 </button>
             </div>
-            <div className="md:col-span-2 bg-card border border-border rounded-xl p-6">
+            <div className="md:col-span-2 bg-card border border-border rounded-xl p-6 relative">
                 <h3 className="text-xl font-bold mb-4">AI-Generated Daily Plan</h3>
+                 {routine && !isLoading && (
+                    <button 
+                        onClick={handleSaveToNotes} 
+                        className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 active:scale-95 transition-transform"
+                    >
+                        <Save size={14}/> Save to Notes
+                    </button>
+                )}
                 <div className="overflow-y-auto h-[calc(100vh-250px)]">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center">
@@ -162,7 +184,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
             case 'portal':
                 return <StudentTeacherPortal />;
             case 'routine':
-                return <DailyRoutineGenerator goals={goals} events={events} routine={generatedRoutine} setRoutine={setGeneratedRoutine} />;
+                return <DailyRoutineGenerator goals={goals} events={events} routine={generatedRoutine} setRoutine={setGeneratedRoutine} onNewNote={onNewNote} />;
             case 'scheduler':
                 return <Scheduler />;
             case 'curriculum':

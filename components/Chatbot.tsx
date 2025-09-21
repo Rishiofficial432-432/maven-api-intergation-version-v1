@@ -3,10 +3,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Tool, Part, Type, Chat } from '@google/genai';
 import { geminiAI } from './gemini';
-import { MessageCircleIcon, SendHorizonalIcon, MicIcon, MicOffIcon } from './Icons';
+import { MessageCircleIcon, SendHorizonalIcon, MicIcon, MicOffIcon, TrashIcon } from './Icons';
 import Clock from './Clock';
 import { Page } from '../types';
-import { ChevronRight, Sun, Loader } from 'lucide-react';
+import { ChevronRight, Sun, Loader, Trash2 } from 'lucide-react';
+import usePersistentState from './usePersistentState';
 
 interface Message {
     role: 'user' | 'model';
@@ -294,7 +295,7 @@ const tools: Tool[] = [{
 }];
 
 export const Chatbot: React.FC<ChatbotProps> = (props) => {
-    const [messages, setMessages] = useState<Message[]>([]);
+    const [messages, setMessages] = usePersistentState<Message[]>('maven-chatbot-history', []);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isListening, setIsListening] = useState(false);
@@ -451,6 +452,12 @@ export const Chatbot: React.FC<ChatbotProps> = (props) => {
         }
     };
     
+    const handleClearHistory = () => {
+        if (window.confirm("Are you sure you want to clear the chat history? This cannot be undone.")) {
+            setMessages([]);
+        }
+    };
+
     if (isCollapsed) {
         return (
             <div className="flex flex-col h-full bg-background/50 items-center pt-6">
@@ -506,6 +513,7 @@ export const Chatbot: React.FC<ChatbotProps> = (props) => {
                     <h2 className="text-sm font-semibold text-foreground">AI Assistant</h2>
                 </div>
                 <div className="flex items-center gap-2">
+                     <button onClick={handleClearHistory} title="Clear Chat History" className="p-1 rounded-md hover:bg-accent text-muted-foreground"><Trash2 size={14}/></button>
                     <Clock />
                     <button 
                         onClick={() => setIsCollapsed(true)} 
