@@ -1,20 +1,23 @@
 import React, { useState, useRef } from 'react';
 import { Teacher, Subject, ClassInfo, Room, TimetableEntry } from '../types';
-import { Plus, Trash2, Wand2, Loader, Users, BookOpen, Building, UploadCloud, Download, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, Wand2, Loader, Users, BookOpen, Building, UploadCloud, Download, ArrowRight, RefreshCw } from 'lucide-react';
 import { useToast } from './Toast';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
+import usePersistentState from './usePersistentState';
+
 
 declare const XLSX: any;
 declare const html2canvas: any;
 declare const jspdf: any;
 
 const Scheduler: React.FC = () => {
-    const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [classes, setClasses] = useState<ClassInfo[]>([]);
-    const [rooms, setRooms] = useState<Room[]>([]);
-    const [timetable, setTimetable] = useState<TimetableEntry[] | null>(null);
+    const [teachers, setTeachers] = usePersistentState<Teacher[]>('maven-scheduler-teachers', []);
+    const [subjects, setSubjects] = usePersistentState<Subject[]>('maven-scheduler-subjects', []);
+    const [classes, setClasses] = usePersistentState<ClassInfo[]>('maven-scheduler-classes', []);
+    const [rooms, setRooms] = usePersistentState<Room[]>('maven-scheduler-rooms', []);
+    const [timetable, setTimetable] = usePersistentState<TimetableEntry[] | null>('maven-scheduler-timetable', null);
+
     const [isLoading, setIsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const toast = useToast();
@@ -36,6 +39,18 @@ const Scheduler: React.FC = () => {
         setRoomName('');
         setRoomCapacity(30);
     };
+    
+    const handleClearData = () => {
+        if (window.confirm("Are you sure you want to clear all scheduler data? This will remove all rooms, uploaded data, and the generated timetable.")) {
+            setTeachers([]);
+            setSubjects([]);
+            setClasses([]);
+            setRooms([]);
+            setTimetable(null);
+            toast.info("Scheduler data has been cleared.");
+        }
+    };
+
 
     const processFile = (file: File) => {
         const reader = new FileReader();
@@ -268,9 +283,14 @@ Your response must be a JSON object containing a single key "schedule", which is
     return (
         <div className="space-y-8">
             <div className="bg-card border border-border rounded-xl p-6 space-y-8">
-                <div className="text-center">
-                    <h2 className="text-3xl font-bold">Timetable Scheduler</h2>
-                    <p className="text-muted-foreground mt-2">Automate complex academic scheduling with a simple 3-step process.</p>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="text-center sm:text-left">
+                        <h2 className="text-3xl font-bold">Timetable Scheduler</h2>
+                        <p className="text-muted-foreground mt-2">Automate complex academic scheduling with a simple 3-step process.</p>
+                    </div>
+                     <button onClick={handleClearData} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-destructive/10 text-destructive rounded-md hover:bg-destructive/20 active:scale-95 transition-transform flex-shrink-0">
+                        <RefreshCw size={16}/> Clear All Data
+                    </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">

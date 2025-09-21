@@ -5,6 +5,7 @@ import { geminiAI } from './gemini';
 import { useToast } from './Toast';
 import { Type } from '@google/genai';
 import SimulatedProgressBar from './SimulatedProgressBar';
+import usePersistentState from './usePersistentState';
 
 // Make the simulation more generic
 const simulateFileExtraction = async (file: File): Promise<string> => {
@@ -41,13 +42,17 @@ const RoadmapView: React.FC<{ curriculum: GeneratedCurriculum }> = ({ curriculum
 
 const AICurriculumGenerator: React.FC = () => {
     const [courseFile, setCourseFile] = useState<File | null>(null);
-    const [indexText, setIndexText] = useState('');
+    const [courseFileName, setCourseFileName] = usePersistentState<string | null>('maven-curriculum-filename', null);
+    const [indexText, setIndexText] = usePersistentState<string>('maven-curriculum-index', '');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [curriculum, setCurriculum] = useState<GeneratedCurriculum | null>(null);
+    const [curriculum, setCurriculum] = usePersistentState<GeneratedCurriculum | null>('maven-curriculum-result', null);
     const [isDragging, setIsDragging] = useState(false);
-    const [pageState, setPageState] = useState<'form' | 'result'>('form');
-    const [outputView, setOutputView] = useState<'text' | 'roadmap'>('text');
     const toast = useToast();
+    
+    // Derived state to manage UI flow
+    const pageState = curriculum ? 'result' : 'form';
+    const [outputView, setOutputView] = useState<'text' | 'roadmap'>('text');
+
 
     const handleFileChange = (files: FileList | null) => {
         if (files && files[0]) {
@@ -55,6 +60,7 @@ const AICurriculumGenerator: React.FC = () => {
             const acceptedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-powerpoint'];
             if (acceptedTypes.includes(file.type) || file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt')) {
                 setCourseFile(file);
+                setCourseFileName(file.name);
             } else {
                 toast.error("Please upload a valid PDF or PowerPoint file.");
             }
@@ -62,8 +68,12 @@ const AICurriculumGenerator: React.FC = () => {
     };
 
     const handleGenerate = async () => {
-        if (!courseFile || !indexText.trim()) {
-            toast.error("Please upload a document and provide the index/table of contents.");
+        if (!courseFile) {
+            toast.error("Please re-select your course document before generating.");
+            return;
+        }
+        if (!indexText.trim()) {
+            toast.error("Please provide the index/table of contents.");
             return;
         }
         if (!geminiAI) {
@@ -73,7 +83,6 @@ const AICurriculumGenerator: React.FC = () => {
 
         setIsGenerating(true);
         setCurriculum(null);
-        setPageState('form');
         setOutputView('text');
 
         try {
@@ -125,7 +134,6 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
             const jsonStr = response.text.trim();
             const parsedResult: GeneratedCurriculum = JSON.parse(jsonStr);
             setCurriculum(parsedResult);
-            setPageState('result');
             toast.success("Curriculum generated successfully!");
 
         } catch (error: any) {
@@ -138,9 +146,9 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
 
     const handleStartOver = () => {
         setCourseFile(null);
+        setCourseFileName(null);
         setIndexText('');
         setCurriculum(null);
-        setPageState('form');
     };
     
     const renderResult = () => {
@@ -222,7 +230,12 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
                              <UploadCloud size={32} className="text-muted-foreground mb-2"/>
                              {courseFile ? (
                                 <p className="text-sm font-semibold text-primary">{courseFile.name}</p>
-                             ) : (
+                             ) : courseFileName ? (
+                                <>
+                                    <p className="text-sm font-semibold text-primary text-center">{courseFileName}</p>
+                                    <p className="text-xs text-muted-foreground text-center">(Please re-select this file to generate)</p>
+                                </>
+                            ) : (
                                 <p className="text-sm text-muted-foreground">Drop a PDF or PPTX here, or click to select</p>
                              )}
                         </div>

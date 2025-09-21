@@ -10,6 +10,7 @@ import TestsView from './TestsView';
 import ProgressView from './ProgressView';
 import AcademicCalendar from './AcademicCalendar';
 import SimulatedProgressBar from './SimulatedProgressBar';
+import usePersistentState from './usePersistentState';
 
 type AcademicViewTab = 'portal' | 'routine' | 'scheduler' | 'curriculum' | 'tests' | 'progress' | 'calendar';
 
@@ -21,8 +22,12 @@ interface AcademicViewProps {
 }
 
 // Daily Routine Planner Component
-const DailyRoutineGenerator: React.FC<Pick<AcademicViewProps, 'goals' | 'events'>> = ({ goals, events }) => {
-    const [routine, setRoutine] = useState('');
+const DailyRoutineGenerator: React.FC<{
+    goals: Goal[];
+    events: CalendarEvent[];
+    routine: string;
+    setRoutine: (routine: string) => void;
+}> = ({ goals, events, routine, setRoutine }) => {
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
 
@@ -134,8 +139,9 @@ Crucial Instruction: The output MUST be plain text only. Do not use any markdown
 
 // Main AcademicView Component
 const AcademicView: React.FC<AcademicViewProps> = (props) => {
-    const { events, setEvents } = props;
+    const { events, setEvents, goals, onNewNote } = props;
     const [activeTab, setActiveTab] = useState<AcademicViewTab>('portal');
+    const [generatedRoutine, setGeneratedRoutine] = usePersistentState<string>('maven-academic-routine', '');
 
     const navItems = [
         { id: 'portal', label: 'Portal', icon: ClipboardList },
@@ -152,7 +158,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
             case 'portal':
                 return <StudentTeacherPortal />;
             case 'routine':
-                return <DailyRoutineGenerator {...props} />;
+                return <DailyRoutineGenerator goals={goals} events={events} routine={generatedRoutine} setRoutine={setGeneratedRoutine} />;
             case 'scheduler':
                 return <Scheduler />;
             case 'curriculum':
