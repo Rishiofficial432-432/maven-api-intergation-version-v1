@@ -312,11 +312,6 @@ const App: React.FC = () => {
     return `🗓️ Event scheduled: "${title}" on ${date} at ${time}.`;
   };
   
-   const onAddCalendarItem = (item: Omit<CalendarEvent, 'id'>) => {
-    setEvents(prev => [...prev, { ...item, id: crypto.randomUUID() }]);
-    toast.success("Calendar item added!");
-  };
-
    const onCompleteTaskByText = (text: string): string => {
     let found = false;
     let taskText = '';
@@ -761,7 +756,7 @@ const App: React.FC = () => {
         journal: <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />,
         documind: <InteractiveMindMap />,
         workspace: <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />,
-        academics: <AcademicView goals={goals} events={events} onNewNote={handleNewPage} onAddCalendarItem={onAddCalendarItem} />,
+        academics: <AcademicView goals={goals} events={events} setEvents={setEvents} onNewNote={handleNewPage} />,
       }[view];
       return AppViewComponent;
     }

@@ -3,19 +3,20 @@ import StudentTeacherPortal from './StudentTeacherPortal';
 import { Goal, CalendarEvent, Page } from '../types';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
-import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb, CheckSquare } from 'lucide-react';
+import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb, CheckSquare, Calendar } from 'lucide-react';
 import Scheduler from './Scheduler';
 import CurriculumView from './SmartCurriculum';
 import TestsView from './TestsView';
 import ProgressView from './ProgressView';
+import AcademicCalendar from './AcademicCalendar';
 
-type AcademicViewTab = 'portal' | 'routine' | 'scheduler' | 'curriculum' | 'tests' | 'progress';
+type AcademicViewTab = 'portal' | 'routine' | 'scheduler' | 'curriculum' | 'tests' | 'progress' | 'calendar';
 
 interface AcademicViewProps {
     goals: Goal[];
     events: CalendarEvent[];
+    setEvents: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
     onNewNote: (title: string, content?: string) => Page;
-    onAddCalendarItem: (item: Omit<CalendarEvent, 'id'>) => void;
 }
 
 // Daily Routine Planner Component
@@ -127,13 +128,15 @@ Crucial Instruction: The output MUST be plain text only. Do not use any markdown
 
 // Main AcademicView Component
 const AcademicView: React.FC<AcademicViewProps> = (props) => {
+    const { events, setEvents } = props;
     const [activeTab, setActiveTab] = useState<AcademicViewTab>('portal');
 
     const navItems = [
         { id: 'portal', label: 'Portal', icon: ClipboardList },
-        { id: 'routine', label: 'Daily Routine', icon: CalendarCheck },
+        { id: 'routine', label: 'Daily Plan', icon: CalendarCheck },
         { id: 'scheduler', label: 'Scheduler', icon: Clock },
         { id: 'curriculum', label: 'Curriculum', icon: Lightbulb },
+        { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'tests', label: 'Tests', icon: CheckSquare },
         { id: 'progress', label: 'Progress', icon: BarChart2 },
     ];
@@ -150,6 +153,8 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
                 return <CurriculumView />;
             case 'tests':
                 return <TestsView />;
+            case 'calendar':
+                return <AcademicCalendar events={events} setEvents={setEvents} />;
             case 'progress':
                 return <ProgressView />;
             default:
@@ -173,7 +178,7 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
                             >
                                 <item.icon size={16} />
                                 <span className="hidden md:inline">{item.label}</span>
-                                <span className="md:hidden">{item.id === 'routine' ? 'Routine' : item.label}</span>
+                                <span className="md:hidden">{item.id === 'routine' ? 'Plan' : item.label}</span>
                             </button>
                         ))}
                     </nav>
