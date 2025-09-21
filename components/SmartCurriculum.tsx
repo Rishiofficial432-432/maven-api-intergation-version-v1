@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { GeneratedCurriculum, CurriculumWeek } from '../types';
 import { Wand2, Loader, UploadCloud, FileText, BookOpen, Lightbulb, ArrowLeft, Map } from 'lucide-react';
-import { geminiAI } from './gemini';
 import { useToast } from './Toast';
-import { Type } from '@google/genai';
 import SimulatedProgressBar from './SimulatedProgressBar';
 import usePersistentState from './usePersistentState';
+
+interface AICurriculumGeneratorProps {
+  curriculum: GeneratedCurriculum | null;
+  isGenerating: boolean;
+  onGenerate: (file: File, indexText: string) => void;
+  onClear: () => void;
+}
 
 // Make the simulation more generic
 const simulateFileExtraction = async (file: File): Promise<string> => {
@@ -40,12 +45,10 @@ const RoadmapView: React.FC<{ curriculum: GeneratedCurriculum }> = ({ curriculum
 );
 
 
-const AICurriculumGenerator: React.FC = () => {
+const AICurriculumGenerator: React.FC<AICurriculumGeneratorProps> = ({ curriculum, isGenerating, onGenerate, onClear }) => {
     const [courseFile, setCourseFile] = useState<File | null>(null);
     const [courseFileName, setCourseFileName] = usePersistentState<string | null>('maven-curriculum-filename', null);
     const [indexText, setIndexText] = usePersistentState<string>('maven-curriculum-index', '');
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [curriculum, setCurriculum] = usePersistentState<GeneratedCurriculum | null>('maven-curriculum-result', null);
     const [isDragging, setIsDragging] = useState(false);
     const toast = useToast();
     
@@ -76,79 +79,14 @@ const AICurriculumGenerator: React.FC = () => {
             toast.error("Please provide the index/table of contents.");
             return;
         }
-        if (!geminiAI) {
-            toast.error("AI features are disabled. Please configure your API key in settings.");
-            return;
-        }
-
-        setIsGenerating(true);
-        setCurriculum(null);
-        setOutputView('text');
-
-        try {
-            const simulatedFileContent = await simulateFileExtraction(courseFile);
-            const prompt = `You are an expert curriculum designer for a university. Your task is to create a detailed, 12-week semester curriculum based on a course document.
-
-CONTEXT:
-- Document Name: ${courseFile.name}
-- Document Summary: ${simulatedFileContent}
-- Document Index/Table of Contents:
----
-${indexText}
----
-
-INSTRUCTIONS:
-Based on all the provided context, generate a comprehensive 12-week curriculum. The curriculum should be logically sequenced, starting with foundational concepts and progressing to more advanced topics.
-Your response MUST be a single JSON object that adheres to the provided schema. Do not include any text outside of the JSON object.
-`;
-            
-            const schema = {
-                type: Type.OBJECT,
-                properties: {
-                    courseTitle: { type: Type.STRING, description: "A suitable title for the course based on the document." },
-                    courseDescription: { type: Type.STRING, description: "A brief, engaging description of the course." },
-                    learningObjectives: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A list of 3-5 key learning objectives for students." },
-                    weeklyBreakdown: {
-                        type: Type.ARRAY,
-                        description: "A breakdown of the 12-week semester.",
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                week: { type: Type.NUMBER },
-                                topic: { type: Type.STRING, description: "The main topic for the week." },
-                                keyConcepts: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A list of key concepts to be covered." },
-                                reading: { type: Type.STRING, description: "The assigned reading from the document (e.g., 'Chapters 1-2' or 'Slides 1-50')." },
-                                assignment: { type: Type.STRING, description: "A relevant assignment or activity for the week." },
-                            }
-                        }
-                    }
-                }
-            };
-
-            const response = await geminiAI.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: "application/json", responseSchema: schema }
-            });
-
-            const jsonStr = response.text.trim();
-            const parsedResult: GeneratedCurriculum = JSON.parse(jsonStr);
-            setCurriculum(parsedResult);
-            toast.success("Curriculum generated successfully!");
-
-        } catch (error: any) {
-            console.error("Curriculum generation failed:", error);
-            toast.error(`Failed to generate curriculum: ${error.message}`);
-        } finally {
-            setIsGenerating(false);
-        }
+        onGenerate(courseFile, indexText);
     };
 
     const handleStartOver = () => {
         setCourseFile(null);
         setCourseFileName(null);
         setIndexText('');
-        setCurriculum(null);
+        onClear();
     };
     
     const renderResult = () => {
@@ -286,8 +224,8 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
 };
 
 
-const CurriculumView: React.FC = () => {
-    return <AICurriculumGenerator />;
+const CurriculumView: React.FC<AICurriculumGeneratorProps> = (props) => {
+    return <AICurriculumGenerator {...props} />;
 };
 
 export default CurriculumView;

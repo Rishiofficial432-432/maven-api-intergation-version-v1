@@ -19,9 +19,10 @@ import { Section } from './components/Section';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon, ImageIcon, Trash2 } from 'lucide-react';
 import { getSupabaseCredentials, updateSupabaseCredentials, connectionStatus } from './components/supabase-config';
 import usePersistentState from './components/usePersistentState';
+import { Type } from '@google/genai';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
-  MoodEntry, Expense, Goal, KanbanItem
+  MoodEntry, Expense, Goal, KanbanItem, GeneratedCurriculum
 } from './types';
 import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
 
@@ -93,6 +94,10 @@ const App: React.FC = () => {
   const [supabaseKey, setSupabaseKey] = useState('');
   const [supabaseStatus, setSupabaseStatus] = useState({ message: connectionStatus.message, configured: connectionStatus.configured });
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+
+  // State for persistent curriculum generation
+  const [curriculumResult, setCurriculumResult] = usePersistentState<GeneratedCurriculum | null>('maven-curriculum-result', null);
+  const [isCurriculumGenerating, setIsCurriculumGenerating] = useState(false);
 
 
   // --- LIFECYCLE & INITIALIZATION ---
@@ -271,6 +276,79 @@ const App: React.FC = () => {
     toast.success(`Imported "${data.file.name}" into a new note.`);
   };
 
+
+  // --- CURRICULUM GENERATION ---
+  const handleGenerateCurriculum = async (file: File, indexText: string) => {
+    if (!geminiAI) {
+      toast.error("AI features are disabled. Please configure your API key in settings.");
+      return;
+    }
+    
+    setIsCurriculumGenerating(true);
+    setCurriculumResult(null); // Clear previous results while generating
+
+    // Helper function to simulate file reading for the demo
+    const simulateFileExtraction = async (file: File): Promise<string> => {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return `The document, "${file.name}", is assumed to be a comprehensive course material (textbook, presentation, etc.). The content covers various topics as outlined in the provided index. It likely includes detailed explanations, examples, and exercises related to the subject matter.`;
+    };
+
+    try {
+        const simulatedFileContent = await simulateFileExtraction(file);
+        const prompt = `You are an expert curriculum designer for a university. Your task is to create a detailed, 12-week semester curriculum based on a course document.
+        CONTEXT:
+        - Document Name: ${file.name}
+        - Document Summary: ${simulatedFileContent}
+        - Document Index/Table of Contents:\n---\n${indexText}\n---
+        INSTRUCTIONS:
+        Based on all the provided context, generate a comprehensive 12-week curriculum. The curriculum should be logically sequenced, starting with foundational concepts and progressing to more advanced topics.
+        Your response MUST be a single JSON object that adheres to the provided schema. Do not include any text outside of the JSON object.`;
+        
+        const schema = {
+            type: Type.OBJECT,
+            properties: {
+                courseTitle: { type: Type.STRING },
+                courseDescription: { type: Type.STRING },
+                learningObjectives: { type: Type.ARRAY, items: { type: Type.STRING } },
+                weeklyBreakdown: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            week: { type: Type.NUMBER },
+                            topic: { type: Type.STRING },
+                            keyConcepts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            reading: { type: Type.STRING },
+                            assignment: { type: Type.STRING },
+                        }
+                    }
+                }
+            }
+        };
+
+        const response = await geminiAI.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema: schema }
+        });
+
+        const jsonStr = response.text.trim();
+        const parsedResult: GeneratedCurriculum = JSON.parse(jsonStr);
+        setCurriculumResult(parsedResult);
+        toast.success("Curriculum generated successfully!");
+
+    } catch (error: any) {
+        console.error("Curriculum generation failed:", error);
+        toast.error(`Failed to generate curriculum: ${error.message}`);
+        setCurriculumResult(null);
+    } finally {
+        setIsCurriculumGenerating(false);
+    }
+  };
+
+  const handleClearCurriculum = () => {
+    setCurriculumResult(null);
+  };
 
   // --- CHATBOT FUNCTION HANDLERS ---
   const onAddTask = (text: string): string => {
@@ -729,7 +807,16 @@ const App: React.FC = () => {
         journal: <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />,
         documind: <InteractiveMindMap />,
         workspace: <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />,
-        academics: <AcademicView goals={goals} events={events} setEvents={setEvents} onNewNote={handleNewPage} />,
+        academics: <AcademicView 
+            goals={goals} 
+            events={events} 
+            setEvents={setEvents} 
+            onNewNote={handleNewPage}
+            curriculumResult={curriculumResult}
+            isCurriculumGenerating={isCurriculumGenerating}
+            onGenerateCurriculum={handleGenerateCurriculum}
+            onClearCurriculum={handleClearCurriculum}
+         />,
       }[view];
       return AppViewComponent;
     }

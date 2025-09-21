@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import StudentTeacherPortal from './StudentTeacherPortal';
-import { Goal, CalendarEvent, Page } from '../types';
+import { Goal, CalendarEvent, Page, GeneratedCurriculum } from '../types';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
 import { GraduationCap, BarChart2, CalendarCheck, ClipboardList, Loader, Wand2, Info, Clock, Lightbulb, CheckSquare, Calendar } from 'lucide-react';
@@ -19,6 +19,10 @@ interface AcademicViewProps {
     events: CalendarEvent[];
     setEvents: React.Dispatch<React.SetStateAction<CalendarEvent[]>>;
     onNewNote: (title: string, content?: string) => Page;
+    curriculumResult: GeneratedCurriculum | null;
+    isCurriculumGenerating: boolean;
+    onGenerateCurriculum: (file: File, indexText: string) => Promise<void>;
+    onClearCurriculum: () => void;
 }
 
 // Daily Routine Planner Component
@@ -139,7 +143,7 @@ Crucial Instruction: The output MUST be plain text only. Do not use any markdown
 
 // Main AcademicView Component
 const AcademicView: React.FC<AcademicViewProps> = (props) => {
-    const { events, setEvents, goals, onNewNote } = props;
+    const { events, setEvents, goals, onNewNote, curriculumResult, isCurriculumGenerating, onGenerateCurriculum, onClearCurriculum } = props;
     const [activeTab, setActiveTab] = useState<AcademicViewTab>('portal');
     const [generatedRoutine, setGeneratedRoutine] = usePersistentState<string>('maven-academic-routine', '');
 
@@ -162,7 +166,12 @@ const AcademicView: React.FC<AcademicViewProps> = (props) => {
             case 'scheduler':
                 return <Scheduler />;
             case 'curriculum':
-                return <CurriculumView />;
+                return <CurriculumView 
+                            curriculum={curriculumResult}
+                            isGenerating={isCurriculumGenerating}
+                            onGenerate={onGenerateCurriculum}
+                            onClear={onClearCurriculum}
+                        />;
             case 'tests':
                 return <TestsView />;
             case 'calendar':
