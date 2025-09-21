@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import StudentTeacherPortal from './StudentTeacherPortal';
+// FIX: Changed import to a named import as StudentTeacherPortal is not a default export.
+import { StudentTeacherPortal } from './StudentTeacherPortal';
 import { Goal, CalendarEvent, Page, GeneratedCurriculum } from '../types';
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';

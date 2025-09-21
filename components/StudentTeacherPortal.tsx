@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PortalUser, CurriculumFile } from '../types';
 import * as Portal from './portal-supabase';
@@ -240,16 +238,65 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
                     {activeSession && (
                         <div className="bg-card border border-border rounded-xl p-6 animate-fade-in-up">
                             <h2 className="text-2xl font-bold mb-4 flex items-center justify-between">Live Attendance Feed {isDemo && <button onClick={fetchDashboardData} className="text-primary text-sm p-1 rounded-md hover:bg-accent"><RefreshCw size={14}/></button>}</h2>
-                            <div className="grid grid-cols-3 gap-4 mb-4 text-center"><div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold text-primary">{liveAttendance.length}</p><p className="text-sm text-muted-foreground">Live Count</p></div><div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold">--</p><p className="text-sm text-muted-foreground">Total Students</p></div><div className="bg-secondary p-3 rounded-lg"><p className="text-2xl font-bold">--%</p><p className="text-sm text-muted-foreground">Check-in Rate</p></div></div>
-                            <div className="max-h-64 overflow-y-auto space-y-2">
-                                {liveAttendance.length > 0 ? liveAttendance.map(att => (<div key={att.student_id} className="flex justify-between items-center p-2 bg-secondary rounded-md"><div><p className="font-semibold">{att.student_name}</p><p className="text-xs text-muted-foreground">{att.enrollment_id}</p></div><p className="text-xs text-green-400 font-mono">{new Date(att.created_at).toLocaleTimeString()}</p></div>)) : <p className="text-center text-muted-foreground py-4">Waiting for students to check in...</p>}
+                            <div className="grid grid-cols-2 gap-4 mb-4 text-center">
+                                <div className="bg-secondary p-3 rounded-lg">
+                                    <p className="text-2xl font-bold text-green-400">{liveAttendance.length}</p>
+                                    <p className="text-xs text-muted-foreground">Checked In</p>
+                                </div>
+                                <div className="bg-secondary p-3 rounded-lg">
+                                    <p className="text-2xl font-bold text-yellow-400">{pendingStudents.length}</p>
+                                    <p className="text-xs text-muted-foreground">Pending Approval</p>
+                                </div>
+                            </div>
+                            <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
+                                {liveAttendance.length > 0 ? liveAttendance.map(record => (
+                                    <div key={(record as any).id} className="bg-secondary p-3 rounded-md flex justify-between items-center text-sm">
+                                        <div>
+                                            <p className="font-semibold">{record.student_name}</p>
+                                            <p className="text-xs text-muted-foreground">{record.enrollment_id}</p>
+                                        </div>
+                                        <span className="text-xs text-muted-foreground">{new Date(record.created_at).toLocaleTimeString()}</span>
+                                    </div>
+                                )) : <p className="text-center text-muted-foreground py-4">Waiting for students to check in...</p>}
                             </div>
                         </div>
                     )}
                 </div>
-                <div className="space-y-6">
-                    <div className="bg-card border border-border rounded-xl p-6"><h3 className="font-bold mb-4 flex items-center justify-between">Pending Approvals <RefreshCw size={16} onClick={fetchDashboardData} className="cursor-pointer hover:rotate-90 transition-transform"/></h3><div className="max-h-48 overflow-y-auto space-y-2">{loadingApprovals ? <Loader className="animate-spin mx-auto"/> : pendingStudents.length > 0 ? pendingStudents.map(s => (<div key={s.id} className="p-2 bg-secondary rounded-md"><p className="font-semibold text-sm">{s.name}</p><div className="flex justify-between items-center"><p className="text-xs text-muted-foreground">{s.email}</p><button onClick={() => handleApproveStudent(s.id)} className="p-1 bg-primary/20 text-primary rounded-md"><Check size={14}/></button></div></div>)) : <p className="text-sm text-muted-foreground text-center">No pending students.</p>}</div></div>
-                     <div className="bg-card border border-border rounded-xl p-6"><h3 className="font-bold mb-4">Curriculum Files</h3><div className="max-h-48 overflow-y-auto space-y-2 mb-4">{curriculumFiles.map(f => (<div key={f.id} className="flex justify-between items-center p-2 bg-secondary rounded-md text-sm"><p className="truncate pr-2">{f.fileName || f.file_name}</p><button onClick={() => handleFileDelete(f.id, f.storage_path)} className="text-destructive/70 hover:text-destructive flex-shrink-0" aria-label="Delete file"><Trash2 size={14}/></button></div>))}</div><label className="w-full text-center cursor-pointer bg-primary/20 text-primary px-4 py-2 rounded-md text-sm font-semibold block disabled:opacity-50"><input type="file" onChange={handleFileUpload} disabled={uploadingFile} className="hidden"/>{uploadingFile ? <Loader className="animate-spin mx-auto"/> : 'Upload New File'}</label></div>
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-card border border-border rounded-xl p-6">
+                        <h2 className="text-2xl font-bold mb-4">Pending Approvals</h2>
+                        {loadingApprovals ? <Loader className="animate-spin" /> : (
+                            <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                                {pendingStudents.length > 0 ? pendingStudents.map(student => (
+                                    <div key={student.id} className="bg-secondary p-3 rounded-md flex justify-between items-center">
+                                        <div>
+                                            <p className="font-semibold">{student.name}</p>
+                                            <p className="text-xs text-muted-foreground">{student.email}</p>
+                                        </div>
+                                        <button onClick={() => handleApproveStudent(student.id)} className="px-3 py-1 bg-green-500/20 text-green-300 rounded-md text-xs">Approve</button>
+                                    </div>
+                                )) : <p className="text-sm text-muted-foreground text-center">No students pending approval.</p>}
+                            </div>
+                        )}
+                    </div>
+                    <div className="bg-card border border-border rounded-xl p-6">
+                        <h2 className="text-2xl font-bold mb-4">Curriculum Files</h2>
+                        <label className={`w-full text-center cursor-pointer bg-primary/10 text-primary px-4 py-3 rounded-md text-sm font-semibold block mb-4 border-2 border-dashed border-primary/20 hover:bg-primary/20`}>
+                            <input type="file" onChange={handleFileUpload} className="hidden" disabled={uploadingFile} />
+                            {uploadingFile ? <><Loader size={16} className="animate-spin inline-block mr-2"/> Uploading...</> : <><UploadCloud size={16} className="inline-block mr-2"/> Upload New File</>}
+                        </label>
+                        <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                            {curriculumFiles.map(file => (
+                                <div key={file.id} className="bg-secondary p-3 rounded-md flex justify-between items-center text-sm">
+                                    <div className="overflow-hidden">
+                                        <p className="font-semibold truncate">{file.file_name}</p>
+                                        <p className="text-xs text-muted-foreground">by {file.teacher_name}</p>
+                                    </div>
+                                    <button onClick={() => handleFileDelete(file.id, file.storage_path)} className="text-destructive/70 hover:text-destructive flex-shrink-0 ml-2"><Trash2 size={14}/></button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
@@ -257,168 +304,298 @@ const TeacherDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
 };
 
 const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDemo?: boolean }> = ({ user, onLogout, isDemo }) => {
-    const [code, setCode] = useState('');
-    const [checkingIn, setCheckingIn] = useState(false);
+    const [sessionCode, setSessionCode] = useState('');
+    const [isCheckingIn, setIsCheckingIn] = useState(false);
+    const [curriculumFiles, setCurriculumFiles] = useState<any[]>([]);
     const toast = useToast();
     const PortalAPI = isDemo ? LocalPortal : Portal;
-    
+
+    useEffect(() => {
+        const fetchFiles = async () => {
+            try {
+                const files = await PortalAPI.getCurriculumFiles();
+                setCurriculumFiles(files);
+            } catch (error: any) {
+                toast.error(`Failed to load files: ${error.message}`);
+            }
+        };
+        fetchFiles();
+    }, [toast, isDemo, PortalAPI]);
+
     const handleCheckIn = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (code.length !== 6) { toast.error("Please enter a valid 6-digit code."); return; }
-        setCheckingIn(true);
-        try {
-            const session = await PortalAPI.getActiveSession();
-            if (!session || session.session_code?.toUpperCase() !== code.toUpperCase()) throw new Error("Invalid or expired session code.");
+        if (!sessionCode.trim()) {
+            toast.error("Please enter a session code.");
+            return;
+        }
+        setIsCheckingIn(true);
 
-            if (session.location_enforced) {
-                 if(!isGpsLocation(session.location)) throw new Error("Session is location enforced, but teacher location is missing.");
-                const studentLocation = await new Promise<{ lat: number, lon: number }>((resolve, reject) => {
+        try {
+            const activeSession = await PortalAPI.getActiveSession();
+            if (!activeSession || activeSession.session_code?.toLowerCase() !== sessionCode.trim().toLowerCase()) {
+                throw new Error("Invalid or expired session code.");
+            }
+            if (activeSession.location_enforced) {
+                const studentLocation = await new Promise<{ latitude: number, longitude: number }>((resolve, reject) => {
                     navigator.geolocation.getCurrentPosition(
-                        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                        (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
                         (err) => reject(new Error(getGeolocationErrorMessage(err)))
                     );
                 });
                 
-                const distance = getDistance(session.location.latitude, session.location.longitude, studentLocation.lat, studentLocation.lon);
-                if (distance > session.radius!) throw new Error(`You are too far from the class (${Math.round(distance)}m). Required: <${session.radius}m.`);
+                if (isGpsLocation(activeSession.location)) {
+                     const distance = getDistance(
+                        studentLocation.latitude, studentLocation.longitude,
+                        activeSession.location.latitude, activeSession.location.longitude
+                    );
+                    if (distance > (activeSession.radius || 100)) {
+                        throw new Error(`You are too far from the class. (${Math.round(distance)}m away)`);
+                    }
+                } else {
+                     throw new Error("Teacher's location is not available for this session.");
+                }
             }
+            
+            await PortalAPI.logAttendance({
+                session_id: activeSession.id,
+                student_id: user.id,
+                student_name: user.name,
+                enrollment_id: user.enrollment_id
+            });
 
-            await PortalAPI.logAttendance({ session_id: session.id, student_id: user.id, student_name: user.name, enrollment_id: user.enrollment_id });
-            toast.success("Checked in successfully!");
-            setCode('');
+            toast.success("Successfully checked in!");
+            setSessionCode('');
+
         } catch (error: any) {
             toast.error(error.message);
         } finally {
-            setCheckingIn(false);
+            setIsCheckingIn(false);
+        }
+    };
+    
+    const handleFileDownload = async (file: any) => {
+        try {
+            if (isDemo) {
+                const blob = await (PortalAPI as typeof LocalPortal).getCurriculumFileBlob(file.id);
+                 if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file.file_name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                } else {
+                    toast.error("File data not found in local demo.");
+                }
+            } else {
+                // FIX: Changed PortalAPI access to the directly imported supabase client.
+                 const { data } = await supabase!.storage.from('curriculum_uploads').getPublicUrl(file.storage_path);
+                 window.open(data.publicUrl, '_blank');
+            }
+        } catch (error: any) {
+            toast.error(`Download failed: ${error.message}`);
         }
     };
 
+
     return (
-        <div className="flex-1 flex flex-col h-full bg-accent/20 text-foreground">
-             <header className="p-4 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between flex-shrink-0"><h1 className="text-xl font-bold">Student Hub {isDemo && <span className="text-sm font-normal text-primary">(Demo Mode)</span>}</h1><div className="flex items-center gap-4"><span className="text-sm text-muted-foreground hidden sm:block">Welcome, {user.name}</span><button onClick={onLogout} className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300"><LogOut size={16}/> Logout</button></div></header>
-             <main className="flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6"><div className="md:col-span-2 bg-card border border-border rounded-xl p-6 text-center shadow-lg"><h2 className="text-2xl font-bold mb-4">Attendance Check-in</h2><p className="text-muted-foreground mb-6 max-w-sm mx-auto">Enter the 6-digit PIN provided by your teacher to mark your attendance.</p><form onSubmit={handleCheckIn} className="space-y-4 max-w-xs mx-auto"><input type="text" placeholder="------" value={code} onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} maxLength={6} className="w-full bg-input text-center text-4xl tracking-[0.5em] font-mono rounded-lg p-4 border-2 border-transparent focus:border-primary focus:ring-0 transition-colors"/><button type="submit" disabled={checkingIn} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold text-lg disabled:opacity-50 transition-all active:scale-95">{checkingIn ? <Loader className="animate-spin mx-auto"/> : 'Check In'}</button></form></div><div className="bg-card border border-border rounded-xl p-6"><h3 className="font-bold mb-4 flex items-center gap-2"><BarChart2 size={18}/> Attendance Summary</h3><div className="space-y-4 text-center"><div className="bg-secondary p-3 rounded-lg"><p className="text-3xl font-bold text-primary">92%</p><p className="text-sm text-muted-foreground">Overall Rate</p></div><div className="bg-secondary p-3 rounded-lg"><p className="text-3xl font-bold">18/20</p><p className="text-sm text-muted-foreground">Sessions Attended</p></div></div></div></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-card border border-border rounded-xl p-6"><h3 className="font-bold mb-4 flex items-center gap-2"><Calendar size={18}/> Today's Schedule</h3><div className="space-y-2"><div className="p-3 bg-secondary rounded-lg"><p className="font-semibold">10:00 - History 101</p><p className="text-sm text-muted-foreground">Dr. Reed - Room 301</p></div><div className="p-3 bg-secondary rounded-lg"><p className="font-semibold">14:00 - Physics 204</p><p className="text-sm text-muted-foreground">Dr. Anya - Lab B</p></div></div></div><div className="bg-card border border-border rounded-xl p-6"><h3 className="font-bold mb-4 flex items-center gap-2"><Download size={18}/> Recent Curriculum Files</h3><div className="space-y-2"><div className="p-3 bg-secondary rounded-lg flex justify-between items-center"><p className="font-semibold text-sm">Lecture_Notes_Week_5.pdf</p><button className="p-1.5 hover:bg-accent rounded-md"><Download size={16}/></button></div><div className="p-3 bg-secondary rounded-lg flex justify-between items-center"><p className="font-semibold text-sm">Midterm_Study_Guide.docx</p><button className="p-1.5 hover:bg-accent rounded-md"><Download size={16}/></button></div></div></div></div>
-             </main>
+         <div className="flex-1 flex flex-col h-full bg-accent/20 text-foreground">
+            <header className="p-4 border-b border-border/50 bg-card/80 backdrop-blur-sm flex items-center justify-between flex-shrink-0">
+                <h1 className="text-xl font-bold">Student Portal {isDemo && <span className="text-sm font-normal text-primary">(Demo Mode)</span>}</h1>
+                <div className="flex items-center gap-4">
+                    <span className="text-sm text-muted-foreground hidden sm:block">Welcome, {user.name}</span>
+                    <button onClick={onLogout} className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300"><LogOut size={16}/> Logout</button>
+                </div>
+            </header>
+            <main className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-card border border-border rounded-xl p-6 flex flex-col justify-center items-center text-center">
+                    <h2 className="text-2xl font-bold mb-4">Attendance Check-in</h2>
+                    <form onSubmit={handleCheckIn} className="w-full max-w-xs space-y-4">
+                        <input type="text" value={sessionCode} onChange={e => setSessionCode(e.target.value)}
+                               placeholder="Enter 6-Digit PIN"
+                               className="w-full bg-input text-center text-3xl font-mono tracking-widest p-3 rounded-lg border border-border"/>
+                        <button type="submit" disabled={isCheckingIn} className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
+                             {isCheckingIn ? <><Loader className="animate-spin"/> Checking in...</> : 'Check In'}
+                        </button>
+                    </form>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-6">
+                     <h2 className="text-2xl font-bold mb-4">Shared Curriculum Files</h2>
+                     <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+                         {curriculumFiles.map(file => (
+                            <div key={file.id} className="bg-secondary p-3 rounded-md flex justify-between items-center text-sm">
+                                <div className="overflow-hidden">
+                                    <p className="font-semibold truncate">{file.file_name}</p>
+                                    <p className="text-xs text-muted-foreground">by {file.teacher_name}</p>
+                                </div>
+                                <button onClick={() => handleFileDownload(file)} className="text-primary hover:underline flex-shrink-0 ml-2"><Download size={16}/></button>
+                            </div>
+                        ))}
+                     </div>
+                </div>
+            </main>
         </div>
     );
 };
 
-// --- LOCATION PERMISSION GUARD ---
-const LocationGuard: React.FC<{ onLogout: () => void, children: React.ReactNode }> = ({ onLogout, children }) => {
-    const [permission, setPermission] = useState<PermissionState | 'loading'>('loading');
+const AuthView: React.FC<{ onLogin: (user: PortalUser) => void, isDemo: boolean, onSelectDemo: (role: 'teacher' | 'student') => void }> = ({ onLogin, isDemo, onSelectDemo }) => {
+    const [isLogin, setIsLogin] = useState(true);
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [role, setRole] = useState<'student' | 'teacher'>('student');
+    const [enrollmentId, setEnrollmentId] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
+    const PortalAPI = isDemo ? LocalPortal : Portal;
 
-    const checkPermission = useCallback(async () => {
-        if (!navigator.geolocation || !navigator.permissions) { toast.error("Geolocation is not supported by your browser."); onLogout(); return; }
-        try { const status = await navigator.permissions.query({ name: 'geolocation' }); setPermission(status.state); return status; } catch (error) { console.error("Error querying location permission:", error); setPermission('denied'); }
-    }, [onLogout, toast]);
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        try {
+            if (isLogin) {
+                if(isDemo) { // Cannot login in demo, this button should not be shown
+                    toast.error("Please select a demo role to proceed.");
+                } else {
+                    const user = await (PortalAPI as typeof Portal).signInUser(email, password);
+                    onLogin(user);
+                }
+            } else {
+                if (isDemo) {
+                     const userData = { id: crypto.randomUUID(), name, email, password, role, enrollment_id: enrollmentId, approved: role === 'teacher' };
+                     await (PortalAPI as typeof LocalPortal).createUser(userData);
+                     toast.success("Account created in demo mode! You can now log in.");
+                } else {
+                    const userData = { name, email, password, role, enrollment_id: enrollmentId };
+                    await (PortalAPI as typeof Portal).signUpUser(userData);
+                    toast.success("Sign up successful! Please check your email to verify.");
+                }
+                setIsLogin(true);
+            }
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    if(isDemo) {
+         return (
+             <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background">
+                 <div className="p-8 border border-border rounded-lg bg-card/50 max-w-md">
+                     <GraduationCap className="w-12 h-12 text-primary mx-auto mb-4" />
+                     <h2 className="text-2xl font-bold mb-2">Welcome to the Portal Demo</h2>
+                     <p className="text-muted-foreground mb-6">Select a role to explore the Student/Teacher Portal. All data is stored locally in your browser and is reset when you clear your cache.</p>
+                     <div className="flex flex-col sm:flex-row gap-4">
+                        <button onClick={() => onSelectDemo('teacher')} className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">Enter as Teacher</button>
+                        <button onClick={() => onSelectDemo('student')} className="flex-1 px-6 py-3 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors">Enter as Student</button>
+                    </div>
+                 </div>
+            </div>
+        )
+    }
 
-    useEffect(() => {
-        let permissionStatus: PermissionStatus | undefined;
-        const handleChange = () => { if (permissionStatus && permissionStatus.state !== 'granted') { toast.error("Location permission is required and was disabled. You have been logged out."); onLogout(); }};
-        checkPermission().then(status => { if (status) { permissionStatus = status; status.addEventListener('change', handleChange); }});
-        return () => { if (permissionStatus) { permissionStatus.removeEventListener('change', handleChange); }};
-    }, [checkPermission, onLogout, toast]);
-
-    const requestPermission = () => { setPermission('loading'); navigator.geolocation.getCurrentPosition(() => checkPermission(), () => checkPermission()); };
-
-    if (permission === 'loading') { return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary" size={32}/></div>; }
-    if (permission === 'denied') { return <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/20 text-center"><div className="bg-card p-8 rounded-xl border border-border max-w-md"><MapPin size={48} className="text-destructive mx-auto mb-4"/><h2 className="text-2xl font-bold">Location Permission Required</h2><p className="text-muted-foreground mt-2">The Student/Teacher Portal requires location access to function securely. Please enable location services for this site in your browser settings.</p><button onClick={requestPermission} className="mt-6 bg-primary text-primary-foreground py-2 px-6 rounded-lg font-semibold">Try Again</button></div></div>; }
-    if (permission === 'prompt') { return <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/20 text-center"><div className="bg-card p-8 rounded-xl border border-border max-w-md"><MapPin size={48} className="text-primary mx-auto mb-4"/><h2 className="text-2xl font-bold">Enable Location</h2><p className="text-muted-foreground mt-2">Please allow location access when your browser prompts you. This is required to use the portal.</p><button onClick={requestPermission} className="mt-6 bg-primary text-primary-foreground py-2 px-6 rounded-lg font-semibold">Grant Permission</button></div></div>; }
-
-    return <>{children}</>;
-}
-
-// --- PORTAL ENTRY SCREEN ---
-const PortalEntryScreen: React.FC<{ onSelectRole: (role: 'teacher' | 'student') => void; isOffline?: boolean }> = ({ onSelectRole, isOffline = false }) => {
     return (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-accent/20 animate-fade-in-up">
-            <div className="w-full max-w-md bg-card border border-border rounded-xl shadow-lg p-8 text-center">
-                <ClipboardList className="mx-auto h-12 w-12 text-primary mb-4" />
-                <h1 className="text-3xl font-bold">Academics Hub Portal</h1>
-                <p className="text-muted-foreground mt-2 mb-8">
-                    {isOffline 
-                        ? "The portal's cloud features are offline. You can still explore the local demo environment."
-                        : "Choose a role to enter the demo environment. This is a local simulation. Real users with configured credentials will be logged in automatically."
-                    }
+        <div className="flex-1 flex items-center justify-center p-4">
+            <div className="w-full max-w-sm bg-card border border-border rounded-xl p-8">
+                <h2 className="text-3xl font-bold text-center mb-6">{isLogin ? 'Login' : 'Sign Up'}</h2>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {!isLogin && <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" required className="w-full bg-input p-3 rounded-md"/>}
+                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required className="w-full bg-input p-3 rounded-md"/>
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" required className="w-full bg-input p-3 rounded-md"/>
+                    {!isLogin && (
+                        <>
+                            <select value={role} onChange={e => setRole(e.target.value as any)} className="w-full bg-input p-3 rounded-md">
+                                <option value="student">Student</option>
+                                <option value="teacher">Teacher</option>
+                            </select>
+                            {role === 'student' && <input type="text" value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} placeholder="Enrollment ID" required className="w-full bg-input p-3 rounded-md"/>}
+                        </>
+                    )}
+                    <button type="submit" disabled={isLoading} className="w-full bg-primary text-primary-foreground py-3 rounded-md font-semibold disabled:opacity-50">
+                        {isLoading ? <Loader className="animate-spin mx-auto"/> : (isLogin ? 'Login' : 'Create Account')}
+                    </button>
+                </form>
+                <p className="text-center text-sm text-muted-foreground mt-6">
+                    {isLogin ? "Don't have an account?" : "Already have an account?"}
+                    <button onClick={() => setIsLogin(!isLogin)} className="text-primary hover:underline ml-1">
+                        {isLogin ? 'Sign Up' : 'Login'}
+                    </button>
                 </p>
-                <div className="space-y-4">
-                    <button onClick={() => onSelectRole('teacher')} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-lg">
-                        <UserIcon size={20}/> Enter as Teacher
-                    </button>
-                    <button onClick={() => onSelectRole('student')} className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-lg">
-                        <GraduationCap size={20}/> Enter as Student
-                    </button>
-                </div>
             </div>
         </div>
     );
 };
 
-// --- MAIN PORTAL COMPONENT ---
-const StudentTeacherPortal: React.FC = () => {
+export const StudentTeacherPortal: React.FC = () => {
     const [user, setUser] = useState<PortalUser | null>(null);
-    const [demoUser, setDemoUser] = useState<PortalUser | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isDemo, setIsDemo] = useState(true); // Default to demo mode
     const toast = useToast();
 
     useEffect(() => {
-        if (!supabase) { setLoading(false); return; }
-        const checkUser = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) { try { const profile = await Portal.getUserProfile(session.user.id); setUser(profile); } catch (error: any) { console.error("Failed to fetch profile:", error); await supabase.auth.signOut(); setUser(null); }}
-            setLoading(false);
-        };
-        checkUser();
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => { if (session) { const profile = await Portal.getUserProfile(session.user.id); setUser(profile); } else { setUser(null); }});
-        return () => subscription.unsubscribe();
-    }, []);
+        // In cloud mode, check for an existing session
+        if (!isDemo) {
+            const checkSession = async () => {
+                try {
+                    const { data: { session } } = await supabase!.auth.getSession();
+                    if (session?.user) {
+                        const profile = await Portal.getUserProfile(session.user.id);
+                        setUser(profile);
+                    }
+                } catch (error: any) {
+                   toast.error(error.message);
+                } finally {
+                   setLoading(false);
+                }
+            };
+            checkSession();
+        } else {
+             // In demo mode, check session storage
+            const demoRole = sessionStorage.getItem('demo-role');
+            if (demoRole === 'teacher' || demoRole === 'student') {
+                LocalPortal.getDemoUser(demoRole).then(demoUser => {
+                    setUser(demoUser);
+                    setLoading(false);
+                });
+            } else {
+                 setLoading(false);
+            }
+        }
+    }, [isDemo, toast]);
     
-    const handleDemoLogin = async (role: 'teacher' | 'student') => {
-        setLoading(true);
-        try {
-            const demoProfile = await LocalPortal.getDemoUser(role);
-            sessionStorage.setItem('demo-role', role);
-            setDemoUser(demoProfile);
-            toast.success(`Entered demo mode as ${role}.`);
-        } catch(error: any) {
-            const errorMessage = error?.message || 'An unknown database error occurred. Please check browser settings or try a different browser.';
-            toast.error(`Could not start demo mode: ${errorMessage}`);
-            console.error("Demo login failed:", error);
-        } finally {
-            setLoading(false);
+    const handleLogout = async () => {
+        if(isDemo) {
+            sessionStorage.removeItem('demo-role');
+            setUser(null);
+        } else {
+            // FIX: Changed Portal.supabase access to the directly imported supabase client.
+            const { error } = await supabase!.auth.signOut();
+            if (error) toast.error(error.message);
+            else setUser(null);
         }
     };
     
-    const handleLogout = async () => { 
-        if (supabase) await supabase.auth.signOut(); 
-        sessionStorage.removeItem('demo-role'); 
-        setUser(null); 
-    };
-    const handleDemoLogout = () => { 
-        setDemoUser(null); 
-        sessionStorage.removeItem('demo-role'); 
-        toast.info("Exited demo mode."); 
-    };
-    
-    if (loading) return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary" size={32}/></div>;
-    
-    if (demoUser) {
-        const dashboard = demoUser.role === 'teacher' ? <TeacherDashboard user={demoUser} onLogout={handleDemoLogout} isDemo={true} /> : <StudentDashboard user={demoUser} onLogout={handleDemoLogout} isDemo={true} />;
-        return dashboard;
-    }
-    
-    if (user) {
-        const dashboard = user.role === 'teacher' ? <TeacherDashboard user={user} onLogout={handleLogout} /> : <StudentDashboard user={user} onLogout={handleLogout} />;
-        return <LocationGuard onLogout={handleLogout}>{dashboard}</LocationGuard>;
-    }
-    
-    if (!supabase) {
-        return <PortalEntryScreen onSelectRole={handleDemoLogin} isOffline={true} />;
+    const handleSelectDemo = (role: 'teacher' | 'student') => {
+        sessionStorage.setItem('demo-role', role);
+        setLoading(true);
+        LocalPortal.getDemoUser(role).then(demoUser => {
+            setUser(demoUser);
+            setLoading(false);
+        });
     }
 
-    return <PortalEntryScreen onSelectRole={handleDemoLogin} />;
+    if (loading) return <div className="flex-1 flex items-center justify-center"><Loader className="animate-spin text-primary" size={48}/></div>;
+
+    return (
+        <div className="flex-1 flex flex-col h-full bg-background">
+            {user ? (
+                user.role === 'teacher' ? <TeacherDashboard user={user} onLogout={handleLogout} isDemo={isDemo}/> : <StudentDashboard user={user} onLogout={handleLogout} isDemo={isDemo}/>
+            ) : (
+                <AuthView onLogin={setUser} isDemo={isDemo} onSelectDemo={handleSelectDemo} />
+            )}
+        </div>
+    );
 };
-
-export default StudentTeacherPortal;
