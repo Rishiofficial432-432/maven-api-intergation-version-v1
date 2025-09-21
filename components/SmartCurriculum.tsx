@@ -4,6 +4,7 @@ import { Wand2, Loader, UploadCloud, FileText, BookOpen, Lightbulb, ArrowLeft, M
 import { geminiAI } from './gemini';
 import { useToast } from './Toast';
 import { Type } from '@google/genai';
+import SimulatedProgressBar from './SimulatedProgressBar';
 
 // Make the simulation more generic
 const simulateFileExtraction = async (file: File): Promise<string> => {
@@ -249,10 +250,13 @@ Your response MUST be a single JSON object that adheres to the provided schema. 
             {/* Output Column */}
             <div className="bg-card border border-border rounded-xl p-6 overflow-y-auto">
                  {isGenerating ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                        <Loader className="w-12 h-12 animate-spin text-primary mb-4" />
-                        <p className="text-lg font-semibold">Generating your curriculum...</p>
-                        <p>This may take a moment.</p>
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center">
+                        <Lightbulb size={48} className="text-primary mb-4 animate-pulse" />
+                        <h2 className="text-2xl font-bold">Crafting Your Curriculum...</h2>
+                        <p className="text-muted-foreground mt-2 mb-6 max-w-md">The AI is designing a week-by-week plan based on your materials.</p>
+                        <div className="w-full max-w-sm">
+                            <SimulatedProgressBar isProcessing={isGenerating} />
+                        </div>
                     </div>
                 ) : pageState === 'result' ? (
                     renderResult()

@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, X, Play, Pause, RotateCcw, Calendar, CheckSquare as CheckSquareIcon, List as ListIcon,
@@ -20,6 +16,7 @@ import { useToast } from './Toast';
 import { 
     Page, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem
 } from '../types';
+import SimulatedProgressBar from './SimulatedProgressBar';
 
 
 // --- AI BRAIN DUMP SUB-COMPONENT ---
@@ -147,6 +144,19 @@ Structure your response strictly as a JSON object matching the provided schema. 
 
     const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
 
+    if (isProcessing) {
+        return (
+            <div className={`${cardClasses} p-6 flex flex-col items-center justify-center text-center h-full animate-fade-in-up`}>
+                <Wand2 size={48} className="text-primary mb-4 animate-pulse" />
+                <h2 className="text-2xl font-bold">Analyzing Your Thoughts...</h2>
+                <p className="text-muted-foreground mt-2 mb-6 max-w-xl">The AI is categorizing your tasks, events, and notes. This may take a moment.</p>
+                <div className="w-full max-w-md">
+                    <SimulatedProgressBar isProcessing={isProcessing} />
+                </div>
+            </div>
+        );
+    }
+
     if (result && itemsToSave) {
         return (
             <div className={`${cardClasses} p-6 animate-fade-in-up`}>
@@ -210,7 +220,7 @@ Structure your response strictly as a JSON object matching the provided schema. 
                     disabled={isProcessing || !input.trim()}
                     className="mt-4 w-full max-w-xs flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg text-lg font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
                 >
-                    {isProcessing ? <><Loader className="animate-spin"/> Processing...</> : <><Wand2/> Process with AI</>}
+                    <Wand2/> Process with AI
                 </button>
                 {error && <p className="text-destructive mt-4 text-sm">{error}</p>}
             </div>

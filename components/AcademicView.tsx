@@ -9,6 +9,7 @@ import CurriculumView from './SmartCurriculum';
 import TestsView from './TestsView';
 import ProgressView from './ProgressView';
 import AcademicCalendar from './AcademicCalendar';
+import SimulatedProgressBar from './SimulatedProgressBar';
 
 type AcademicViewTab = 'portal' | 'routine' | 'scheduler' | 'curriculum' | 'tests' | 'progress' | 'calendar';
 
@@ -108,8 +109,13 @@ Crucial Instruction: The output MUST be plain text only. Do not use any markdown
                 <h3 className="text-xl font-bold mb-4">AI-Generated Daily Plan</h3>
                 <div className="overflow-y-auto h-[calc(100vh-250px)]">
                     {isLoading ? (
-                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                            <Loader className="animate-spin mr-2" /> Building your personalized routine...
+                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center">
+                            <Clock size={48} className="text-primary mb-4 animate-pulse" />
+                            <h2 className="text-2xl font-bold">Planning Your Day...</h2>
+                            <p className="text-muted-foreground mt-2 mb-6 max-w-md">The AI is analyzing your schedule and goals to create an optimal routine.</p>
+                            <div className="w-full max-w-sm">
+                                <SimulatedProgressBar isProcessing={isLoading} />
+                            </div>
                         </div>
                     ) : routine ? (
                         <pre className="whitespace-pre-wrap text-foreground/90 font-sans leading-relaxed">{routine}</pre>

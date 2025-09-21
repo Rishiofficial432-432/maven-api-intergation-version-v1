@@ -5,6 +5,7 @@ import { useToast } from './Toast';
 import { Loader, Plus, Trash2, Send, ChevronLeft, Check, X, CheckSquare, Clock, FileText, Wand2, UploadCloud } from 'lucide-react';
 import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
+import SimulatedProgressBar from './SimulatedProgressBar';
 
 // For the demo, we need to get the current user from the demo login logic.
 const useDemoUser = (): [PortalUser | null, boolean] => {
@@ -306,6 +307,18 @@ Return a single JSON object.`;
         onTestCreated();
     };
 
+    if (isLoading) {
+        return (
+            <div className="bg-card border border-border rounded-xl p-6 flex flex-col items-center justify-center text-center min-h-[400px]">
+                <FileText size={48} className="text-primary mb-4 animate-pulse" />
+                <h2 className="text-2xl font-bold">Generating Test Questions...</h2>
+                <p className="text-muted-foreground mt-2 mb-6 max-w-md">The AI is analyzing your document and creating questions based on the selected difficulty.</p>
+                <div className="w-full max-w-sm">
+                    <SimulatedProgressBar isProcessing={isLoading} />
+                </div>
+            </div>
+        );
+    }
 
     if (step === 'review') {
         return (
@@ -362,7 +375,7 @@ Return a single JSON object.`;
                 </div>
                  <button onClick={handleGenerate} disabled={isLoading || !file}
                     className="w-full mt-4 p-3 bg-primary text-primary-foreground rounded-md font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-                    {isLoading ? <><Loader size={20} className="animate-spin" /> Generating...</> : <><Wand2 size={20}/> Generate Questions with AI</>}
+                    <Wand2 size={20}/> Generate Questions with AI
                 </button>
             </div>
         </div>
