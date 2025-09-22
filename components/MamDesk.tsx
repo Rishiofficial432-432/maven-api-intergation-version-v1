@@ -14,7 +14,7 @@ import { geminiAI } from './gemini';
 import { Type } from '@google/genai';
 import { useToast } from './Toast';
 import { 
-    Page, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem
+    Page, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote, MoodEntry, Expense, Goal, KanbanItem, KanbanColumn
 } from '../types';
 import SimulatedProgressBar from './SimulatedProgressBar';
 
@@ -173,13 +173,15 @@ Structure your response strictly as a JSON object matching the provided schema. 
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {Object.entries(itemsToSave).map(([category, items]) => {
-                        if (items.length === 0) return null;
+                        // FIX: Cast `items` to any[] to access length property, as TypeScript has trouble with type inference here.
+                        if ((items as any[]).length === 0) return null;
                         const info = categoryInfo[category as keyof typeof categoryInfo];
                         return (
                             <div key={category}>
                                 <h3 className="font-semibold mb-2 flex items-center gap-2">{info.icon} {info.title}</h3>
                                 <div className="space-y-2">
-                                    {items.map((item: any, index: number) => (
+                                    {/* FIX: Cast `items` to any[] to call map, as TypeScript has trouble with type inference here. */}
+                                    {(items as any[]).map((item: any, index: number) => (
                                         <div key={index} className={`p-3 rounded-lg flex items-start gap-3 cursor-pointer transition-colors ${item.checked ? 'bg-primary/10' : 'bg-secondary/50'}`} onClick={() => handleToggleItem(category as keyof SaveableItems, index)}>
                                             <div className="mt-1">
                                                 {item.checked ? <CheckSquare size={18} className="text-primary"/> : <Square size={18} className="text-muted-foreground"/>}
@@ -394,9 +396,11 @@ export const MamDesk: React.FC<MamDeskProps> = (props) => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {Object.entries(kanbanColumns).map(([colId, col]) => (
         <div key={colId} className={`${cardClasses}`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, colId)}>
-          <h3 className="font-bold p-4 text-center border-b border-border">{col.name}</h3>
+          {/* FIX: Cast `col` to KanbanColumn to access its properties. */}
+          <h3 className="font-bold p-4 text-center border-b border-border">{(col as KanbanColumn).name}</h3>
           <div className="space-y-3 min-h-[100px] max-h-96 overflow-y-auto p-4">
-            {col.items.map(item => (
+            {/* FIX: Cast `col` to KanbanColumn to access its properties. */}
+            {(col as KanbanColumn).items.map(item => (
               <div key={item.id} draggable onDragStart={(e) => handleDragStart(e, colId, item)} className="p-3 bg-secondary rounded-md cursor-grab active:cursor-grabbing flex items-center gap-2">
                 <GripVertical size={16} className="text-muted-foreground" />
                 <span>{item.text}</span>
@@ -575,7 +579,8 @@ const Personal = () => {
 
     const handleAddExpense = (e: React.FormEvent) => {
         e.preventDefault();
-        const amount = parseFloat(expenseAmount);
+        // FIX: Cast expenseAmount to string to satisfy parseFloat, as type inference seems to fail here.
+        const amount = parseFloat(expenseAmount as string);
         if (!expenseDesc.trim() || isNaN(amount) || amount <= 0) {
             toast.error("Invalid expense details.");
             return;
@@ -627,7 +632,8 @@ const Personal = () => {
             <div className={`md:col-span-2 ${cardClasses} p-4 flex flex-col`}>
                 <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><DollarSign size={20}/> Recent Expenses</h3>
                 <div className="space-y-1 max-h-32 overflow-y-auto pr-2 flex-grow">
-                    {expenses.map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between text-sm"><span>{e.description} ({e.category})</span> <span className="font-semibold">${e.amount.toFixed(2)}</span></div>)}
+                    {/* FIX: Cast `e.amount` to number to call toFixed(). */}
+                    {expenses.map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between text-sm"><span>{e.description} ({e.category})</span> <span className="font-semibold">${(e.amount as number).toFixed(2)}</span></div>)}
                 </div>
                 <form onSubmit={handleAddExpense} className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border">
                     <input value={expenseDesc} onChange={e => setExpenseDesc(e.target.value)} placeholder="Description" className="col-span-3 bg-input p-2 rounded-md text-sm" />
@@ -669,7 +675,8 @@ const Analytics = () => {
 
 
     const expenseByCategory = expenses.reduce((acc, expense) => {
-        acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
+        // FIX: Cast `expense.amount` to number for arithmetic operation.
+        acc[expense.category] = (acc[expense.category] || 0) + (expense.amount as number);
         return acc;
     }, {} as Record<string, number>);
     const maxExpense = Math.max(...Object.values(expenseByCategory), 0);

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 
 // Custom hook for persisting state to localStorage, moved here for centralization
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+// FIX: Import Dispatch and SetStateAction from react to correctly type the hook's return value.
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, Dispatch<SetStateAction<T>>] => {
   const [value, setValue] = useState<T>(() => {
     try {
       const item = window.localStorage.getItem(key);

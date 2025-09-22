@@ -81,7 +81,8 @@ const StudentProgressView: React.FC<{ user: PortalUser }> = ({ user }) => {
         const testMap = new Map(tests.map(t => [t.id, t]));
         const submissionsWithSubjects: EnrichedSubmission[] = submissions.map(sub => ({
             ...sub,
-            subject: testMap.get(sub.testId)?.subject || 'N/A'
+            // FIX: Cast the result of testMap.get() to Test to allow accessing the 'subject' property.
+            subject: (testMap.get(sub.testId) as Test)?.subject || 'N/A'
         }));
 
         const subjects = [...new Set(submissionsWithSubjects.map(s => s.subject))].sort();
