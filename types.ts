@@ -1,4 +1,4 @@
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research';
 
 export interface Page {
   id: string;
@@ -49,7 +49,7 @@ export interface KanbanColumn {
 }
 
 export interface KanbanState {
-  [key: string]: KanbanColumn;
+  [key:string]: KanbanColumn;
 }
 
 export interface QuickNote {
