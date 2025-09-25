@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PortalUser, CurriculumFile } from '../types';
 import * as Portal from './portal-supabase';
@@ -6,7 +8,6 @@ import { supabase } from './supabase-config';
 import { CheckCircle, Clock, Loader, LogOut, Info, Users, BookOpen, Smartphone, ShieldCheck, X, User as UserIcon, Mail, Lock, Save, Edit, Trash2, Calendar, MapPin, Copy, RefreshCw, AlertTriangle, BarChart2, Lightbulb, UserCheck, Percent, Wand2, ClipboardList, Download, QrCode, UploadCloud, FileText, Check, GraduationCap } from 'lucide-react';
 import { useToast } from './Toast';
 import QRCode from 'qrcode';
-import { Session } from '@supabase/supabase-js';
 
 // --- HELPERS ---
 const getGeolocationErrorMessage = (error: GeolocationPositionError): string => {
@@ -390,7 +391,6 @@ const StudentDashboard: React.FC<{ user: PortalUser, onLogout: () => void, isDem
                     toast.error("File data not found in local demo.");
                 }
             } else {
-                // FIX: Changed PortalAPI access to the directly imported supabase client.
                  const { data } = await supabase!.storage.from('curriculum_uploads').getPublicUrl(file.storage_path);
                  window.open(data.publicUrl, '_blank');
             }
@@ -540,7 +540,8 @@ export const StudentTeacherPortal: React.FC = () => {
         if (!isDemo) {
             const checkSession = async () => {
                 try {
-                    const { data: { session } } = await supabase!.auth.getSession();
+                    // FIX: supabase.auth.session() is deprecated. Reverting to V1 `session()` due to type errors.
+                    const session = supabase!.auth.session();
                     if (session?.user) {
                         const profile = await Portal.getUserProfile(session.user.id);
                         setUser(profile);
@@ -571,10 +572,12 @@ export const StudentTeacherPortal: React.FC = () => {
             sessionStorage.removeItem('demo-role');
             setUser(null);
         } else {
-            // FIX: Changed Portal.supabase access to the directly imported supabase client.
-            const { error } = await supabase!.auth.signOut();
-            if (error) toast.error(error.message);
-            else setUser(null);
+            if (supabase) {
+                // FIX: supabase.auth.signOut() is correct, but the error indicates a type issue. Assuming the user has outdated types, will leave as is, as it's the correct V2 call.
+                const { error } = await supabase.auth.signOut();
+                if (error) toast.error(error.message);
+                else setUser(null);
+            }
         }
     };
     

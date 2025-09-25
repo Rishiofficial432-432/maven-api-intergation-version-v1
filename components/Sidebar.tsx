@@ -3,7 +3,8 @@ import { Page, View } from '../types';
 import { PlusIcon, FileTextIcon, BookIcon, LayoutGridIcon } from './Icons';
 import { 
   Home, CheckSquare, List, Calendar, Timer, Target, BarChart3, User, Settings, HelpCircleIcon, FileText, Dice6, BookText, Clipboard, FileSearch,
-  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap, Clock, Heart, ClipboardList, Library, Rocket
+  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap, Clock, Heart, ClipboardList, Library, Rocket, TrendingUp,
+  Cpu
 } from 'lucide-react';
 
 
@@ -72,6 +73,22 @@ const Sidebar: React.FC<SidebarProps> = ({
                 )}
             </button>
             <button
+                onClick={() => setView('dashboard')}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'dashboard' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+                title="Dashboard"
+            >
+                <LayoutGridIcon className="w-5 h-5 flex-shrink-0" />
+                {!isCollapsed && <span>Dashboard</span>}
+            </button>
+            <button
+                onClick={() => setView('life-os')}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'life-os' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+                title="Life OS"
+            >
+                <Cpu className="w-5 h-5 flex-shrink-0" />
+                {!isCollapsed && <span>Life OS</span>}
+            </button>
+            <button
                 onClick={() => setView('academics')}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'academics' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
                 title="Academics"
@@ -80,12 +97,12 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {!isCollapsed && <span>Academics</span>}
             </button>
              <button
-                onClick={() => setView('pathfinder')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'pathfinder' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
-                title="Pathfinder"
+                onClick={() => setView('skill-analyzer')}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'skill-analyzer' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+                title="Skill Analyzer"
             >
-                <Rocket className="w-5 h-5 flex-shrink-0" />
-                {!isCollapsed && <span>Pathfinder</span>}
+                <TrendingUp className="w-5 h-5 flex-shrink-0" />
+                {!isCollapsed && <span>Skill Analyzer</span>}
             </button>
             <button
                 onClick={() => setView('notes')}
@@ -94,14 +111,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             >
                 <BookIcon className="w-5 h-5 flex-shrink-0" />
                 {!isCollapsed && <span>Notes</span>}
-            </button>
-            <button
-                onClick={() => setView('dashboard')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'dashboard' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
-                title="Dashboard"
-            >
-                <LayoutGridIcon className="w-5 h-5 flex-shrink-0" />
-                {!isCollapsed && <span>Dashboard</span>}
             </button>
              <button
                 onClick={() => setView('journal')}
@@ -148,7 +157,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'inspiration' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
                 title="Inspiration"
             >
-                <Heart className="w-5 h-5 flex-shrink-0 text-pink-400" />
+                <Heart className="w-5 h-5 text-pink-400" />
                 {!isCollapsed && <span>Inspiration</span>}
             </button>
         </nav>
@@ -216,7 +225,8 @@ const Sidebar: React.FC<SidebarProps> = ({
              {view === 'documind' && <FileSearch className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'workspace' && <Briefcase className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'academics' && <GraduationCap className="w-8 h-8 mx-auto mb-2"/>}
-             {view === 'pathfinder' && <Rocket className="w-8 h-8 mx-auto mb-2"/>}
+             {view === 'skill-analyzer' && <TrendingUp className="w-8 h-8 mx-auto mb-2"/>}
+             {view === 'life-os' && <Cpu className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'about' && <Info className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'research' && <Library className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'inspiration' && <Heart className="w-8 h-8 mx-auto mb-2 text-pink-400"/>}

@@ -16,7 +16,8 @@ import AboutPage from './components/AboutPage';
 import { HelpPage } from './components/HelpPage';
 import InspirationPage from './components/InspirationPage';
 import ResearchPage from './components/ResearchPage';
-import PathfinderPage from './components/CareerGuidance';
+import SkillAnalyzerPage from './components/CareerGuidance';
+import LifeOSPage from './components/LifeOS';
 import { Section } from './components/Section';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon, ImageIcon, Trash2 } from 'lucide-react';
 import { getSupabaseCredentials, updateSupabaseCredentials, connectionStatus } from './components/supabase-config';
@@ -24,7 +25,7 @@ import usePersistentState from './components/usePersistentState';
 import { Type } from '@google/genai';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
-  MoodEntry, Expense, Goal, KanbanItem, GeneratedCurriculum, CareerPath
+  MoodEntry, Expense, Goal, KanbanItem, GeneratedCurriculum, WeeklyReviewData
 } from './types';
 import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
 import TemplateLibrary from './components/TemplateLibrary';
@@ -105,6 +106,9 @@ const App: React.FC = () => {
   // State for persistent curriculum generation
   const [curriculumResult, setCurriculumResult] = usePersistentState<GeneratedCurriculum | null>('maven-curriculum-result', null);
   const [isCurriculumGenerating, setIsCurriculumGenerating] = useState(false);
+  
+  // State for Life OS
+  const [weeklyReview, setWeeklyReview] = usePersistentState<WeeklyReviewData | null>('maven-weekly-review', null);
 
 
   // --- LIFECYCLE & INITIALIZATION ---
@@ -811,7 +815,7 @@ const App: React.FC = () => {
     const appViews: View[] = ['notes', 'journal', 'documind', 'workspace', 'academics'];
     
     // These are "content" pages that will be placed inside a standard scrolling container.
-    const pageViews: View[] = ['dashboard', 'about', 'help', 'settings', 'inspiration', 'research', 'pathfinder'];
+    const pageViews: View[] = ['dashboard', 'about', 'help', 'settings', 'inspiration', 'research', 'skill-analyzer', 'life-os'];
 
     // Render "app" views directly; they are responsible for their own layout.
     if (appViews.includes(view)) {
@@ -861,11 +865,21 @@ const App: React.FC = () => {
               pages={pages}
               onNewNote={handleNewPage}
           />,
+        'life-os': <LifeOSPage
+            pages={pages}
+            journalEntries={journalEntries}
+            tasks={tasks}
+            events={events}
+            habits={habits}
+            moodEntries={moodEntries}
+            weeklyReview={weeklyReview}
+            setWeeklyReview={setWeeklyReview}
+        />,
         about: <AboutPage />,
         help: <HelpPage />,
         research: <ResearchPage />,
         inspiration: <InspirationPage inspirationImageId={inspirationImageId} />,
-        pathfinder: <PathfinderPage onNewNote={handleNewPage} />,
+        'skill-analyzer': <SkillAnalyzerPage onNewNote={handleNewPage} />,
         settings: (
           <div className="max-w-4xl mx-auto space-y-8">
             <Section title="API Configuration">

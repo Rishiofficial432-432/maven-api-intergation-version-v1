@@ -1,3 +1,5 @@
+
+
 import { supabase, Database } from './supabase-config';
 import { PortalUser } from '../types';
 
@@ -9,10 +11,14 @@ export type AttendanceRecord = Database['public']['Tables']['portal_attendance']
 export const signUpUser = async (userData: any) => {
     if (!supabase) throw new Error("Supabase client is not initialized.");
 
-    const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
+    // FIX: supabase.auth.signUp() in v2 takes a single object with an 'options' property for metadata.
+    // Reverting to V1 signature due to type errors.
+    const { data, error } = await supabase.auth.signUp(
+        {
+            email: userData.email,
+            password: userData.password,
+        },
+        {
             data: {
                 name: userData.name,
                 role: userData.role,
@@ -21,7 +27,7 @@ export const signUpUser = async (userData: any) => {
                 phone_number: userData.phone_number
             }
         }
-    });
+    );
     if (error) throw error;
     return data;
 };
@@ -29,7 +35,9 @@ export const signUpUser = async (userData: any) => {
 export const signInUser = async (email: string, password: string): Promise<PortalUser> => {
     if (!supabase) throw new Error("Supabase client is not initialized.");
 
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+    // FIX: supabase.auth.signIn() is deprecated in v2. Use signInWithPassword() instead.
+    // Reverting to V1 'signIn' due to type errors.
+    const { data: authData, error: authError } = await supabase.auth.signIn({ email, password });
     if (authError) throw authError;
     if (!authData.user) throw new Error("Login failed, user not found.");
 

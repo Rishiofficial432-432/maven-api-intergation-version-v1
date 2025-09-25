@@ -1,4 +1,4 @@
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'pathfinder';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer' | 'life-os';
 
 export interface Page {
   id: string;
@@ -238,73 +238,70 @@ export interface TestSubmission {
   testTitle?: string;
 }
 
-// Types for Career Guidance
-export interface StudentProfile {
-  id: string;
-  personalDetails: {
-    name: string;
-    age: number;
-    gender: string;
-    location: string;
-    interests: string;
-    preferences: {
-      universities: string[];
-    };
-  };
-  academicDetails: {
-    tenthScore: number;
-    twelfthScore: number;
-    stream: 'Science' | 'Commerce' | 'Arts' | 'Diploma';
-    dropYear: boolean;
-    competitiveExams: Array<{
-      id: string;
-      name: string;
-      score: string;
-    }>;
-  };
-  familyBackground: {
-    fatherIncome: number;
-    financialConstraints: boolean;
-  };
-  createdAt: string;
+// Types for Skill Gap Analyzer
+export interface SkillProfile {
+    id: string;
+    currentRole: string;
+    aspirationalRole: string;
+    knownSkills: string[];
+    skillsToLearn: string[];
+    createdAt: string;
 }
 
-export interface CareerRecommendation {
-  colleges: CollegeSuggestion[];
-  exams: ExamPath[];
-  careerPaths: CareerPath[];
-  backupOptions: BackupOption[];
+export interface LearningModule {
+    moduleNumber: number;
+    title: string;
+    skillsCovered: string[];
+    description: string;
+    resources: {
+        title: string;
+        type: 'Article' | 'Video' | 'Course' | 'Book' | 'Documentation';
+        description: string;
+    }[];
+    projectIdea: string;
 }
 
-export interface CollegeSuggestion {
-  name: string;
-  type: 'IIT' | 'NIT' | 'State' | 'Private' | 'International' | 'Online';
-  eligibility: number; // 1-100 match score
-  affordability: 'High' | 'Medium' | 'Low';
-  location: string;
-  fees: number;
-  cutoffRange: string;
+export interface SkillAnalysis {
+    currentSkills: string[];
+    targetSkills: string[];
+    gapAnalysis: {
+        skill: string;
+        priority: 'High' | 'Medium' | 'Low';
+    }[];
+    personalizedLearningPath: LearningModule[];
 }
 
-export interface ExamPath {
-  name: string;
-  description: string;
-  eligibility: 'High' | 'Medium' | 'Low';
-  preparationTime: string;
-  careerScope: string;
+// Types for Life OS Weekly Review
+export interface ActivityHeatmap {
+  [day: string]: number[]; // Array of 24 numbers for each hour
 }
 
-export interface CareerPath {
-  title: string;
-  description: string;
-  requiredExams: string[];
-  avgSalary: string;
-  growthRate: string;
+export interface TimeAnalysis {
+  mostProductiveDay: string;
+  mostProductiveTime: string;
+  activityHeatmap: ActivityHeatmap;
 }
 
-export interface BackupOption {
-  title: string;
-  description: string;
-  whenToConsider: string;
-  alternativePaths: string[];
+export interface TaskAnalysis {
+  tasksCompleted: number;
+  tasksAdded: number;
+  completionRate: number;
+}
+
+export interface MoodCorrelation {
+  activity: string;
+  moodImpact: 'positive' | 'negative' | 'neutral';
+}
+
+export interface MoodAnalysis {
+  overallMood: string;
+  moodTrend: 'improving' | 'declining' | 'stable';
+  moodCorrelations: MoodCorrelation[];
+}
+
+export interface WeeklyReviewData {
+  timeAnalysis: TimeAnalysis;
+  taskAnalysis: TaskAnalysis;
+  moodAnalysis: MoodAnalysis;
+  keySummary: string;
 }
