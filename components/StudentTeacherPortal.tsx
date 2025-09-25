@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PortalUser, CurriculumFile } from '../types';
 import * as Portal from './portal-supabase';
@@ -540,8 +539,8 @@ export const StudentTeacherPortal: React.FC = () => {
         if (!isDemo) {
             const checkSession = async () => {
                 try {
-                    // FIX: supabase.auth.session() is deprecated. Reverting to V1 `session()` due to type errors.
-                    const session = supabase!.auth.session();
+                    // FIX: supabase.auth.session() is deprecated. Use getSession() instead.
+                    const { data: { session } } = await supabase!.auth.getSession();
                     if (session?.user) {
                         const profile = await Portal.getUserProfile(session.user.id);
                         setUser(profile);

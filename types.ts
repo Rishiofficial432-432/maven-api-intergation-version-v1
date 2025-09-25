@@ -1,4 +1,4 @@
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer' | 'life-os';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer';
 
 export interface Page {
   id: string;
@@ -269,39 +269,4 @@ export interface SkillAnalysis {
         priority: 'High' | 'Medium' | 'Low';
     }[];
     personalizedLearningPath: LearningModule[];
-}
-
-// Types for Life OS Weekly Review
-export interface ActivityHeatmap {
-  [day: string]: number[]; // Array of 24 numbers for each hour
-}
-
-export interface TimeAnalysis {
-  mostProductiveDay: string;
-  mostProductiveTime: string;
-  activityHeatmap: ActivityHeatmap;
-}
-
-export interface TaskAnalysis {
-  tasksCompleted: number;
-  tasksAdded: number;
-  completionRate: number;
-}
-
-export interface MoodCorrelation {
-  activity: string;
-  moodImpact: 'positive' | 'negative' | 'neutral';
-}
-
-export interface MoodAnalysis {
-  overallMood: string;
-  moodTrend: 'improving' | 'declining' | 'stable';
-  moodCorrelations: MoodCorrelation[];
-}
-
-export interface WeeklyReviewData {
-  timeAnalysis: TimeAnalysis;
-  taskAnalysis: TaskAnalysis;
-  moodAnalysis: MoodAnalysis;
-  keySummary: string;
 }
