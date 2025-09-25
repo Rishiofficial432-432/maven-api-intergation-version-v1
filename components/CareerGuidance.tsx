@@ -17,7 +17,7 @@ const careerRecommendationSchema = {
             items: {
                 type: Type.OBJECT,
                 properties: {
-                    name: { type: Type.STRING }, type: { type: Type.STRING }, eligibility: { type: Type.NUMBER }, affordability: { type: Type.STRING }, location: { type: Type.STRING }, fees: { type: Type.NUMBER }, cutoffRange: { type: Type.STRING },
+                    name: { type: Type.STRING }, type: { type: Type.STRING, enum: ['IIT', 'NIT', 'State', 'Private', 'International', 'Online'] }, eligibility: { type: Type.NUMBER }, affordability: { type: Type.STRING }, location: { type: Type.STRING }, fees: { type: Type.NUMBER }, cutoffRange: { type: Type.STRING },
                 }
             }
         },
@@ -81,17 +81,32 @@ const useCareerGuidance = () => {
     
     try {
       const prompt = `
-        Based on this student profile, provide comprehensive career guidance specifically tailored for the Indian education system and current job market trends in India.
-        Student Profile: ${JSON.stringify(studentProfile, null, 2)}
-        
-        Key Instructions:
-        1.  Analyze the student's stream, scores, and especially their stated interests and competitive exam performance.
-        2.  College suggestions should include a mix of relevant IITs, NITs, top State-level, and Private universities. The eligibility score should be a percentage match based on the profile.
-        3.  Exam pathways must be relevant to India (e.g., JEE, NEET, CUET, CAT, GATE).
-        4.  Career path salaries should be in Indian Rupees (INR) and reflect current market trends.
-        5.  Backup options should be practical alternatives within the Indian context.
+        You are an expert career and university admissions counselor specializing in the Indian and international education systems. Your task is to provide a highly detailed, personalized, and strategic roadmap for the following student.
 
-        Return ONLY a valid JSON object matching the provided schema.
+        Student Profile:
+        ${JSON.stringify(studentProfile, null, 2)}
+
+        ---
+        CRUCIAL INSTRUCTIONS - FOLLOW THESE EXACTLY:
+        ---
+
+        1.  **Prioritize Student Preferences:** The student has listed preferred universities. These are their top choices. Prioritize these in your college suggestions. Your primary goal is to find pathways to *these specific institutions*.
+
+        2.  **Generate Alternative Admission Pathways:** This is the most important part of your task. Do not just list standard admission routes. You MUST generate creative, practical, and alternative pathways to the student's preferred universities, especially if their primary qualifications (like competitive exam scores) are not sufficient.
+            -   **Example Scenario:** If a student wants to study Computer Science at an IIT but has a low JEE score, you MUST suggest options like:
+                a.  Pursuing a postgraduate degree (M.Tech/MS) at an IIT after a different bachelor's degree by preparing for the **GATE exam**.
+                b.  Enrolling in reputable **online degrees** offered by top institutions, such as the **IIT Madras BS in Data Science and Applications**.
+                c.  Exploring lateral entry options if applicable.
+                d.  Gaining admission for a different, related degree at the target university and then attempting to switch majors (mention the difficulty of this).
+            -   Integrate these alternative pathways into the "careerPaths" and "backupOptions" sections. Make them specific and actionable.
+
+        3.  **Include All Online Degrees:** In your college and career path suggestions, you MUST include high-quality online degree programs from reputable Indian and international universities (like IIT Madras, BITS Pilani, Coursera partnerships, etc.) as viable and primary options, not just backups. Classify them with the 'Online' type.
+
+        4.  **International Universities:** If the student lists international universities, provide suggestions relevant to those institutions' admission processes (e.g., required exams like SAT/ACT/GRE, the importance of application essays, extracurriculars, etc.).
+
+        5.  **Contextualize for India:** All suggestions regarding exams, salaries (in INR), and career trends must be tailored to the current Indian context.
+
+        Return ONLY a valid JSON object matching the provided schema. Do not add any conversational text, introductions, or explanations outside of the JSON structure.
       `;
 
       const response = await geminiAI.models.generateContent({
@@ -135,7 +150,7 @@ interface ProfileFormProps {
 
 const ProfileForm: React.FC<ProfileFormProps> = ({ onSubmit, initialData, loading, error }) => {
   const [formData, setFormData] = useState<Omit<StudentProfile, 'id' | 'createdAt'>>({
-    personalDetails: initialData?.personalDetails || { name: '', age: 16, gender: '', location: '', interests: '' },
+    personalDetails: initialData?.personalDetails || { name: '', age: 16, gender: '', location: '', interests: '', preferences: { universities: [] } },
     academicDetails: initialData?.academicDetails || { tenthScore: 0, twelfthScore: 0, stream: 'Science', dropYear: false, competitiveExams: [] },
     familyBackground: initialData?.familyBackground || { fatherIncome: 0, financialConstraints: false },
   });
@@ -173,6 +188,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ onSubmit, initialData, loadin
               <div><label className="text-sm text-muted-foreground">Location/City</label><input type="text" value={formData.personalDetails.location} onChange={(e) => handleChange('personalDetails', 'location', e.target.value)} className="w-full bg-input p-2 rounded-md mt-1" required /></div>
               <div><label className="text-sm text-muted-foreground">Gender</label><select value={formData.personalDetails.gender} onChange={(e) => handleChange('personalDetails', 'gender', e.target.value)} className="w-full bg-input p-2 rounded-md mt-1"><option value="">Select Gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div>
               <div className="md:col-span-2"><label className="text-sm text-muted-foreground">Interests & Hobbies</label><textarea value={formData.personalDetails.interests} onChange={(e) => handleChange('personalDetails', 'interests', e.target.value)} placeholder="e.g., Coding, creative writing, robotics, debating..." className="w-full bg-input p-2 rounded-md mt-1" rows={3}/></div>
+              <div className="md:col-span-2"><label className="text-sm text-muted-foreground">Preferred Universities (Optional)</label><textarea value={formData.personalDetails.preferences.universities.join(', ')} onChange={(e) => handleChange('personalDetails', 'preferences', { universities: e.target.value.split(',').map(u => u.trim()).filter(Boolean) })} placeholder="e.g., IIT Bombay, Stanford University, Ashoka University..." className="w-full bg-input p-2 rounded-md mt-1" rows={3} /></div>
             </div>
           </div>
           <div>

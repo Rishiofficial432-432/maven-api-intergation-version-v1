@@ -247,6 +247,9 @@ export interface StudentProfile {
     gender: string;
     location: string;
     interests: string;
+    preferences: {
+      universities: string[];
+    };
   };
   academicDetails: {
     tenthScore: number;
@@ -275,7 +278,7 @@ export interface CareerRecommendation {
 
 export interface CollegeSuggestion {
   name: string;
-  type: 'IIT' | 'NIT' | 'State' | 'Private' | 'International';
+  type: 'IIT' | 'NIT' | 'State' | 'Private' | 'International' | 'Online';
   eligibility: number; // 1-100 match score
   affordability: 'High' | 'Medium' | 'Low';
   location: string;
