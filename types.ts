@@ -1,4 +1,4 @@
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'pathfinder';
 
 export interface Page {
   id: string;
@@ -236,4 +236,72 @@ export interface TestSubmission {
   score: number; // Percentage on auto-graded questions
   submittedAt: string; // ISO timestamp
   testTitle?: string;
+}
+
+// Types for Career Guidance
+export interface StudentProfile {
+  id: string;
+  personalDetails: {
+    name: string;
+    age: number;
+    gender: string;
+    location: string;
+    interests: string;
+  };
+  academicDetails: {
+    tenthScore: number;
+    twelfthScore: number;
+    stream: 'Science' | 'Commerce' | 'Arts' | 'Diploma';
+    dropYear: boolean;
+    competitiveExams: Array<{
+      id: string;
+      name: string;
+      score: string;
+    }>;
+  };
+  familyBackground: {
+    fatherIncome: number;
+    financialConstraints: boolean;
+  };
+  createdAt: string;
+}
+
+export interface CareerRecommendation {
+  colleges: CollegeSuggestion[];
+  exams: ExamPath[];
+  careerPaths: CareerPath[];
+  backupOptions: BackupOption[];
+}
+
+export interface CollegeSuggestion {
+  name: string;
+  type: 'IIT' | 'NIT' | 'State' | 'Private' | 'International';
+  eligibility: number; // 1-100 match score
+  affordability: 'High' | 'Medium' | 'Low';
+  location: string;
+  fees: number;
+  cutoffRange: string;
+}
+
+export interface ExamPath {
+  name: string;
+  description: string;
+  eligibility: 'High' | 'Medium' | 'Low';
+  preparationTime: string;
+  careerScope: string;
+}
+
+export interface CareerPath {
+  title: string;
+  description: string;
+  requiredExams: string[];
+  avgSalary: string;
+  growthRate: string;
+}
+
+export interface BackupOption {
+  title: string;
+  description: string;
+  whenToConsider: string;
+  alternativePaths: string[];
 }

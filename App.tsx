@@ -16,6 +16,7 @@ import AboutPage from './components/AboutPage';
 import { HelpPage } from './components/HelpPage';
 import InspirationPage from './components/InspirationPage';
 import ResearchPage from './components/ResearchPage';
+import PathfinderPage from './components/CareerGuidance';
 import { Section } from './components/Section';
 import { MapPin, Loader, BrainCircuit as BrainCircuitIcon, Save, Download, Upload, AlertTriangle, Eye, EyeOff, Users as UsersIcon, ImageIcon, Trash2 } from 'lucide-react';
 import { getSupabaseCredentials, updateSupabaseCredentials, connectionStatus } from './components/supabase-config';
@@ -23,7 +24,7 @@ import usePersistentState from './components/usePersistentState';
 import { Type } from '@google/genai';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
-  MoodEntry, Expense, Goal, KanbanItem, GeneratedCurriculum
+  MoodEntry, Expense, Goal, KanbanItem, GeneratedCurriculum, CareerPath
 } from './types';
 import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
 import TemplateLibrary from './components/TemplateLibrary';
@@ -810,7 +811,7 @@ const App: React.FC = () => {
     const appViews: View[] = ['notes', 'journal', 'documind', 'workspace', 'academics'];
     
     // These are "content" pages that will be placed inside a standard scrolling container.
-    const pageViews: View[] = ['dashboard', 'about', 'help', 'settings', 'inspiration', 'research'];
+    const pageViews: View[] = ['dashboard', 'about', 'help', 'settings', 'inspiration', 'research', 'pathfinder'];
 
     // Render "app" views directly; they are responsible for their own layout.
     if (appViews.includes(view)) {
@@ -864,6 +865,7 @@ const App: React.FC = () => {
         help: <HelpPage />,
         research: <ResearchPage />,
         inspiration: <InspirationPage inspirationImageId={inspirationImageId} />,
+        pathfinder: <PathfinderPage onNewNote={handleNewPage} />,
         settings: (
           <div className="max-w-4xl mx-auto space-y-8">
             <Section title="API Configuration">
