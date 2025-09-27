@@ -1,4 +1,4 @@
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer' | 'gallery';
 
 export interface Page {
   id: string;

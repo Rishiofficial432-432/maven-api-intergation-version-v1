@@ -29,6 +29,7 @@ import {
 import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
 import TemplateLibrary from './components/TemplateLibrary';
 import { NoteTemplate } from './components/templates';
+import GalleryPage from './components/GalleryPage';
 
 
 const App: React.FC = () => {
@@ -486,317 +487,275 @@ const App: React.FC = () => {
       [sourceColId as keyof KanbanState]: { ...prev[sourceColId as keyof KanbanState], items: newSourceItems },
       [targetColId as keyof KanbanState]: { ...prev[targetColId as keyof KanbanState], items: newTargetItems },
     }));
-
-    return `✅ Moved card "${card.text}" to "${targetColumn}".`;
+    
+    return `Moved card "${card.text}" to "${targetColumn}".`;
   };
-
+  
   const onAddQuickNote = (text: string): string => {
-    setQuickNotes(prev => [{ id: crypto.randomUUID(), text, createdAt: new Date().toISOString() }, ...prev]);
-    return "✅ Quick note added.";
+      setQuickNotes(prev => [{ id: crypto.randomUUID(), text, createdAt: new Date().toISOString() }, ...prev]);
+      return `📝 Quick note added: "${text}"`;
   };
 
   const onListQuickNotes = (): string => {
-    if (quickNotes.length === 0) return "You have no quick notes.";
-    return "Here are your quick notes:\n" + quickNotes.map(n => `- ${n.text}`).join('\n');
+      if (quickNotes.length === 0) return "You have no quick notes.";
+      return "Your quick notes:\n" + quickNotes.map(n => `- ${n.text}`).join('\n');
   };
   
   const onAddHabit = (name: string): string => {
-    if (habits.some(h => h.name.toLowerCase() === name.toLowerCase())) {
-        return `You are already tracking the habit "${name}".`;
-    }
-    const newHabit: Habit = { id: crypto.randomUUID(), name, streak: 0, lastCompleted: null, history: [] };
-    setHabits(prev => [...prev, newHabit]);
-    return `💪 New habit added: "${name}". Let's get started!`;
+      setHabits(prev => [...prev, { id: crypto.randomUUID(), name, streak: 0, lastCompleted: null, history: [] }]);
+      return `🎯 New habit added: "${name}". Good luck!`;
   };
 
   const onCompleteHabit = (name: string): string => {
-    const todayStr = new Date().toDateString();
-    let habitFound = false;
-    let alreadyCompleted = false;
-    setHabits(prev => prev.map(h => {
-      if (h.name.toLowerCase() === name.toLowerCase()) {
-        habitFound = true;
-        if (h.lastCompleted === todayStr) {
-            alreadyCompleted = true;
-            return h;
-        }
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const isConsecutive = h.lastCompleted === yesterday.toDateString();
-        return { ...h, streak: isConsecutive ? h.streak + 1 : 1, lastCompleted: todayStr };
-      }
-      return h;
-    }));
-    if (!habitFound) return `Habit "${name}" not found.`;
-    if (alreadyCompleted) return `You've already completed "${name}" today. Great job!`;
-    return `✅ Habit "${name}" marked as complete for today! Keep it up!`;
+      const todayStr = new Date().toDateString();
+      let habitFound = false;
+      setHabits(prev => prev.map(h => {
+          if (h.name.toLowerCase().includes(name.toLowerCase()) && h.lastCompleted !== todayStr) {
+              habitFound = true;
+              const yesterday = new Date();
+              yesterday.setDate(yesterday.getDate() - 1);
+              const isConsecutive = h.lastCompleted === yesterday.toDateString();
+              return { ...h, streak: isConsecutive ? h.streak + 1 : 1, lastCompleted: todayStr };
+          }
+          return h;
+      }));
+      return habitFound ? `✅ Habit "${name}" completed for today!` : `🤔 Habit "${name}" not found or already completed.`;
   };
   
   const onDeleteHabit = (name: string): string => {
-    let found = false;
-    setHabits(prev => prev.filter(h => {
-        const match = h.name.toLowerCase() === name.toLowerCase();
-        if (match) found = true;
-        return !match;
-    }));
-    return found ? `🗑️ Habit "${name}" has been deleted.` : `🤔 Habit "${name}" not found.`;
+      let habitFound = false;
+      setHabits(prev => prev.filter(h => {
+          const match = h.name.toLowerCase().includes(name.toLowerCase());
+          if (match) habitFound = true;
+          return !match;
+      }));
+      return habitFound ? `🗑️ Habit "${name}" deleted.` : `🤔 Habit "${name}" not found.`;
   };
-  
+
   const onListHabits = (): string => {
-    if (habits.length === 0) return "You are not tracking any habits yet.";
-    return "Your current habits:\n" + habits.map(h => `- ${h.name} (Streak: ${h.streak} days)`).join('\n');
-  };
-
-  const onMakeDecision = (options?: string[]): Promise<string> => {
-    return new Promise(resolve => {
-        const opts = options && options.length > 0 ? options : decisionOptions;
-        if (opts.length === 0) {
-            resolve("There are no options to choose from.");
-            return;
-        }
-        if (opts.length === 1) {
-            resolve(`The only option is ${opts[0]}.`);
-            return;
-        }
-
-        setIsDecisionSpinning(true);
-        setDecisionResult('');
-        let spins = 0;
-        const maxSpins = 20 + Math.floor(Math.random() * 10);
-        const spinInterval = setInterval(() => {
-            const randomIndex = Math.floor(Math.random() * opts.length);
-            setCurrentDecisionSpin(opts[randomIndex]);
-            spins++;
-            if (spins >= maxSpins) {
-                clearInterval(spinInterval);
-                const finalChoice = opts[Math.floor(Math.random() * opts.length)];
-                setDecisionResult(finalChoice);
-                setIsDecisionSpinning(false);
-                setCurrentDecisionSpin('');
-                resolve(`The decision is: ${finalChoice}`);
-            }
-        }, 100);
-    });
-  };
-
-  const onPlanAndCreateNote = async (topic: string): Promise<string> => {
-    if (!geminiAI) return "AI features are disabled.";
-    try {
-      const prompt = `Create a structured plan for the following topic: "${topic}". The plan should be a well-organized list of steps, phases, or key areas. Format it clearly so it can be used as a project outline or study guide.`;
-      const response = await geminiAI.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-      const plan = response.text.replace(/\n/g, '<br/>');
-      handleNewPage(`Plan for: ${topic}`, plan);
-      return `✅ Successfully created a new note with a plan for "${topic}".`;
-    } catch (err) {
-      console.error(err);
-      return "❌ Failed to generate a plan.";
-    }
-  };
-
-  const onWireframeAndCreateNote = async (description: string): Promise<string> => {
-    if (!geminiAI) return "AI features are disabled.";
-    try {
-      const prompt = `Create a textual wireframe for a user interface based on this description: "${description}". Use simple text and indentation to represent the layout of components like headers, buttons, input fields, and content areas. For example:
-[Header: App Name]
-  [Navigation: Home | Profile | Settings]
-[Main Content Area]
-  [Image: Product Photo]
-  [Text: Product Title]
-  [Button: Add to Cart]`;
-      const response = await geminiAI.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
-      const wireframe = `<pre><code>${response.text}</code></pre>`;
-      handleNewPage(`Wireframe: ${description}`, wireframe);
-      return `✅ Successfully created a new note with a wireframe for "${description}".`;
-    } catch (err) {
-      console.error(err);
-      return "❌ Failed to generate a wireframe.";
-    }
-  };
-  
-  const onAddJournalEntry = (content: string, date?: string): string => {
-    const entryDate = date || new Date().toISOString().split('T')[0];
-    onUpdateJournal(entryDate, content);
-    return `✅ Journal entry for ${entryDate} has been saved.`;
-  };
-  
-  const onAddGoal = (text: string): string => {
-    setGoals(prev => [...prev, {id: crypto.randomUUID(), text, completed: false}]);
-    return `🎯 New goal set: "${text}"`;
-  };
-  
-  const onLogMood = (mood: string): string => {
-    const today = new Date().toISOString().split('T')[0];
-    const newEntry = { id: crypto.randomUUID(), mood, date: today };
-    setMoodEntries(prev => [...prev.filter(e => e.date !== today), newEntry]);
-    return `😊 Mood logged for today: ${mood}`;
-  };
-  
-  const onAddExpense = (description: string, amount: number, category: string): string => {
-    const newExpense = { id: crypto.randomUUID(), description, amount, category: category || 'General', date: new Date().toISOString() };
-    setExpenses(prev => [...prev, newExpense]);
-    return `💸 Expense logged: $${amount.toFixed(2)} for ${description}.`;
-  };
-  
-  const onAddPersonalQuote = (text: string): string => {
-    setPersonalQuotes(prev => [...prev, {id: crypto.randomUUID(), text}]);
-    return `❝ Quote added to your collection.`;
+      if (habits.length === 0) return "You are not tracking any habits.";
+      return "Your habits:\n" + habits.map(h => `- ${h.name} (Streak: ${h.streak} days)`).join('\n');
   };
 
   const onTogglePomodoro = () => setPomodoroActive(prev => !prev);
-  const onResetPomodoro = () => {
+  const onResetPomodoro = (): string => {
     setPomodoroActive(false);
     setPomodoroTime(25 * 60);
+    return "⏰ Pomodoro timer has been reset.";
+  };
+
+  const onStartPomodoro = (): string => {
+      if (!pomodoroActive) {
+          setPomodoroActive(true);
+          return "🍅 Pomodoro timer started for 25 minutes. Focus!";
+      }
+      return "Timer is already running.";
+  };
+  const onPausePomodoro = (): string => {
+      if (pomodoroActive) {
+          setPomodoroActive(false);
+          return "⏸️ Pomodoro timer paused.";
+      }
+      return "Timer is not running.";
+  };
+
+  const onAddDecisionOption = (option: string): string => {
+      setDecisionOptions(prev => [...prev, option]);
+      return `Added option: "${option}"`;
   };
   
-  const onAddDecisionOption = (option: string) => {
-    if (option.trim() && !decisionOptions.includes(option.trim())) {
-      setDecisionOptions(prev => [...prev, option.trim()]);
-      return `Added option: "${option}".`;
-    }
-    return `Could not add option: "${option}". It might be empty or a duplicate.`;
+  const onAddDecisionOptions = (options: string[]): string => {
+      setDecisionOptions(prev => [...prev, ...options]);
+      return `Added ${options.length} options.`;
   };
-   const onAddDecisionOptions = (options: string[]) => {
-    const uniqueNewOptions = options.filter(opt => opt.trim() && !decisionOptions.includes(opt.trim()));
-    if(uniqueNewOptions.length > 0) {
-      setDecisionOptions(prev => [...prev, ...uniqueNewOptions]);
-      return `Added ${uniqueNewOptions.length} new options.`;
-    }
-    return "No new unique options were added.";
+
+  const onClearDecisionOptions = (): string => {
+      setDecisionOptions([]);
+      setDecisionResult('');
+      return "Decision options cleared.";
   };
-  const onClearDecisionOptions = () => {
-    setDecisionOptions([]);
-    return "All decision options have been cleared.";
+
+  const onMakeDecision = async (options?: string[]): Promise<string> => {
+    const optionsToUse = options && options.length > 0 ? options : decisionOptions;
+    if (optionsToUse.length < 2) return "I need at least two options to make a decision.";
+    
+    setIsDecisionSpinning(true);
+    let spins = 0;
+    const maxSpins = 20 + Math.floor(Math.random() * 15);
+    
+    await new Promise<void>(resolve => {
+        const spinInterval = setInterval(() => {
+            const randomIndex = Math.floor(Math.random() * optionsToUse.length);
+            setCurrentDecisionSpin(optionsToUse[randomIndex]);
+            spins++;
+            if (spins >= maxSpins) {
+                clearInterval(spinInterval);
+                setTimeout(() => {
+                    const finalChoice = optionsToUse[Math.floor(Math.random() * optionsToUse.length)];
+                    setDecisionResult(finalChoice);
+                    setIsDecisionSpinning(false);
+                    setCurrentDecisionSpin('');
+                    resolve();
+                }, 500);
+            }
+        }, 100);
+    });
+
+    return `The decision is: ${decisionResult}`;
   };
   
-  // --- SETTINGS PAGE HANDLERS ---
+    const onPlanAndCreateNote = async (topic: string): Promise<string> => {
+        if (!geminiAI) return "AI features are disabled.";
+        toast.info(`Generating a plan for "${topic}"...`);
+        const prompt = `Create a structured, actionable plan for the following topic: "${topic}". The plan should include clear steps, sections, and potential milestones. Format it nicely using HTML for a rich text editor.`;
+        const response = await geminiAI.models.generateContent({model: 'gemini-2.5-flash', contents: prompt});
+        const planContent = response.text;
+        const newNote = handleNewPage(`Plan: ${topic}`, planContent);
+        return `✅ I've created a detailed plan for "${topic}" and saved it as a new note titled "${newNote.title}".`;
+    };
+    
+    const onWireframeAndCreateNote = async (description: string): Promise<string> => {
+        if (!geminiAI) return "AI features are disabled.";
+        toast.info(`Generating a wireframe for "${description}"...`);
+        const prompt = `Generate a structural layout or wireframe for a user interface based on this description: "${description}". Use simple HTML with headings, lists, and placeholders like '[Image Placeholder]' or '[Button: Submit]' to represent the structure.`;
+        const response = await geminiAI.models.generateContent({model: 'gemini-2.5-flash', contents: prompt});
+        const wireframeContent = response.text;
+        const newNote = handleNewPage(`Wireframe: ${description}`, wireframeContent);
+        return `✅ I've generated a wireframe for "${description}" and saved it as a new note titled "${newNote.title}".`;
+    };
+
+    const onAddJournalEntry = (content: string, date?: string): string => {
+        const targetDate = date || new Date().toISOString().split('T')[0];
+        onUpdateJournal(targetDate, content);
+        return `📓 Journal entry for ${targetDate} has been saved.`;
+    };
+
+    const onAddGoal = (text: string): string => {
+        setGoals(prev => [...prev, { id: crypto.randomUUID(), text, completed: false }]);
+        return `🏆 New goal set: "${text}"`;
+    };
+
+    const onLogMood = (mood: string): string => {
+        const today = new Date().toISOString().split('T')[0];
+        const newEntry = { id: crypto.randomUUID(), mood, date: today };
+        setMoodEntries(prev => [...prev.filter(e => e.date !== today), newEntry]);
+        return `😊 Mood logged for today: ${mood}`;
+    };
+
+    const onAddExpense = (description: string, amount: number, category: string): string => {
+        const newExpense = { id: crypto.randomUUID(), description, amount, category: category || 'General', date: new Date().toISOString() };
+        setExpenses(prev => [...prev, newExpense]);
+        return `💸 Expense logged: ${description} ($${amount})`;
+    };
+    
+    const onAddPersonalQuote = (text: string): string => {
+        setPersonalQuotes(prev => [{ id: crypto.randomUUID(), text }, ...prev]);
+        return `🖋️ Quote added to your collection.`;
+    };
+
+
+  // --- SETTINGS & DATA MANAGEMENT ---
   const handleSaveSettings = async () => {
     setIsSavingSettings(true);
     updateApiKey(apiKey);
-    toast.success("Settings saved successfully!");
+
+    const { success, message } = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
+    setSupabaseStatus({ message, configured: success });
+
+    if (success) toast.success("Settings saved successfully!");
+    else toast.error(message);
+    
+    const fileInput = document.getElementById('inspiration-image-upload') as HTMLInputElement;
+    const file = fileInput?.files?.[0];
+    if (file) {
+        try {
+            const newId = crypto.randomUUID();
+            await setBannerData(newId, file);
+            setInspirationImageId(newId);
+            // The useEffect for inspirationImageId will handle the preview update.
+        } catch(e) {
+            console.error("Error saving inspiration image:", e);
+            toast.error("Could not save inspiration image.");
+        }
+    }
+
     setIsSavingSettings(false);
   };
-
-  const handleTestAndSaveSupabase = async () => {
+  
+  const handleTestSupabase = async () => {
     setIsTestingSupabase(true);
-    const result = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
-    setSupabaseStatus({ message: result.message, configured: result.success });
+    const { success, message } = await updateSupabaseCredentials(supabaseUrl, supabaseKey);
+    setSupabaseStatus({ message, configured: success });
+    if(success) toast.success(message); else toast.error(message);
     setIsTestingSupabase(false);
-    if (result.success) {
-        toast.success("Connection successful! The app will now reload to apply the new settings.");
-        setTimeout(() => window.location.reload(), 2000);
-    } else {
-        toast.error(result.message);
-    }
-  };
+  }
 
-  const handleExportData = () => {
+  const exportData = () => {
     const data = {
-        pages, journalEntries, tasks, kanbanColumns, quickNotes, events, habits,
-        personalQuotes, moodEntries, expenses, goals, pomodoroSessions,
-        decisionOptions, theme, isSidebarCollapsed, isChatbotCollapsed,
-        googleAuthToken, workspaceHistory, inspirationImageId,
+      pages, journalEntries, tasks, kanbanColumns, quickNotes, events, habits,
+      personalQuotes, moodEntries, expenses, goals, pomodoroSessions, decisionOptions,
+      theme, isSidebarCollapsed, isChatbotCollapsed, googleAuthToken, workspaceHistory,
+      inspirationImageId, curriculumResult
     };
-    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
-    const link = document.createElement("a");
-    link.href = jsonString;
-    link.download = `maven_backup_${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    toast.success("Data exported successfully!");
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `maven_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("All data exported successfully!");
   };
 
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const importData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const text = e.target?.result;
-            if (typeof text !== 'string') throw new Error("File could not be read");
-            const data = JSON.parse(text);
-
-            if (!data.pages || !data.tasks) throw new Error("Invalid backup file format");
-            
-            if(window.confirm("Are you sure you want to overwrite all current data with this backup? This action cannot be undone.")){
-                setPages(data.pages || []);
-                setJournalEntries(data.journalEntries || []);
-                setTasks(data.tasks || []);
-                setKanbanColumns(data.kanbanColumns || { todo: { name: 'To Do', items: [] }, progress: { name: 'In Progress', items: [] }, done: { name: 'Done', items: [] } });
-                setQuickNotes(data.quickNotes || []);
-                setEvents(data.events || []);
-                setHabits(data.habits || []);
-                setPersonalQuotes(data.personalQuotes || []);
-                setMoodEntries(data.moodEntries || []);
-                setExpenses(data.expenses || []);
-                setGoals(data.goals || []);
-                setPomodoroSessions(data.pomodoroSessions || 0);
-                setDecisionOptions(data.decisionOptions || []);
-                setTheme(data.theme || 'theme-dark');
-                setIsSidebarCollapsed(data.isSidebarCollapsed || false);
-                setIsChatbotCollapsed(data.isChatbotCollapsed || false);
-                setGoogleAuthToken(data.googleAuthToken || null);
-                setWorkspaceHistory(data.workspaceHistory || []);
-                setInspirationImageId(data.inspirationImageId || null);
-                
-                toast.success("Data imported successfully! The app will now reload.");
-                setTimeout(() => window.location.reload(), 1500);
-            }
-        } catch (error: any) {
-            console.error("Import error:", error);
-            toast.error(`Import failed: ${error.message}`);
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (window.confirm("Are you sure you want to import this data? This will overwrite your current workspace.")) {
+          setPages(data.pages || []);
+          setJournalEntries(data.journalEntries || []);
+          setTasks(data.tasks || []);
+          setKanbanColumns(data.kanbanColumns || { todo: { name: 'To Do', items: [] }, progress: { name: 'In Progress', items: [] }, done: { name: 'Done', items: [] }});
+          setQuickNotes(data.quickNotes || []);
+          setEvents(data.events || []);
+          setHabits(data.habits || []);
+          setPersonalQuotes(data.personalQuotes || []);
+          setMoodEntries(data.moodEntries || []);
+          setExpenses(data.expenses || []);
+          setGoals(data.goals || []);
+          setPomodoroSessions(data.pomodoroSessions || 0);
+          setDecisionOptions(data.decisionOptions || []);
+          setTheme(data.theme || 'theme-dark');
+          setIsSidebarCollapsed(data.isSidebarCollapsed || false);
+          setIsChatbotCollapsed(data.isChatbotCollapsed || false);
+          setGoogleAuthToken(data.googleAuthToken || null);
+          setWorkspaceHistory(data.workspaceHistory || []);
+          setInspirationImageId(data.inspirationImageId || null);
+          setCurriculumResult(data.curriculumResult || null);
+          toast.success("Data imported successfully!");
         }
+      } catch (err) {
+        toast.error("Failed to parse import file.");
+      } finally {
+        e.target.value = '';
+      }
     };
     reader.readAsText(file);
-    event.target.value = '';
   };
   
-  const handleWipeData = () => {
-    if (dataWipeConfirmation.toLowerCase() === 'delete my data') {
-        localStorage.clear();
-        indexedDB.deleteDatabase('MavenDB');
-        // Also clear portal DB
-        indexedDB.deleteDatabase('MavenPortalDB');
-        toast.success("All data has been wiped. The application will now reload.");
-        setTimeout(() => window.location.reload(), 1500);
+   const handleWipeData = () => {
+    if (dataWipeConfirmation.toLowerCase() === 'delete') {
+      localStorage.clear();
+      sessionStorage.clear();
+      indexedDB.deleteDatabase('MavenDB');
+      indexedDB.deleteDatabase('MavenPortalDB');
+      toast.success("All data has been wiped. Reloading...");
+      setTimeout(() => window.location.reload(), 1500);
     } else {
-        toast.error("Confirmation text does not match. Data was not deleted.");
-    }
-  };
-  
-  const handleInspirationImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-        if (inspirationImageId) {
-            await deleteBannerData(inspirationImageId);
-        }
-        const newImageId = `inspiration-${crypto.randomUUID()}`;
-        await setBannerData(newImageId, file);
-        setInspirationImageId(newImageId);
-        toast.success("Inspiration image updated!");
-    } catch (error) {
-        toast.error("Failed to update image.");
-        console.error(error);
-    }
-    event.target.value = '';
-  };
-
-  const handleRemoveInspirationImage = async () => {
-    if (inspirationImageId) {
-        try {
-            await deleteBannerData(inspirationImageId);
-            setInspirationImageId(null);
-            toast.info("Inspiration image removed.");
-        } catch (error) {
-            toast.error("Failed to remove image.");
-            console.error(error);
-        }
+      toast.error("Confirmation text did not match.");
     }
   };
 
@@ -805,231 +764,168 @@ const App: React.FC = () => {
   if (!hasEntered) {
     return <LandingPage onEnter={handleEnterApp} />;
   }
-  
-  const renderView = () => {
-    // These are full-height "app" views that manage their own complex layouts and scrolling.
-    const appViews: View[] = ['notes', 'journal', 'documind', 'workspace', 'academics'];
-    
-    // These are "content" pages that will be placed inside a standard scrolling container.
-    const pageViews: View[] = ['dashboard', 'about', 'help', 'settings', 'inspiration', 'research', 'skill-analyzer'];
 
-    // Render "app" views directly; they are responsible for their own layout.
-    if (appViews.includes(view)) {
-      const AppViewComponent = {
-        notes: activePage ? (
-          <Editor key={activePage.id} page={activePage} onUpdatePage={onUpdatePage} onDeletePage={onDeletePage} onNewPage={() => handleNewPage()}/>
-        ) : (
-          <WelcomePlaceholder onNewPage={() => handleNewPage()} />
-        ),
-        journal: <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />,
-        documind: <InteractiveMindMap onNewNote={handleNewPage} />,
-        workspace: <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />,
-        academics: <AcademicView 
-            goals={goals} 
-            events={events} 
-            setEvents={setEvents} 
-            onNewNote={handleNewPage}
-            curriculumResult={curriculumResult}
-            isCurriculumGenerating={isCurriculumGenerating}
-            onGenerateCurriculum={handleGenerateCurriculum}
-            onClearCurriculum={handleClearCurriculum}
-         />,
-      }[view];
-      return AppViewComponent;
-    }
-
-    // Render "content" pages within a standardized scrolling layout container.
-    if (pageViews.includes(view)) {
-      const PageComponent = {
-        dashboard: <MamDesk 
-              activeTab={activeDashboardTab}
-              tasks={tasks} onAddTask={(text) => { onAddTask(text); }} onToggleTask={(id) => setTasks(tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t))} onDeleteTask={(id) => setTasks(tasks.filter(t => t.id !== id))}
-              kanbanColumns={kanbanColumns} setKanbanColumns={setKanbanColumns} onAddKanbanCard={(colId, text) => {
-                  const newItem: KanbanItem = { id: crypto.randomUUID(), text };
-                  setKanbanColumns(prev => ({ ...prev, [colId]: { ...prev[colId as keyof KanbanState], items: [...prev[colId as keyof KanbanState].items, newItem] } }));
-              }}
-              quickNotes={quickNotes} setQuickNotes={setQuickNotes}
-              events={events} onAddEvent={(title, date, time) => { onAddEvent(title, date, time); }}
-              habits={habits} setHabits={setHabits}
-              personalQuotes={personalQuotes} setPersonalQuotes={setPersonalQuotes}
-              moodEntries={moodEntries} setMoodEntries={setMoodEntries}
-              expenses={expenses} setExpenses={setExpenses}
-              goals={goals} setGoals={setGoals}
-              pomodoroTime={pomodoroTime} pomodoroActive={pomodoroActive} pomodoroSessions={pomodoroSessions} onTogglePomodoro={onTogglePomodoro} onResetPomodoro={onResetPomodoro}
-              decisionOptions={decisionOptions} setDecisionOptions={setDecisionOptions} decisionResult={decisionResult} setDecisionResult={setDecisionResult} isDecisionSpinning={isDecisionSpinning} setIsDecisionSpinning={setIsDecisionSpinning} currentDecisionSpin={currentDecisionSpin} setCurrentDecisionSpin={setCurrentDecisionSpin}
-              theme={theme} setTheme={setTheme}
-              pages={pages}
-              onNewNote={handleNewPage}
-          />,
-        about: <AboutPage />,
-        help: <HelpPage />,
-        research: <ResearchPage />,
-        inspiration: <InspirationPage inspirationImageId={inspirationImageId} />,
-        'skill-analyzer': <SkillAnalyzerPage onNewNote={handleNewPage} />,
-        settings: (
-          <div className="max-w-4xl mx-auto space-y-8">
-            <Section title="API Configuration">
-              <p className="text-card-foreground/80 -mt-4 mb-6">Maven uses Google AI for its intelligent features. Your API key is stored securely in your browser and is never sent to our servers.</p>
-              <div className="space-y-6">
-                <div className="p-4 border border-border rounded-lg">
-                    <h3 className="text-lg font-semibold flex items-center gap-2"><BrainCircuitIcon size={20} /> Google AI (Gemini)</h3>
-                    <p className="text-sm text-muted-foreground mt-1 mb-4">Required for all AI features like the AI Assistant, Brain Dump, and DocuMind.</p>
-                    <label className="block text-sm font-medium text-foreground/80 mb-1">Gemini API Key</label>
-                    <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Google Gemini API Key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+  const renderSettings = () => {
+    const themes = [
+      { id: 'theme-dark', name: 'Default Dark' },
+      { id: 'theme-light', name: 'Default Light' },
+      { id: 'theme-jetblack', name: 'Jet Black' },
+      { id: 'theme-midnight', name: 'Midnight Blue' },
+      { id: 'theme-midlight', name: 'Midlight' },
+    ];
+    return (
+        <div className="p-4 sm:p-6 lg:p-8 h-full overflow-y-auto space-y-8">
+            <h1 className="text-4xl font-bold text-center text-foreground" style={{ fontFamily: "'Syne', sans-serif" }}>Settings</h1>
+            <Section title="Theme & Appearance">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {themes.map(t => (
+                        <button key={t.id} onClick={() => setTheme(t.id)} className={`p-4 rounded-lg border-2 ${theme === t.id ? 'border-primary' : 'border-border'}`}>
+                             <div className={`w-full h-16 rounded-md ${t.id} border border-border`}></div>
+                            <p className="mt-2 text-sm text-center">{t.name}</p>
+                        </button>
+                    ))}
                 </div>
-              </div>
-              <button onClick={handleSaveSettings} disabled={isSavingSettings} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50"><Save size={16} /> {isSavingSettings ? 'Saving...' : 'Save Credentials'}</button>
             </Section>
-
-            <Section title="Cloud & Portal Configuration">
-                <p className="text-card-foreground/80 -mt-4 mb-6">Configure the Student/Teacher Portal by connecting to your own Supabase project. Get your URL and Anon Key from your Supabase project's API settings.</p>
+             <Section title="Personalization">
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase URL</label>
-                        <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://<your-project-id>.supabase.co" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                        <label className="font-semibold text-card-foreground/90">Inspiration Image</label>
+                        <p className="text-sm text-muted-foreground mb-2">Upload a photo for your 'Inspiration' page.</p>
+                        <div className="flex items-center gap-4">
+                            {inspirationImagePreview && <img src={inspirationImagePreview} alt="Preview" className="w-16 h-16 rounded-md object-cover"/>}
+                            <input id="inspiration-image-upload" type="file" accept="image/*" className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
+                        </div>
                     </div>
+                </div>
+            </Section>
+            <Section title="API Keys & Integrations">
+                 <div className="space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-foreground/80 mb-1">Supabase Anon Key</label>
-                        <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="Enter your Supabase anonymous key" className="w-full bg-input border-border rounded-md px-3 py-2 text-sm" />
+                        <label htmlFor="api-key" className="font-semibold text-card-foreground/90 flex items-center gap-2">
+                           <BrainCircuitIcon size={18} /> Google Gemini API Key
+                        </label>
+                         <p className="text-sm text-muted-foreground mb-2">Required for all AI features. Your key is stored locally and never shared.</p>
+                        <input id="api-key" type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Enter your Gemini API Key" className="w-full bg-input p-2 rounded-md"/>
                     </div>
-                    <div className={`p-3 rounded-md text-sm ${supabaseStatus.configured ? 'bg-green-500/10 text-green-300' : 'bg-destructive/10 text-destructive'}`}>
-                        <strong>Status:</strong> {supabaseStatus.message}
+                     <div>
+                        <label className="font-semibold text-card-foreground/90 flex items-center gap-2">
+                           <UsersIcon size={18}/> Supabase Credentials (for Portal)
+                        </label>
+                         <p className="text-sm text-muted-foreground mb-2">Optional. Required only for the cloud-based Student/Teacher Portal.</p>
+                        <div className="space-y-2">
+                            <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="Supabase Project URL" className="w-full bg-input p-2 rounded-md"/>
+                            <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} placeholder="Supabase Anon Key" className="w-full bg-input p-2 rounded-md"/>
+                             <div className="flex items-center justify-between text-sm">
+                               <p className={`font-mono text-xs p-2 rounded-md ${supabaseStatus.configured ? 'bg-green-500/10 text-green-300' : 'bg-yellow-500/10 text-yellow-300'}`}>{supabaseStatus.message}</p>
+                               <button onClick={handleTestSupabase} disabled={isTestingSupabase} className="px-3 py-1 bg-secondary rounded-md disabled:opacity-50 flex items-center gap-2">
+                                    {isTestingSupabase ? <Loader size={14} className="animate-spin"/> : 'Test'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <button onClick={handleTestAndSaveSupabase} disabled={isTestingSupabase} className="mt-6 w-full max-w-xs mx-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50">
-                    {isTestingSupabase ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-                    {isTestingSupabase ? 'Testing...' : 'Test Connection & Save'}
+                 </div>
+            </Section>
+            <div className="flex justify-end">
+                <button onClick={handleSaveSettings} disabled={isSavingSettings} className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-semibold flex items-center gap-2 disabled:opacity-50">
+                   {isSavingSettings ? <><Loader className="animate-spin"/> Saving...</> : <><Save/> Save Settings</>}
                 </button>
-            </Section>
-
-            <Section title="Appearance">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                  {(['theme-dark', 'theme-light', 'theme-jetblack', 'theme-midlight', 'theme-midnight'] as const).map(t => (
-                      <button key={t} onClick={() => setTheme(t)} className={`h-20 rounded-lg border-2 ${theme === t ? 'border-primary' : 'border-border'}`}><div className={`w-full h-full p-2 ${t} rounded-md`}><div className="w-full h-full bg-background rounded-sm flex flex-col items-center justify-center"><p className="text-xs font-semibold capitalize text-foreground">{t.split('-')[1]}</p></div></div></button>
-                  ))}
-              </div>
-            </Section>
-            <Section title="Inspiration Image">
-                <p className="text-card-foreground/80 -mt-4 mb-4">Set a custom image for the "Inspiration" page.</p>
-                <div className="flex items-center gap-4"><div className="w-24 h-24 rounded-lg bg-secondary flex items-center justify-center">{inspirationImagePreview ? <img src={inspirationImagePreview} alt="Inspiration preview" className="w-full h-full object-cover rounded-lg"/> : <ImageIcon className="w-8 h-8 text-muted-foreground"/>}</div><div className="flex-1 space-y-2"><label className="w-full text-center cursor-pointer bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold block"><input type="file" onChange={handleInspirationImageUpload} accept="image/*" className="hidden"/>Upload Image</label><button onClick={handleRemoveInspirationImage} disabled={!inspirationImageId} className="w-full bg-secondary disabled:opacity-50 px-4 py-2 rounded-md text-sm font-semibold">Remove</button></div></div>
-            </Section>
-            <Section title="Danger Zone">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-4 bg-secondary rounded-lg"><h3 className="font-semibold">Export Data</h3><p className="text-xs text-muted-foreground mb-2">Download a JSON backup of all local data.</p><button onClick={handleExportData} className="w-full bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold">Export</button></div>
-                    <div className="p-4 bg-secondary rounded-lg"><h3 className="font-semibold">Import Data</h3><p className="text-xs text-muted-foreground mb-2">Overwrite all data with a backup file.</p><label className="w-full block cursor-pointer bg-accent hover:bg-accent/80 text-accent-foreground px-3 py-1.5 rounded-md text-sm font-semibold text-center"><input type="file" onChange={handleImportData} accept=".json" className="hidden"/>Import</label></div>
-                      <div className="p-4 bg-destructive/10 rounded-lg"><h3 className="font-semibold text-destructive">Wipe All Data</h3><p className="text-xs text-muted-foreground mb-2">Permanently delete all local data.</p><button onClick={() => setIsDataWipeModalOpen(true)} className="w-full bg-destructive/20 hover:bg-destructive/30 text-destructive px-3 py-1.5 rounded-md text-sm font-semibold">Wipe Data</button></div>
-                </div>
-            </Section>
-          </div>
-        )
-      }[view];
-      
-      return (
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            {isDataWipeModalOpen && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-card border border-destructive/50 rounded-xl shadow-2xl w-full max-w-lg p-6">
-                        <div className="text-center">
-                            <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4"/>
-                            <h2 className="text-xl font-bold text-foreground">Irreversible Action</h2>
-                            <p className="text-muted-foreground mt-2">
-                                You are about to delete all of your data. This cannot be undone. To confirm, please type "<strong className="text-destructive">delete my data</strong>" below.
-                            </p>
-                        </div>
-                        <input type="text" value={dataWipeConfirmation} onChange={(e) => setDataWipeConfirmation(e.target.value)} className="w-full bg-input border-border rounded-md px-3 py-2 mt-4 text-center"/>
-                        <div className="flex gap-4 mt-6">
-                            <button onClick={() => setIsDataWipeModalOpen(false)} className="flex-1 bg-secondary text-secondary-foreground py-2 rounded-md">Cancel</button>
-                            <button onClick={handleWipeData} className="flex-1 bg-destructive text-destructive-foreground py-2 rounded-md">Confirm Deletion</button>
-                        </div>
+            </div>
+            <Section title="Data Management">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-secondary p-4 rounded-lg">
+                        <h4 className="font-semibold flex items-center gap-2"><Download/> Export Data</h4>
+                        <p className="text-sm text-muted-foreground mb-2">Save a JSON backup of your entire workspace.</p>
+                        <button onClick={exportData} className="w-full text-sm bg-accent p-2 rounded-md">Export All Data</button>
+                    </div>
+                    <div className="bg-secondary p-4 rounded-lg">
+                        <h4 className="font-semibold flex items-center gap-2"><Upload/> Import Data</h4>
+                        <p className="text-sm text-muted-foreground mb-2">Restore your workspace from a backup file.</p>
+                        <input type="file" accept=".json" onChange={importData} className="w-full text-sm file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-accent-foreground hover:file:bg-accent/80"/>
                     </div>
                 </div>
-            )}
-            {PageComponent}
-        </main>
-      );
+            </Section>
+            <Section title={<span className="text-destructive flex items-center gap-2"><AlertTriangle/> Danger Zone</span>}>
+                <div className="bg-destructive/10 p-4 rounded-lg border border-destructive/20">
+                     <h4 className="font-semibold text-destructive">Wipe All Local Data</h4>
+                     <p className="text-sm text-destructive/80 mb-4">This will permanently delete all your pages, tasks, and settings from this browser. This action cannot be undone. Please export your data first.</p>
+                     <div className="flex items-center gap-4">
+                        <input type="text" value={dataWipeConfirmation} onChange={e => setDataWipeConfirmation(e.target.value)} placeholder="Type 'delete' to confirm" className="w-full bg-input p-2 rounded-md"/>
+                        <button onClick={handleWipeData} className="px-4 py-2 bg-destructive text-destructive-foreground rounded-lg font-semibold flex items-center gap-2">
+                            <Trash2/> Wipe Data
+                        </button>
+                    </div>
+                </div>
+            </Section>
+        </div>
+    );
+  };
+  
+  const renderContent = () => {
+    if (view === 'dashboard') return <div className="p-4 sm:p-6 lg:p-8 h-full overflow-y-auto"><MamDesk activeTab={activeDashboardTab} {...{ tasks, onAddTask, onToggleTask: (id) => setTasks(tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t)), onDeleteTask: (id) => setTasks(tasks.filter(t => t.id !== id)), kanbanColumns, setKanbanColumns, onAddKanbanCard: (colId, text) => { const newItem = { id: crypto.randomUUID(), text }; setKanbanColumns(prev => ({...prev, [colId]: {...prev[colId], items: [...prev[colId].items, newItem]}}))}, quickNotes, setQuickNotes, events, onAddEvent, habits, setHabits, personalQuotes, setPersonalQuotes, moodEntries, setMoodEntries, expenses, setExpenses, goals, setGoals, pomodoroTime, pomodoroActive, pomodoroSessions, onTogglePomodoro, onResetPomodoro, decisionOptions, setDecisionOptions, decisionResult, setDecisionResult, isDecisionSpinning, setIsDecisionSpinning, currentDecisionSpin, setCurrentDecisionSpin, theme, setTheme, pages, onNewNote: handleNewPage }} /></div>;
+    if (view === 'journal') return <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />;
+    if (view === 'documind') return <InteractiveMindMap onNewNote={handleNewPage} />;
+    if (view === 'workspace') return <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
+    if (view === 'academics') return <AcademicView goals={goals} events={events} setEvents={setEvents} onNewNote={handleNewPage} curriculumResult={curriculumResult} isCurriculumGenerating={isCurriculumGenerating} onGenerateCurriculum={handleGenerateCurriculum} onClearCurriculum={handleClearCurriculum} />;
+    if (view === 'about') return <div className="p-4 sm:p-6 lg:p-8 h-full overflow-y-auto"><AboutPage/></div>;
+    if (view === 'inspiration') return <InspirationPage inspirationImageId={inspirationImageId} />;
+    if (view === 'gallery') return <GalleryPage />;
+    if (view === 'research') return <div className="p-4 sm:p-6 lg:p-8 h-full overflow-y-auto"><ResearchPage/></div>;
+    if (view === 'skill-analyzer') return <SkillAnalyzerPage onNewNote={handleNewPage} />;
+    if (view === 'settings') return renderSettings();
+    if (view === 'help') return <div className="p-8 overflow-y-auto h-full"><HelpPage/></div>;
+
+    if (activePage) {
+      return <Editor page={activePage} onUpdatePage={onUpdatePage} onDeletePage={onDeletePage} onNewPage={() => setIsTemplateLibraryOpen(true)} />;
     }
     
-    // Fallback to a non-scrolling Welcome view if no view matches
-    return <WelcomePlaceholder onNewPage={() => handleNewPage()} />;
-  }
+    return <WelcomePlaceholder onNewPage={() => setIsTemplateLibraryOpen(true)} />;
+  };
 
   return (
-    <div className={`flex h-screen w-screen overflow-hidden ${theme}`}>
-      <Sidebar
-        pages={pages}
-        activePageId={activePageId}
-        onSelectPage={onSelectPage}
-        onNewPage={() => setIsTemplateLibraryOpen(true)}
-        view={view}
-        setView={setView}
-        activeTab={activeDashboardTab}
-        setActiveTab={setActiveDashboardTab}
-        isCollapsed={isSidebarCollapsed}
-        setIsCollapsed={setIsSidebarCollapsed}
-        onToggleSearch={() => setIsSearchOpen(true)}
-        onGoToLandingPage={handleGoToLandingPage}
-      />
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 animate-fade-in-up">
-        {renderView()}
-      </div>
-      <aside className={`bg-card/80 backdrop-blur-xl flex-shrink-0 border-l border-border/50 flex flex-col transition-all duration-300 ease-in-out ${isChatbotCollapsed ? 'w-20' : 'w-96'}`}>
-        <Chatbot
-            isCollapsed={isChatbotCollapsed}
-            setIsCollapsed={setIsChatbotCollapsed}
-            onAddTask={onAddTask}
-            onAddEvent={onAddEvent}
-            onNewPage={handleNewPage}
-            onGetDailyBriefing={onGetDailyBriefing}
-            onGenerateCreativeContent={onGenerateCreativeContent}
-            onCompleteTaskByText={onCompleteTaskByText}
-            onDeleteTaskByText={onDeleteTaskByText}
-            onListTasks={onListTasks}
-            onDeleteNoteByTitle={onDeleteNoteByTitle}
-            onMoveKanbanCard={onMoveKanbanCard}
-            onAddQuickNote={onAddQuickNote}
-            onListQuickNotes={onListQuickNotes}
-            onAddHabit={onAddHabit}
-            onCompleteHabit={onCompleteHabit}
-            onDeleteHabit={onDeleteHabit}
-            onListHabits={onListHabits}
-            onStartPomodoro={() => { setPomodoroActive(true); return "Pomodoro timer started!"; }}
-            onPausePomodoro={() => { setPomodoroActive(false); return "Pomodoro timer paused."; }}
-            onResetPomodoro={() => { onResetPomodoro(); return "Pomodoro timer reset."; }}
-            onAddDecisionOption={onAddDecisionOption}
-            onAddDecisionOptions={onAddDecisionOptions}
-            onClearDecisionOptions={onClearDecisionOptions}
-            onMakeDecision={onMakeDecision}
-            onPlanAndCreateNote={onPlanAndCreateNote}
-            onWireframeAndCreateNote={onWireframeAndCreateNote}
-            onAddJournalEntry={onAddJournalEntry}
-            onAddGoal={onAddGoal}
-            onLogMood={onLogMood}
-            onAddExpense={onAddExpense}
-            onAddPersonalQuote={onAddPersonalQuote}
+    <div className="flex h-screen w-screen bg-background font-sans">
+        <Sidebar
+          pages={pages}
+          activePageId={activePageId}
+          onSelectPage={onSelectPage}
+          onNewPage={() => setIsTemplateLibraryOpen(true)}
+          view={view}
+          setView={setView}
+          activeTab={activeDashboardTab}
+          setActiveTab={setActiveDashboardTab}
+          isCollapsed={isSidebarCollapsed}
+          setIsCollapsed={setIsSidebarCollapsed}
+          onToggleSearch={() => setIsSearchOpen(true)}
+          onGoToLandingPage={handleGoToLandingPage}
         />
-      </aside>
-       <SearchPalette
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        pages={pages}
-        onSelectPage={onSelectPage}
-        onNewNote={handleNewPage}
-      />
-      <TemplateLibrary
-        isOpen={isTemplateLibraryOpen}
-        onClose={() => setIsTemplateLibraryOpen(false)}
-        onSelectTemplate={handleCreateFromTemplate}
-        onNewBlankPage={handleCreateBlankPage}
-      />
-       <style>{`
-        @keyframes fade-in-up {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in-up {
-            animation: fade-in-up 0.5s ease-out forwards;
-        }
-    `}</style>
+        <main className="flex-1 flex flex-col min-w-0 h-full relative">
+            {renderContent()}
+        </main>
+         <aside className={`flex-shrink-0 border-l border-border/50 transition-all duration-300 ease-in-out ${isChatbotCollapsed ? 'w-16' : 'w-96'}`}>
+            <Chatbot
+              onAddTask={onAddTask} onAddEvent={onAddEvent} onNewPage={handleNewPage} onGetDailyBriefing={onGetDailyBriefing} onGenerateCreativeContent={onGenerateCreativeContent}
+              onCompleteTaskByText={onCompleteTaskByText} onDeleteTaskByText={onDeleteTaskByText} onListTasks={onListTasks} onDeleteNoteByTitle={onDeleteNoteByTitle}
+              onMoveKanbanCard={onMoveKanbanCard} onAddQuickNote={onAddQuickNote} onListQuickNotes={onListQuickNotes}
+              onAddHabit={onAddHabit} onCompleteHabit={onCompleteHabit} onDeleteHabit={onDeleteHabit} onListHabits={onListHabits}
+              onStartPomodoro={onStartPomodoro} onPausePomodoro={onPausePomodoro} onResetPomodoro={onResetPomodoro}
+              onAddDecisionOption={onAddDecisionOption} onAddDecisionOptions={onAddDecisionOptions} onClearDecisionOptions={onClearDecisionOptions} onMakeDecision={onMakeDecision}
+              onPlanAndCreateNote={onPlanAndCreateNote} onWireframeAndCreateNote={onWireframeAndCreateNote} onAddJournalEntry={onAddJournalEntry}
+              onAddGoal={onAddGoal} onLogMood={onLogMood} onAddExpense={onAddExpense} onAddPersonalQuote={onAddPersonalQuote}
+              isCollapsed={isChatbotCollapsed} setIsCollapsed={setIsChatbotCollapsed}
+            />
+        </aside>
+        <SearchPalette 
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+            pages={pages}
+            onSelectPage={onSelectPage}
+            onNewNote={handleNewPage}
+        />
+        <TemplateLibrary
+            isOpen={isTemplateLibraryOpen}
+            onClose={() => setIsTemplateLibraryOpen(false)}
+            onSelectTemplate={handleCreateFromTemplate}
+            onNewBlankPage={handleCreateBlankPage}
+        />
     </div>
   );
 };

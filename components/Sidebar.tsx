@@ -3,7 +3,8 @@ import { Page, View } from '../types';
 import { PlusIcon, FileTextIcon, BookIcon, LayoutGridIcon } from './Icons';
 import { 
   Home, CheckSquare, List, Calendar, Timer, Target, BarChart3, User, Settings, HelpCircleIcon, FileText, Dice6, BookText, Clipboard, FileSearch,
-  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap, Clock, Heart, ClipboardList, Library, Rocket, TrendingUp
+  ChevronLeft, ChevronRight, Briefcase, Users, BrainCircuit, Search, Info, GraduationCap, Clock, Heart, ClipboardList, Library, Rocket, TrendingUp,
+  GalleryHorizontal
 } from 'lucide-react';
 
 
@@ -151,6 +152,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <Heart className="w-5 h-5 flex-shrink-0 text-pink-400" />
                 {!isCollapsed && <span>Inspiration</span>}
             </button>
+            <button
+                onClick={() => setView('gallery')}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isCollapsed ? 'justify-center' : 'justify-start'} ${view === 'gallery' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}`}
+                title="Gallery"
+            >
+                <GalleryHorizontal className="w-5 h-5 flex-shrink-0" />
+                {!isCollapsed && <span>Gallery</span>}
+            </button>
         </nav>
       </div>
       
@@ -220,6 +229,7 @@ const Sidebar: React.FC<SidebarProps> = ({
              {view === 'about' && <Info className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'research' && <Library className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'inspiration' && <Heart className="w-8 h-8 mx-auto mb-2 text-pink-400"/>}
+             {view === 'gallery' && <GalleryHorizontal className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'settings' && <Settings className="w-8 h-8 mx-auto mb-2"/>}
              {view === 'help' && <HelpCircleIcon className="w-8 h-8 mx-auto mb-2"/>}
             {!isCollapsed && <p className="capitalize">{view.replace('-', ' ')}</p>}
