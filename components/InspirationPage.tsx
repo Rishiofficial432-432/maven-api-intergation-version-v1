@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import { getBannerData } from './db';
-import motherImage from '../assets/mother.jpg';
+
+const motherImage = new URL('../assets/mother.jpg', import.meta.url).href;
 
 interface InspirationPageProps {
   inspirationImageId: string | null;

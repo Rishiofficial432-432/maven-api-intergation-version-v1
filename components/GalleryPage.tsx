@@ -10,21 +10,14 @@ import { X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 //
 // Example: To add a photo named "cat.jpg", you would add the line:
 // '/assets/cat.jpg',
-// Import all gallery images
-import gallery1 from '../assets/gallery1.jpg';
-import gallery2 from '../assets/gallery2.jpg';
-import gallery3 from '../assets/gallery3.jpg';
-import gallery4 from '../assets/gallery4.jpg';
-import gallery5 from '../assets/gallery5.jpg';
-import gallery6 from '../assets/gallery6.jpg';
-
+// Define gallery images with new URL pattern
 const images = [
-  gallery1,
-  gallery2,
-  gallery3,
-  gallery4,
-  gallery5,
-  gallery6,
+  new URL('../assets/gallery1.jpg', import.meta.url).href,
+  new URL('../assets/gallery2.jpg', import.meta.url).href,
+  new URL('../assets/gallery3.jpg', import.meta.url).href,
+  new URL('../assets/gallery4.jpg', import.meta.url).href,
+  new URL('../assets/gallery5.jpg', import.meta.url).href,
+  new URL('../assets/gallery6.jpg', import.meta.url).href,
 ];
 
 const GalleryPage: React.FC = () => {
