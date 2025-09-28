@@ -10,16 +10,22 @@ import { X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 //
 // Example: To add a photo named "cat.jpg", you would add the line:
 // '/assets/cat.jpg',
+import gallery1 from '../assets/gallery1.jpg';
+import gallery2 from '../assets/gallery2.jpg';
+import gallery3 from '../assets/gallery3.jpg';
+import gallery4 from '../assets/gallery4.jpg';
+import gallery5 from '../assets/gallery5.jpg';
+import gallery6 from '../assets/gallery6.jpg';
+
 const images = [
-  '/assets/gallery1.jpg',
-  '/assets/gallery2.jpg',
-  '/assets/gallery3.jpg',
-  '/assets/gallery4.jpg',
-  '/assets/gallery5.jpg',
-  '/assets/gallery6.jpg',
+  gallery1,
+  gallery2,
+  gallery3,
+  gallery4,
+  gallery5,
+  gallery6,
   // --- Add your new image paths below this line ---
-  // e.g., '/assets/your-new-image.jpg',
-  // e.g., '/assets/another-photo.png',
+  // Import and add your new images here
 ];
 
 const GalleryPage: React.FC = () => {
