@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 
+// --- How to add your photos ---
+// For detailed instructions, see the README.md file in the `/assets` folder.
+//
+// 1. Place your image files inside the `/assets` folder.
+// 2. Add the path to your new image in the 'images' array below.
+//    The path must start with '/assets/'.
+//
+// Example: To add a photo named "cat.jpg", you would add the line:
+// '/assets/cat.jpg',
 const images = [
   '/assets/gallery1.jpg',
   '/assets/gallery2.jpg',
@@ -8,6 +17,9 @@ const images = [
   '/assets/gallery4.jpg',
   '/assets/gallery5.jpg',
   '/assets/gallery6.jpg',
+  // --- Add your new image paths below this line ---
+  // e.g., '/assets/your-new-image.jpg',
+  // e.g., '/assets/another-photo.png',
 ];
 
 const GalleryPage: React.FC = () => {
