@@ -25,6 +25,37 @@ const images = [
 
 const GalleryPage: React.FC = () => {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<{[key: string]: { width: number; height: number }}>({});
+
+  useEffect(() => {
+    // Preload images to get their dimensions
+    images.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+      img.onload = () => {
+        setImageDimensions(prev => ({
+          ...prev,
+          [src]: {
+            width: img.naturalWidth,
+            height: img.naturalHeight
+          }
+        }));
+      };
+    });
+  }, []);
+
+  const getAspectRatioClass = (src: string) => {
+    const dimensions = imageDimensions[src];
+    if (!dimensions) return 'h-[300px] md:h-[400px]'; // Default size while loading
+
+    const ratio = dimensions.width / dimensions.height;
+    if (ratio > 1.3) { // Landscape
+      return 'h-[250px] md:h-[300px] col-span-2';
+    } else if (ratio < 0.8) { // Portrait
+      return 'h-[400px] md:h-[500px]';
+    }
+    return 'h-[300px] md:h-[400px]'; // Square-ish
+  };
 
   const openModal = (index: number) => {
     setSelectedImageIndex(index);
@@ -73,17 +104,19 @@ const GalleryPage: React.FC = () => {
       <h1 className="text-4xl font-bold text-center text-foreground" style={{ fontFamily: "'Syne', sans-serif" }}>
         Photo Gallery
       </h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 p-6 animate-fade-in-up">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 auto-rows-auto gap-6 p-6 animate-fade-in-up">
         {images.map((src, index) => (
           <div
             key={src}
-            className="group relative cursor-pointer overflow-hidden rounded-lg shadow-lg h-[300px] md:h-[400px]"
+            className={`group relative cursor-pointer overflow-hidden rounded-lg shadow-lg ${getAspectRatioClass(src)}`}
             onClick={() => openModal(index)}
             role="button"
             tabIndex={0}
             aria-label={`View image ${index + 1}`}
           >
-            <div className="w-full h-full bg-gray-200 animate-pulse absolute"></div>
+            <div className="w-full h-full bg-gray-200 animate-pulse absolute">
+              <div className="w-full h-full animate-shimmer bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:400%_100%]"></div>
+            </div>
             <img
               src={src}
               alt={`Gallery image ${index + 1}`}
@@ -92,6 +125,14 @@ const GalleryPage: React.FC = () => {
               onLoad={(e) => {
                 const target = e.target as HTMLElement;
                 target.style.opacity = '1';
+                const img = e.target as HTMLImageElement;
+                setImageDimensions(prev => ({
+                  ...prev,
+                  [src]: {
+                    width: img.naturalWidth,
+                    height: img.naturalHeight
+                  }
+                }));
               }}
               style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
             />
@@ -152,6 +193,16 @@ const GalleryPage: React.FC = () => {
         }
         .animate-pulse {
             animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 100% 0; }
+            100% { background-position: -100% 0; }
+        }
+        .animate-shimmer {
+            animation: shimmer 2s infinite linear;
+        }
+        .grid {
+            grid-auto-flow: dense;
         }
       `}</style>
     </div>
