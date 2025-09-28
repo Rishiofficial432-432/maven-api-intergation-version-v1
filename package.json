@@ -10,12 +10,13 @@
   },
   "dependencies": {
     "@google/genai": "latest",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "lucide-react": "0.408.0",
-    "qrcode": "1.5.3",
     "@supabase/supabase-js": "2.44.2",
-    "ogl": "1.0.3"
+    "@types/react": "^19.1.15",
+    "lucide-react": "^0.408.0",
+    "ogl": "1.0.3",
+    "qrcode": "1.5.3",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

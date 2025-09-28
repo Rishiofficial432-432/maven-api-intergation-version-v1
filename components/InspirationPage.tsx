@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import { getBannerData } from './db';
+import motherImage from '../assets/mother.jpg';
 
 interface InspirationPageProps {
   inspirationImageId: string | null;
 }
 
 const InspirationPage: React.FC<InspirationPageProps> = ({ inspirationImageId }) => {
-  const [imageUrl, setImageUrl] = useState<string>('/assets/mother.jpg'); // Default
+  import motherImage from '../assets/mother.jpg';
+  const [imageUrl, setImageUrl] = useState<string>(motherImage); // Default
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -20,14 +22,14 @@ const InspirationPage: React.FC<InspirationPageProps> = ({ inspirationImageId })
             objectUrl = URL.createObjectURL(fileBlob);
             setImageUrl(objectUrl);
           } else {
-            setImageUrl('/assets/mother.jpg');
+            setImageUrl(motherImage);
           }
         } catch (error) {
           console.error("Failed to load inspiration image:", error);
-          setImageUrl('/assets/mother.jpg');
+          setImageUrl(motherImage);
         }
       } else {
-        setImageUrl('/assets/mother.jpg');
+        setImageUrl(motherImage);
       }
     };
 

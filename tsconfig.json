@@ -11,7 +11,8 @@
     ],
     "skipLibCheck": true,
     "types": [
-      "node"
+      "node",
+      "./src/types/images.d.ts"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
