@@ -8,7 +8,6 @@ interface InspirationPageProps {
 }
 
 const InspirationPage: React.FC<InspirationPageProps> = ({ inspirationImageId }) => {
-  import motherImage from '../assets/mother.jpg';
   const [imageUrl, setImageUrl] = useState<string>(motherImage); // Default
 
   useEffect(() => {
