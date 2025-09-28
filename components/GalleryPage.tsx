@@ -44,17 +44,17 @@ const GalleryPage: React.FC = () => {
     });
   }, []);
 
-  const getAspectRatioClass = (src: string) => {
+  const getAspectRatioStyle = (src: string) => {
     const dimensions = imageDimensions[src];
-    if (!dimensions) return 'h-[300px] md:h-[400px]'; // Default size while loading
+    if (!dimensions) return {}; // Default size while loading
 
     const ratio = dimensions.width / dimensions.height;
-    if (ratio > 1.3) { // Landscape
-      return 'h-[250px] md:h-[300px] col-span-2';
-    } else if (ratio < 0.8) { // Portrait
-      return 'h-[400px] md:h-[500px]';
-    }
-    return 'h-[300px] md:h-[400px]'; // Square-ish
+    return {
+      aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+      gridColumn: ratio > 1.3 ? 'span 2' : 'span 1',
+      height: 'auto',
+      width: '100%'
+    };
   };
 
   const openModal = (index: number) => {
@@ -108,19 +108,20 @@ const GalleryPage: React.FC = () => {
         {images.map((src, index) => (
           <div
             key={src}
-            className={`group relative cursor-pointer overflow-hidden rounded-lg shadow-lg ${getAspectRatioClass(src)}`}
+            className="group relative cursor-pointer overflow-hidden rounded-lg shadow-lg"
+            style={getAspectRatioStyle(src)}
             onClick={() => openModal(index)}
             role="button"
             tabIndex={0}
             aria-label={`View image ${index + 1}`}
           >
-            <div className="w-full h-full bg-gray-200 animate-pulse absolute">
+            <div className="absolute inset-0 bg-gray-200 animate-pulse">
               <div className="w-full h-full animate-shimmer bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:400%_100%]"></div>
             </div>
             <img
               src={src}
               alt={`Gallery image ${index + 1}`}
-              className="w-full h-full object-cover transform transition-all duration-300 group-hover:scale-110 relative z-10"
+              className="absolute inset-0 w-full h-full object-cover transform transition-all duration-300 group-hover:scale-110 relative z-10"
               loading="lazy"
               onLoad={(e) => {
                 const target = e.target as HTMLElement;
@@ -152,13 +153,22 @@ const GalleryPage: React.FC = () => {
           aria-modal="true"
           aria-labelledby="gallery-modal-title"
         >
-          <div className="relative w-full h-full max-w-7xl max-h-[90vh] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full h-full max-w-[90vw] max-h-[90vh] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
             <h2 id="gallery-modal-title" className="sr-only">Image Viewer</h2>
-            <div className="w-full h-full bg-gray-200 animate-pulse absolute rounded-lg"></div>
-            <img
-              src={images[selectedImageIndex]}
-              alt={`Enlarged gallery image ${selectedImageIndex + 1}`}
-              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-2xl relative z-10"
+            {selectedImageIndex !== null && (
+              <div 
+                className="relative w-full h-full flex items-center justify-center"
+                style={{
+                  aspectRatio: imageDimensions[images[selectedImageIndex]]
+                    ? `${imageDimensions[images[selectedImageIndex]].width} / ${imageDimensions[images[selectedImageIndex]].height}`
+                    : 'auto'
+                }}
+              >
+                <div className="absolute inset-0 bg-gray-200 animate-pulse rounded-lg"></div>
+                <img
+                  src={images[selectedImageIndex]}
+                  alt={`Enlarged gallery image ${selectedImageIndex + 1}`}
+                  className="w-full h-full object-contain rounded-lg shadow-2xl relative z-10"
               onLoad={(e) => {
                 const target = e.target as HTMLElement;
                 target.style.opacity = '1';
@@ -203,6 +213,23 @@ const GalleryPage: React.FC = () => {
         }
         .grid {
             grid-auto-flow: dense;
+        }
+        .image-container {
+            position: relative;
+            width: 100%;
+        }
+        .image-container::before {
+            content: "";
+            display: block;
+            height: 0;
+            width: 100%;
+        }
+        .image-container > * {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
         }
       `}</style>
     </div>
