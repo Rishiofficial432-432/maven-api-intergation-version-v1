@@ -579,8 +579,8 @@ const Personal = () => {
 
     const handleAddExpense = (e: React.FormEvent) => {
         e.preventDefault();
-        // FIX: Cast expenseAmount to string to satisfy parseFloat, as type inference seems to fail here.
-        const amount = parseFloat(expenseAmount as string);
+        // FIX: Use Number() for robust type conversion from string state to a number, preventing potential runtime errors.
+        const amount = Number(expenseAmount);
         if (!expenseDesc.trim() || isNaN(amount) || amount <= 0) {
             toast.error("Invalid expense details.");
             return;
@@ -632,8 +632,8 @@ const Personal = () => {
             <div className={`md:col-span-2 ${cardClasses} p-4 flex flex-col`}>
                 <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><DollarSign size={20}/> Recent Expenses</h3>
                 <div className="space-y-1 max-h-32 overflow-y-auto pr-2 flex-grow">
-                    {/* FIX: Cast `e.amount` to number to call toFixed(). */}
-                    {expenses.map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between text-sm"><span>{e.description} ({e.category})</span> <span className="font-semibold">${(e.amount as number).toFixed(2)}</span></div>)}
+                    {/* FIX: Ensure amount is treated as a number before calling toFixed, handling cases where it might be a string from storage. */}
+                    {expenses.map(e => <div key={e.id} className="p-2 bg-secondary rounded-md flex justify-between text-sm"><span>{e.description} ({e.category})</span> <span className="font-semibold">${Number(e.amount).toFixed(2)}</span></div>)}
                 </div>
                 <form onSubmit={handleAddExpense} className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border">
                     <input value={expenseDesc} onChange={e => setExpenseDesc(e.target.value)} placeholder="Description" className="col-span-3 bg-input p-2 rounded-md text-sm" />
@@ -675,8 +675,8 @@ const Analytics = () => {
 
 
     const expenseByCategory = expenses.reduce((acc, expense) => {
-        // FIX: Cast `expense.amount` to number for arithmetic operation.
-        acc[expense.category] = (acc[expense.category] || 0) + (expense.amount as number);
+        // FIX: Ensure amount is treated as a number before adding, preventing type errors.
+        acc[expense.category] = (acc[expense.category] || 0) + Number(expense.amount);
         return acc;
     }, {} as Record<string, number>);
     const maxExpense = Math.max(...Object.values(expenseByCategory), 0);
