@@ -73,21 +73,27 @@ const GalleryPage: React.FC = () => {
       <h1 className="text-4xl font-bold text-center text-foreground" style={{ fontFamily: "'Syne', sans-serif" }}>
         Photo Gallery
       </h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in-up">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 p-6 animate-fade-in-up">
         {images.map((src, index) => (
           <div
             key={src}
-            className="group relative cursor-pointer overflow-hidden rounded-lg shadow-lg"
+            className="group relative cursor-pointer overflow-hidden rounded-lg shadow-lg h-[300px] md:h-[400px]"
             onClick={() => openModal(index)}
             role="button"
             tabIndex={0}
             aria-label={`View image ${index + 1}`}
           >
+            <div className="w-full h-full bg-gray-200 animate-pulse absolute"></div>
             <img
               src={src}
               alt={`Gallery image ${index + 1}`}
-              className="w-full h-full object-cover aspect-square transform transition-transform duration-300 group-hover:scale-110"
+              className="w-full h-full object-cover transform transition-all duration-300 group-hover:scale-110 relative z-10"
               loading="lazy"
+              onLoad={(e) => {
+                const target = e.target as HTMLElement;
+                target.style.opacity = '1';
+              }}
+              style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
             />
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
               <span className="text-white text-lg font-semibold">View</span>
@@ -105,12 +111,18 @@ const GalleryPage: React.FC = () => {
           aria-modal="true"
           aria-labelledby="gallery-modal-title"
         >
-          <div className="relative w-full h-full max-w-4xl max-h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full h-full max-w-7xl max-h-[90vh] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
             <h2 id="gallery-modal-title" className="sr-only">Image Viewer</h2>
+            <div className="w-full h-full bg-gray-200 animate-pulse absolute rounded-lg"></div>
             <img
               src={images[selectedImageIndex]}
               alt={`Enlarged gallery image ${selectedImageIndex + 1}`}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg shadow-2xl relative z-10"
+              onLoad={(e) => {
+                const target = e.target as HTMLElement;
+                target.style.opacity = '1';
+              }}
+              style={{ opacity: 0, transition: 'opacity 0.3s ease-in-out' }}
             />
             
             <button onClick={closeModal} className="absolute top-2 right-2 sm:top-4 sm:right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/80 transition-colors" aria-label="Close image viewer">
@@ -133,6 +145,13 @@ const GalleryPage: React.FC = () => {
         }
         .animate-fade-in-up {
             animation: fade-in-up 0.5s ease-out forwards;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}</style>
     </div>
