@@ -18,6 +18,9 @@ const images = [
   new URL('../assets/gallery4.jpg', import.meta.url).href,
   new URL('../assets/gallery5.jpg', import.meta.url).href,
   new URL('../assets/gallery6.jpg', import.meta.url).href,
+  new URL('../assets/gallery7.jpg', import.meta.url).href,
+  new URL('../assets/gallery8.jpg', import.meta.url).href,
+  new URL('../assets/gallery9.jpg', import.meta.url).href,
 ];
 
 const GalleryPage: React.FC = () => {
