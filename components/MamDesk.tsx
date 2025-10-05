@@ -577,10 +577,10 @@ const Personal = () => {
         toast.info(`Mood logged: ${mood}`);
     };
 
+    // FIX: Replaced parseFloat with Number for stricter type conversion to address potential type errors.
     const handleAddExpense = (e: React.FormEvent) => {
         e.preventDefault();
-        // FIX: The `expenseAmount` state is a string from an input. Use parseFloat for robust conversion.
-        const amount = parseFloat(expenseAmount);
+        const amount = Number(expenseAmount);
         if (!expenseDesc.trim() || isNaN(amount) || amount <= 0) {
             toast.error("Invalid expense details.");
             return;

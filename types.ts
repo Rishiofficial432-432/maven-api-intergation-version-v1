@@ -16,6 +16,27 @@ export interface JournalEntry {
   createdAt: Date;
 }
 
+// FIX: Add missing types for Notebook feature.
+export interface ChatMessage {
+  role: 'user' | 'model';
+  content: string;
+}
+
+export interface NotebookSource {
+  id: string;
+  fileName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface Notebook {
+  id: string;
+  title: string;
+  sourceIds: string[];
+  conversation: ChatMessage[];
+  createdAt: string;
+}
+
 export interface DriveFile {
   id: string;
   name: string;
@@ -246,28 +267,6 @@ export interface SkillProfile {
     knownSkills: string[];
     skillsToLearn: string[];
     createdAt: string;
-}
-
-// FIX: Add missing types for Notebook feature
-// Types for AI Notebook feature
-export interface ChatMessage {
-  role: 'user' | 'model';
-  content: string;
-}
-
-export interface NotebookSource {
-  id: string;
-  fileName: string;
-  content: string;
-  createdAt: string;
-}
-
-export interface Notebook {
-  id: string;
-  title: string;
-  sourceIds: string[];
-  conversation: ChatMessage[];
-  createdAt: string;
 }
 
 export interface LearningModule {
