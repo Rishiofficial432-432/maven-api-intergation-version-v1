@@ -1,4 +1,4 @@
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer' | 'gallery' | 'notebook';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer' | 'gallery';
 
 export interface Page {
   id: string;
@@ -248,6 +248,28 @@ export interface SkillProfile {
     createdAt: string;
 }
 
+// FIX: Add missing types for Notebook feature
+// Types for AI Notebook feature
+export interface ChatMessage {
+  role: 'user' | 'model';
+  content: string;
+}
+
+export interface NotebookSource {
+  id: string;
+  fileName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface Notebook {
+  id: string;
+  title: string;
+  sourceIds: string[];
+  conversation: ChatMessage[];
+  createdAt: string;
+}
+
 export interface LearningModule {
     moduleNumber: number;
     title: string;
@@ -269,25 +291,4 @@ export interface SkillAnalysis {
         priority: 'High' | 'Medium' | 'Low';
     }[];
     personalizedLearningPath: LearningModule[];
-}
-
-// Types for NotebookLM Feature
-export interface ChatMessage {
-  role: 'user' | 'model';
-  content: string;
-}
-
-export interface NotebookSource {
-  id: string;
-  fileName: string;
-  content: string; // Extracted text
-  createdAt: string;
-}
-
-export interface Notebook {
-  id: string;
-  title: string;
-  sourceIds: string[];
-  conversation: ChatMessage[];
-  createdAt: string;
 }
