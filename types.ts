@@ -1,4 +1,4 @@
-export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer' | 'gallery';
+export type View = 'notes' | 'dashboard' | 'journal' | 'documind' | 'workspace' | 'academics' | 'about' | 'settings' | 'help' | 'inspiration' | 'research' | 'skill-analyzer' | 'gallery' | 'notebook';
 
 export interface Page {
   id: string;
@@ -269,4 +269,25 @@ export interface SkillAnalysis {
         priority: 'High' | 'Medium' | 'Low';
     }[];
     personalizedLearningPath: LearningModule[];
+}
+
+// Types for NotebookLM Feature
+export interface ChatMessage {
+  role: 'user' | 'model';
+  content: string;
+}
+
+export interface NotebookSource {
+  id: string;
+  fileName: string;
+  content: string; // Extracted text
+  createdAt: string;
+}
+
+export interface Notebook {
+  id: string;
+  title: string;
+  sourceIds: string[];
+  conversation: ChatMessage[];
+  createdAt: string;
 }

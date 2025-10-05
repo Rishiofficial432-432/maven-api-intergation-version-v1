@@ -24,12 +24,13 @@ import usePersistentState from './components/usePersistentState';
 import { Type } from '@google/genai';
 import {
   View, Page, JournalEntry, DriveFile, WorkspaceHistoryEntry, Task, KanbanState, QuickNote, CalendarEvent, Habit, Quote,
-  MoodEntry, Expense, Goal, KanbanItem, GeneratedCurriculum
+  MoodEntry, Expense, Goal, KanbanItem, GeneratedCurriculum, Notebook, NotebookSource
 } from './types';
 import { initDB, getBannerData, setBannerData, deleteBannerData } from './components/db';
 import TemplateLibrary from './components/TemplateLibrary';
 import { NoteTemplate } from './components/templates';
 import GalleryPage from './components/GalleryPage';
+import NotebookView from './components/NotebookView';
 
 
 const App: React.FC = () => {
@@ -106,6 +107,10 @@ const App: React.FC = () => {
   // State for persistent curriculum generation
   const [curriculumResult, setCurriculumResult] = usePersistentState<GeneratedCurriculum | null>('maven-curriculum-result', null);
   const [isCurriculumGenerating, setIsCurriculumGenerating] = useState(false);
+  
+  // State for NotebookLM feature
+  const [notebooks, setNotebooks] = usePersistentState<Notebook[]>('maven-notebooks', []);
+  const [notebookSources, setNotebookSources] = usePersistentState<NotebookSource[]>('maven-notebook-sources', []);
 
 
   // --- LIFECYCLE & INITIALIZATION ---
@@ -863,6 +868,7 @@ const App: React.FC = () => {
   const renderContent = () => {
     if (view === 'dashboard') return <div className="p-4 sm:p-6 lg:p-8 h-full overflow-y-auto"><MamDesk activeTab={activeDashboardTab} {...{ tasks, onAddTask, onToggleTask: (id) => setTasks(tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t)), onDeleteTask: (id) => setTasks(tasks.filter(t => t.id !== id)), kanbanColumns, setKanbanColumns, onAddKanbanCard: (colId, text) => { const newItem = { id: crypto.randomUUID(), text }; setKanbanColumns(prev => ({...prev, [colId]: {...prev[colId], items: [...prev[colId].items, newItem]}}))}, quickNotes, setQuickNotes, events, onAddEvent, habits, setHabits, personalQuotes, setPersonalQuotes, moodEntries, setMoodEntries, expenses, setExpenses, goals, setGoals, pomodoroTime, pomodoroActive, pomodoroSessions, onTogglePomodoro, onResetPomodoro, decisionOptions, setDecisionOptions, decisionResult, setDecisionResult, isDecisionSpinning, setIsDecisionSpinning, currentDecisionSpin, setCurrentDecisionSpin, theme, setTheme, pages, onNewNote: handleNewPage }} /></div>;
     if (view === 'journal') return <JournalView entries={journalEntries} onUpdate={onUpdateJournal} onDelete={onDeleteJournal} />;
+    if (view === 'notebook') return <NotebookView notebooks={notebooks} setNotebooks={setNotebooks} sources={notebookSources} setSources={setNotebookSources} onNewNote={handleNewPage} />;
     if (view === 'documind') return <InteractiveMindMap onNewNote={handleNewPage} />;
     if (view === 'workspace') return <GoogleWorkspace authToken={googleAuthToken} setAuthToken={setGoogleAuthToken} history={workspaceHistory} onFileImport={handleFileImport} />;
     if (view === 'academics') return <AcademicView goals={goals} events={events} setEvents={setEvents} onNewNote={handleNewPage} curriculumResult={curriculumResult} isCurriculumGenerating={isCurriculumGenerating} onGenerateCurriculum={handleGenerateCurriculum} onClearCurriculum={handleClearCurriculum} />;
